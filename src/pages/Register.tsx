@@ -17,8 +17,9 @@ export default function Register() {
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  const onSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (password.length < 6) {
@@ -31,13 +32,22 @@ export default function Register() {
       return;
     }
 
-    const result = register({ lastName, firstName, email, phone, password });
+    const normalizedPhone = phone.replace(/\s+/g, "");
+    if (!/^\+?[0-9]{8,15}$/.test(normalizedPhone)) {
+      toast.error("Le numero de telephone est invalide.");
+      return;
+    }
+
+    setSubmitting(true);
+    const result = await register({ lastName, firstName, email, phone: normalizedPhone, password });
+    setSubmitting(false);
+
     if (!result.success) {
       toast.error(result.message);
       return;
     }
 
-    toast.success("Compte cree. Bienvenue sur AutoParc.");
+    toast.success(result.message || "Compte cree. Bienvenue sur AutoParc.");
     navigate("/");
   };
 
@@ -86,6 +96,8 @@ export default function Register() {
                         value={lastName}
                         onChange={(event) => setLastName(event.target.value)}
                         placeholder="Ex: Dupont"
+                        autoComplete="family-name"
+                        disabled={submitting}
                         required
                       />
                     </div>
@@ -98,6 +110,8 @@ export default function Register() {
                         value={firstName}
                         onChange={(event) => setFirstName(event.target.value)}
                         placeholder="Ex: Jean"
+                        autoComplete="given-name"
+                        disabled={submitting}
                         required
                       />
                     </div>
@@ -111,6 +125,8 @@ export default function Register() {
                       value={email}
                       onChange={(event) => setEmail(event.target.value)}
                       placeholder="exemple@autoparc.com"
+                      autoComplete="email"
+                      disabled={submitting}
                       required
                     />
                   </div>
@@ -123,6 +139,8 @@ export default function Register() {
                       value={phone}
                       onChange={(event) => setPhone(event.target.value)}
                       placeholder="Ex: 06 12 34 56 78"
+                      autoComplete="tel"
+                      disabled={submitting}
                       required
                     />
                   </div>
@@ -136,6 +154,8 @@ export default function Register() {
                         value={password}
                         onChange={(event) => setPassword(event.target.value)}
                         placeholder="Min. 6 caracteres"
+                        autoComplete="new-password"
+                        disabled={submitting}
                         required
                       />
                     </div>
@@ -148,13 +168,15 @@ export default function Register() {
                         value={confirmPassword}
                         onChange={(event) => setConfirmPassword(event.target.value)}
                         placeholder="Retapez le mot de passe"
+                        autoComplete="new-password"
+                        disabled={submitting}
                         required
                       />
                     </div>
                   </div>
 
-                  <Button type="submit" className="w-full">
-                    Creer mon compte
+                  <Button type="submit" className="w-full" disabled={submitting}>
+                    {submitting ? "Creation..." : "Creer mon compte"}
                   </Button>
                 </form>
 

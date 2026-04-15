@@ -1,20 +1,13 @@
 import { createContext, ReactNode, useContext, useEffect, useState } from "react";
+import { loginRequest, registerRequest } from "@/lib/auth-api";
 
 type AuthUser = {
+  userId: number;
   name: string;
   firstName: string;
   lastName: string;
   email: string;
-  phone: string;
-};
-
-type StoredAccount = {
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string;
-  password: string;
-  name?: string;
+  role: string;
 };
 
 type RegisterInput = {
@@ -33,29 +26,19 @@ type LoginInput = {
 type AuthContextType = {
   user: AuthUser | null;
   isAuthenticated: boolean;
-  login: (values: LoginInput) => { success: boolean; message: string };
-  register: (values: RegisterInput) => { success: boolean; message: string };
+  isLoading: boolean;
+  login: (values: LoginInput) => Promise<{ success: boolean; message: string }>;
+  register: (values: RegisterInput) => Promise<{ success: boolean; message: string }>;
   logout: () => void;
 };
 
-const STORAGE_USERS_KEY = "gestion-parking-users";
+const STORAGE_AUTH_TOKEN_KEY = "gestion-parking-auth-token";
 const STORAGE_CURRENT_USER_KEY = "gestion-parking-current-user";
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-function readStoredUsers(): StoredAccount[] {
-  const stored = localStorage.getItem(STORAGE_USERS_KEY);
-  if (!stored) return [];
-
-  try {
-    return JSON.parse(stored) as StoredAccount[];
-  } catch {
-    return [];
-  }
-}
-
 function readStoredUser(): AuthUser | null {
-  const stored = localStorage.getItem(STORAGE_CURRENT_USER_KEY);
+  const stored = sessionStorage.getItem(STORAGE_CURRENT_USER_KEY);
   if (!stored) return null;
 
   try {
@@ -67,80 +50,84 @@ function readStoredUser(): AuthUser | null {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     setUser(readStoredUser());
+    setIsLoading(false);
   }, []);
 
-  const register = ({ firstName, lastName, email, phone, password }: RegisterInput) => {
-    const normalizedEmail = email.trim().toLowerCase();
-    const accounts = readStoredUsers();
-    const exists = accounts.some((account) => account.email.toLowerCase() === normalizedEmail);
+  const register = async ({ firstName, lastName, email, phone, password }: RegisterInput) => {
+    try {
+      const response = await registerRequest({
+        nom: lastName.trim(),
+        prenom: firstName.trim(),
+        email: email.trim().toLowerCase(),
+        telephone: phone.trim(),
+        password,
+      });
 
-    if (exists) {
-      return { success: false, message: "Un compte existe deja avec cet email." };
+      const nextUser: AuthUser = {
+        userId: response.userId,
+        name: `${response.prenom} ${response.nom}`.trim(),
+        firstName: response.prenom,
+        lastName: response.nom,
+        email: response.email,
+        role: response.role,
+      };
+
+      sessionStorage.setItem(STORAGE_AUTH_TOKEN_KEY, response.accessToken);
+      sessionStorage.setItem(STORAGE_CURRENT_USER_KEY, JSON.stringify(nextUser));
+      setUser(nextUser);
+
+      return { success: true, message: response.message || "Compte cree avec succes." };
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : "Inscription impossible pour le moment.",
+      };
     }
-
-    const nextAccount: StoredAccount = {
-      firstName: firstName.trim(),
-      lastName: lastName.trim(),
-      email: normalizedEmail,
-      phone: phone.trim(),
-      password,
-    };
-    const nextAccounts = [...accounts, nextAccount];
-    localStorage.setItem(STORAGE_USERS_KEY, JSON.stringify(nextAccounts));
-
-    const nextUser: AuthUser = {
-      name: `${nextAccount.firstName} ${nextAccount.lastName}`.trim(),
-      firstName: nextAccount.firstName,
-      lastName: nextAccount.lastName,
-      email: nextAccount.email,
-      phone: nextAccount.phone,
-    };
-    localStorage.setItem(STORAGE_CURRENT_USER_KEY, JSON.stringify(nextUser));
-    setUser(nextUser);
-
-    return { success: true, message: "Compte cree avec succes." };
   };
 
-  const login = ({ email, password }: LoginInput) => {
-    const normalizedEmail = email.trim().toLowerCase();
-    const account = readStoredUsers().find(
-      (storedAccount) =>
-        storedAccount.email.toLowerCase() === normalizedEmail && storedAccount.password === password,
-    );
+  const login = async ({ email, password }: LoginInput) => {
+    try {
+      const response = await loginRequest({
+        email: email.trim().toLowerCase(),
+        password,
+      });
 
-    if (!account) {
-      return { success: false, message: "Email ou mot de passe invalide." };
+      const nextUser: AuthUser = {
+        userId: response.userId,
+        name: `${response.prenom} ${response.nom}`.trim(),
+        firstName: response.prenom,
+        lastName: response.nom,
+        email: response.email,
+        role: response.role,
+      };
+
+      sessionStorage.setItem(STORAGE_AUTH_TOKEN_KEY, response.accessToken);
+      sessionStorage.setItem(STORAGE_CURRENT_USER_KEY, JSON.stringify(nextUser));
+      setUser(nextUser);
+
+      return { success: true, message: response.message || "Connexion reussie." };
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : "Connexion impossible pour le moment.",
+      };
     }
-
-    const firstName = account.firstName ?? "";
-    const lastName = account.lastName ?? "";
-    const fallbackName = account.name ?? "";
-    const fullName = `${firstName} ${lastName}`.trim() || fallbackName;
-
-    const nextUser: AuthUser = {
-      name: fullName,
-      firstName,
-      lastName,
-      email: account.email,
-      phone: account.phone ?? "",
-    };
-    localStorage.setItem(STORAGE_CURRENT_USER_KEY, JSON.stringify(nextUser));
-    setUser(nextUser);
-
-    return { success: true, message: "Connexion reussie." };
   };
 
   const logout = () => {
-    localStorage.removeItem(STORAGE_CURRENT_USER_KEY);
+    sessionStorage.removeItem(STORAGE_AUTH_TOKEN_KEY);
+    sessionStorage.removeItem(STORAGE_CURRENT_USER_KEY);
     setUser(null);
   };
 
   const value = {
     user,
     isAuthenticated: Boolean(user),
+    isLoading,
     login,
     register,
     logout,
@@ -155,4 +142,8 @@ export function useAuth() {
     throw new Error("useAuth doit etre utilise dans AuthProvider.");
   }
   return context;
+}
+
+export function getAccessToken() {
+  return sessionStorage.getItem(STORAGE_AUTH_TOKEN_KEY);
 }
