@@ -5,6 +5,12 @@ import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { listRentalsRequest } from '@/lib/rental-api';
 
+const formatDateTimeFr = (value: string) =>
+  new Date(value).toLocaleString('fr-FR', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  });
+
 export default function RentedVehicles() {
   const { data: rentals = [], isLoading, isError, error } = useQuery({
     queryKey: ['rentals', 'list'],
@@ -43,8 +49,9 @@ export default function RentedVehicles() {
                 <div>
                   <p className="text-xs text-muted-foreground">Vehicule</p>
                   <Link to={`/vehicles/${rental.vehicleId}`} className="text-sm font-semibold text-foreground hover:underline">
-                    Voir vehicule
+                    {rental.vehicleBrand} {rental.vehicleModel}
                   </Link>
+                  <p className="text-xs text-muted-foreground">{rental.vehiclePlate}</p>
                 </div>
                 <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-info/10 text-info">
                   Active
@@ -60,7 +67,7 @@ export default function RentedVehicles() {
                 <div>
                   <p className="text-xs text-muted-foreground">Periode (date + heure)</p>
                   <p className="text-foreground">
-                    {new Date(rental.startDate).toLocaleString()} - {new Date(rental.endDate).toLocaleString()}
+                    {formatDateTimeFr(rental.startDate)} - {formatDateTimeFr(rental.endDate)}
                   </p>
                 </div>
                 <div>
@@ -115,7 +122,7 @@ export default function RentedVehicles() {
 
               <div className="pt-2 border-t border-border">
                 <p className="text-xs text-muted-foreground">
-                  Cree le {new Date(rental.createdAt).toLocaleString()}
+                  Cree le {formatDateTimeFr(rental.createdAt)}
                 </p>
               </div>
             </div>

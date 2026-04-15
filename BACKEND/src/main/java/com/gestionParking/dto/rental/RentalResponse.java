@@ -15,6 +15,9 @@ public class RentalResponse {
 
 	private UUID id;
 	private UUID vehicleId;
+	private String vehicleBrand;
+	private String vehicleModel;
+	private String vehiclePlate;
 	private Long ownerUserId;
 	private String tenantName;
 	private String tenantPhone;
@@ -38,6 +41,9 @@ public class RentalResponse {
 		return new RentalResponse(
 			rental.getId(),
 			rental.getVehicle().getId(),
+			rental.getVehicle().getBrand(),
+			rental.getVehicle().getModel(),
+			rental.getVehicle().getPlate(),
 			rental.getOwner().getId(),
 			rental.getTenantName(),
 			rental.getTenantPhone(),

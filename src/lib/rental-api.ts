@@ -18,6 +18,9 @@ export type CreateRentalPayload = {
 export type RentalApiResponse = {
   id: string;
   vehicleId: string;
+  vehicleBrand: string;
+  vehicleModel: string;
+  vehiclePlate: string;
   ownerUserId: number;
   tenantName: string;
   tenantPhone: string;

@@ -2,11 +2,21 @@ import { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { Car, LayoutDashboard, Plus, Receipt, History, Menu, X, LogOut } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Tableau de bord' },
   { to: '/vehicles', icon: Car, label: 'Véhicules' },
-  { to: '/vehicles/new', icon: Plus, label: 'Ajouter' },
+  // { to: '/vehicles/new', icon: Plus, label: 'Ajouter' },
   { to: '/receipts', icon: Receipt, label: 'Reçus' },
   { to: '/voitures-louees', icon: Car, label: 'Voitures louées' },
   { to: '/history', icon: History, label: 'Historique' },
@@ -14,6 +24,7 @@ const navItems = [
 
 export default function MobileNav() {
   const [open, setOpen] = useState(false);
+  const [showLogoutPopup, setShowLogoutPopup] = useState(false);
   const location = useLocation();
   const { logout } = useAuth();
 
@@ -53,18 +64,38 @@ export default function MobileNav() {
               );
             })}
             <button
-              onClick={() => {
-                logout();
-                setOpen(false);
-              }}
+              onClick={() => setShowLogoutPopup(true)}
               className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-muted-foreground hover:bg-accent hover:text-destructive transition-colors"
             >
               <LogOut className="w-5 h-5" />
-              Deconnexion
+              Déconnexion
             </button>
           </nav>
         </div>
       )}
+
+      <AlertDialog open={showLogoutPopup} onOpenChange={setShowLogoutPopup}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmer la déconnexion</AlertDialogTitle>
+            <AlertDialogDescription>
+              Voulez-vous vraiment vous deconnecter de votre session ?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                logout();
+                setOpen(false);
+              }}
+              className="bg-destructive text-destructive-foreground hover:opacity-90"
+            >
+              Se deconnecter
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

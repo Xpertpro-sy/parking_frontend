@@ -5,6 +5,12 @@ import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { listRentalsRequest } from '@/lib/rental-api';
 
+const formatDateTimeFr = (value: string) =>
+  new Date(value).toLocaleString('fr-FR', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  });
+
 export default function HistoryPage() {
   const { data: rentals = [], isLoading, isError, error } = useQuery({
     queryKey: ['rentals', 'list'],
@@ -44,10 +50,11 @@ export default function HistoryPage() {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="space-y-1">
                     <p className="text-sm font-semibold text-foreground">
-                      Location - <Link to={`/vehicles/${rental.vehicleId}`} className="hover:underline">vehicule</Link>
+                      Location - <Link to={`/vehicles/${rental.vehicleId}`} className="hover:underline">{rental.vehicleBrand} {rental.vehicleModel}</Link>
                     </p>
+                    <p className="text-xs text-muted-foreground">{rental.vehiclePlate}</p>
                     <p className="text-xs text-muted-foreground">
-                      {new Date(rental.createdAt).toLocaleString()}
+                      {formatDateTimeFr(rental.createdAt)}
                     </p>
                   </div>
                   <span
@@ -67,7 +74,7 @@ export default function HistoryPage() {
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Periode (date + heure)</p>
-                    <p className="text-foreground">{new Date(rental.startDate).toLocaleString()} - {new Date(rental.endDate).toLocaleString()}</p>
+                    <p className="text-foreground">{formatDateTimeFr(rental.startDate)} - {formatDateTimeFr(rental.endDate)}</p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Duree</p>
@@ -120,7 +127,7 @@ export default function HistoryPage() {
                   <div>
                     <p className="text-xs text-muted-foreground">Fin de location</p>
                     <p className="text-foreground">
-                      {rental.completedAt ? new Date(rental.completedAt).toLocaleString() : 'Pas encore terminee'}
+                      {rental.completedAt ? formatDateTimeFr(rental.completedAt) : 'Pas encore terminee'}
                     </p>
                   </div>
                 </div>
@@ -149,7 +156,7 @@ export default function HistoryPage() {
                       <div>
                         <p className="text-xs text-muted-foreground">Periode recu</p>
                         <p className="text-foreground">
-                          {new Date(rental.receipt.startDate).toLocaleString()} - {new Date(rental.receipt.endDate).toLocaleString()}
+                          {formatDateTimeFr(rental.receipt.startDate)} - {formatDateTimeFr(rental.receipt.endDate)}
                         </p>
                       </div>
                       <div>
@@ -162,7 +169,7 @@ export default function HistoryPage() {
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">Recu emis le</p>
-                        <p className="text-foreground">{new Date(rental.receipt.issuedAt).toLocaleString()}</p>
+                        <p className="text-foreground">{formatDateTimeFr(rental.receipt.issuedAt)}</p>
                       </div>
                     </div>
                   </div>

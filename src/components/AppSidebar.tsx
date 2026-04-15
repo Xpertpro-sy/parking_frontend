@@ -1,8 +1,8 @@
+import { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   Car,
-  Plus,
   Receipt,
   History,
   Settings,
@@ -10,11 +10,21 @@ import {
   Calculator,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Tableau de bord' },
   { to: '/vehicles', icon: Car, label: 'Véhicules' },
-  { to: '/vehicles/new', icon: Plus, label: 'Ajouter véhicule' },
+  // { to: '/vehicles/new', icon: Plus, label: 'Ajouter véhicule' },
   { to: '/receipts', icon: Receipt, label: 'Reçus' },
   { to: '/comptability', icon: Calculator, label: 'Comptabilité' },
   { to: '/voitures-louees', icon: Car, label: 'Voitures louées' },
@@ -24,6 +34,7 @@ const navItems = [
 export default function AppSidebar() {
   const location = useLocation();
   const { user, logout } = useAuth();
+  const [showLogoutPopup, setShowLogoutPopup] = useState(false);
 
   return (
     <aside className="hidden md:flex flex-col w-64 min-h-screen bg-sidebar border-r border-sidebar-border">
@@ -71,13 +82,30 @@ export default function AppSidebar() {
           Paramètres
         </NavLink>
         <button
-          onClick={logout}
+          onClick={() => setShowLogoutPopup(true)}
           className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-destructive transition-colors w-full"
         >
           <LogOut className="w-5 h-5" />
           Déconnexion
         </button>
       </div>
+
+      <AlertDialog open={showLogoutPopup} onOpenChange={setShowLogoutPopup}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmer la déconnexion</AlertDialogTitle>
+            <AlertDialogDescription>
+              Voulez-vous vraiment vous deconnecter de votre session ?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={logout} className="bg-destructive text-destructive-foreground hover:opacity-90">
+              Se deconnecter
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </aside>
   );
 }
