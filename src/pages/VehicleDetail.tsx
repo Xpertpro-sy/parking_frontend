@@ -3,35 +3,18 @@ import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Car, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import StatusBadge from '@/components/StatusBadge';
-import { Vehicle } from '@/types/vehicle';
-import { getVehicleByIdRequest } from '@/lib/vehicle-api';
+import { useVehicleDetailQuery } from '@/lib/vehicle-queries';
 
 export default function VehicleDetail() {
   const { id } = useParams();
-  const [vehicle, setVehicle] = useState<Vehicle | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: vehicle, isLoading, isError, error } = useVehicleDetailQuery(id);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
 
   useEffect(() => {
-    const loadVehicle = async () => {
-      if (!id) {
-        setLoading(false);
-        return;
-      }
-
-      try {
-        setLoading(true);
-        const data = await getVehicleByIdRequest(id);
-        setVehicle(data);
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Impossible de charger le vehicule.");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    void loadVehicle();
-  }, [id]);
+    if (isError) {
+      toast.error(error instanceof Error ? error.message : "Impossible de charger le vehicule.");
+    }
+  }, [isError, error]);
 
   useEffect(() => {
     setCurrentPhotoIndex(0);
@@ -47,7 +30,7 @@ export default function VehicleDetail() {
     return () => window.clearInterval(timer);
   }, [vehicle]);
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
         <Loader2 className="w-6 h-6 animate-spin text-primary mb-3" />

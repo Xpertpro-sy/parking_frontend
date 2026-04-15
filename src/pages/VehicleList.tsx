@@ -4,31 +4,20 @@ import { Plus, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { VehicleStatus, STATUS_LABELS } from '@/types/vehicle';
 import VehicleCard from '@/components/VehicleCard';
-import { listVehiclesRequest } from '@/lib/vehicle-api';
+import { useVehiclesQuery } from '@/lib/vehicle-queries';
 
 const statusFilters: (VehicleStatus | 'all')[] = ['all', 'available', 'sold', 'rented', 'repair', 'reserved'];
 
 export default function VehicleList() {
   const [filter, setFilter] = useState<VehicleStatus | 'all'>('all');
   const [search, setSearch] = useState('');
-  const [vehicles, setVehicles] = useState<Awaited<ReturnType<typeof listVehiclesRequest>>>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: vehicles = [], isLoading, isError, error } = useVehiclesQuery();
 
   useEffect(() => {
-    const loadVehicles = async () => {
-      try {
-        setLoading(true);
-        const data = await listVehiclesRequest();
-        setVehicles(data);
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Impossible de charger les vehicules.");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    void loadVehicles();
-  }, []);
+    if (isError) {
+      toast.error(error instanceof Error ? error.message : "Impossible de charger les vehicules.");
+    }
+  }, [isError, error]);
 
   const filtered = vehicles.filter(v => {
     const matchStatus = filter === 'all' || v.status === filter;
@@ -83,7 +72,7 @@ export default function VehicleList() {
       </div>
 
       {/* Grid */}
-      {loading ? (
+      {isLoading ? (
         <div className="glass-card p-12 text-center">
           <p className="text-muted-foreground">Chargement des vehicules...</p>
         </div>

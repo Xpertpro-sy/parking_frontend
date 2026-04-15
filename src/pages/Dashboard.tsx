@@ -1,27 +1,19 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Car, CheckCircle, Wrench, Key, DollarSign } from 'lucide-react';
 import { toast } from 'sonner';
 import StatCard from '@/components/StatCard';
 import VehicleCard from '@/components/VehicleCard';
 import heroImage from '@/assets/hero-parking.jpg';
-import { listVehiclesRequest } from '@/lib/vehicle-api';
-import { Vehicle } from '@/types/vehicle';
+import { useVehiclesQuery } from '@/lib/vehicle-queries';
 
 export default function Dashboard() {
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const { data: vehicles = [], isError, error } = useVehiclesQuery();
 
   useEffect(() => {
-    const loadVehicles = async () => {
-      try {
-        const data = await listVehiclesRequest();
-        setVehicles(data);
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Impossible de charger le tableau de bord.");
-      }
-    };
-
-    void loadVehicles();
-  }, []);
+    if (isError) {
+      toast.error(error instanceof Error ? error.message : "Impossible de charger le tableau de bord.");
+    }
+  }, [isError, error]);
 
   const { total, available, sold, rented, inRepair, recentVehicles } = useMemo(() => {
     return {

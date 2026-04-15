@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Loader2, Save, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { uploadImageToR2 } from '@/lib/cloudflare-upload';
 import { createVehicleRequest } from '@/lib/vehicle-api';
+import { vehicleQueryKeys } from '@/lib/vehicle-queries';
 
 const fuelOptions = ['Essence', 'Diesel', 'Hybride', 'Electrique'];
 const conditionOptions = ['Excellent', 'Bon', 'Moyen', 'A reparer'];
@@ -67,6 +69,7 @@ async function compressImage(file: File): Promise<File> {
 
 export default function VehicleForm() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [photos, setPhotos] = useState<string[]>([]);
@@ -135,6 +138,7 @@ export default function VehicleForm() {
         condition: form.condition.trim(),
         photos,
       });
+      await queryClient.invalidateQueries({ queryKey: vehicleQueryKeys.all });
       toast.success('Vehicule ajoute avec succes !');
       navigate('/vehicles');
     } catch (error) {
