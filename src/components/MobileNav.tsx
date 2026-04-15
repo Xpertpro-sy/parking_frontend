@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Car, LayoutDashboard, Plus, Receipt, History, Menu, X } from 'lucide-react';
+import { Car, LayoutDashboard, Plus, Receipt, History, Menu, X, LogOut } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Tableau de bord' },
@@ -13,6 +14,7 @@ const navItems = [
 export default function MobileNav() {
   const [open, setOpen] = useState(false);
   const location = useLocation();
+  const { logout } = useAuth();
 
   return (
     <>
@@ -51,6 +53,16 @@ export default function MobileNav() {
                 </NavLink>
               );
             })}
+            <button
+              onClick={() => {
+                logout();
+                setOpen(false);
+              }}
+              className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-muted-foreground hover:bg-accent hover:text-destructive transition-colors"
+            >
+              <LogOut className="w-5 h-5" />
+              Deconnexion
+            </button>
           </nav>
         </div>
       )}
