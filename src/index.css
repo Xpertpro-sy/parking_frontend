@@ -1,0 +1,104 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 222 47% 6%;
+    --foreground: 210 40% 96%;
+
+    --card: 222 44% 9%;
+    --card-foreground: 210 40% 96%;
+
+    --popover: 222 44% 9%;
+    --popover-foreground: 210 40% 96%;
+
+    --primary: 38 92% 50%;
+    --primary-foreground: 222 47% 6%;
+
+    --secondary: 222 30% 14%;
+    --secondary-foreground: 210 40% 90%;
+
+    --muted: 222 30% 14%;
+    --muted-foreground: 215 20% 55%;
+
+    --accent: 222 30% 18%;
+    --accent-foreground: 210 40% 96%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 210 40% 98%;
+
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 222 47% 6%;
+
+    --info: 199 89% 48%;
+    --info-foreground: 0 0% 100%;
+
+    --border: 222 20% 18%;
+    --input: 222 20% 18%;
+    --ring: 38 92% 50%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 222 44% 7%;
+    --sidebar-foreground: 215 20% 65%;
+    --sidebar-primary: 38 92% 50%;
+    --sidebar-primary-foreground: 222 47% 6%;
+    --sidebar-accent: 222 30% 12%;
+    --sidebar-accent-foreground: 210 40% 96%;
+    --sidebar-border: 222 20% 14%;
+    --sidebar-ring: 38 92% 50%;
+
+    /* Status colors */
+    --status-available: 142 71% 45%;
+    --status-sold: 0 72% 51%;
+    --status-rented: 199 89% 48%;
+    --status-repair: 38 92% 50%;
+    --status-reserved: 262 83% 58%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+}
+
+@layer utilities {
+  .glass-card {
+    @apply bg-card/80 backdrop-blur-sm border border-border/50 rounded-xl;
+  }
+
+  .status-available {
+    color: hsl(var(--status-available));
+    background: hsl(var(--status-available) / 0.1);
+  }
+
+  .status-sold {
+    color: hsl(var(--status-sold));
+    background: hsl(var(--status-sold) / 0.1);
+  }
+
+  .status-rented {
+    color: hsl(var(--status-rented));
+    background: hsl(var(--status-rented) / 0.1);
+  }
+
+  .status-repair {
+    color: hsl(var(--status-repair));
+    background: hsl(var(--status-repair) / 0.1);
+  }
+
+  .status-reserved {
+    color: hsl(var(--status-reserved));
+    background: hsl(var(--status-reserved) / 0.1);
+  }
+}
