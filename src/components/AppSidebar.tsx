@@ -28,6 +28,7 @@ const navItems = [
   { to: '/receipts', icon: Receipt, label: 'Reçus' },
   { to: '/comptability', icon: Calculator, label: 'Comptabilité' },
   { to: '/voitures-louees', icon: Car, label: 'Voitures louées' },
+  { to: '/voitures-reservees', icon: Car, label: 'Voitures réservées' },
   { to: '/history', icon: History, label: 'Historique' },
 ];
 

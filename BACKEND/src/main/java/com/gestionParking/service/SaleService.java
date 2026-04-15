@@ -49,6 +49,15 @@ public class SaleService {
 		if (vehicle.getStatus() == VehicleStatus.SOLD || saleRepository.existsByVehicle_Id(vehicle.getId())) {
 			throw new IllegalArgumentException("Ce vehicule est deja vendu.");
 		}
+		if (vehicle.getStatus() == VehicleStatus.RENTED) {
+			throw new IllegalArgumentException("Ce vehicule est en location, vente impossible.");
+		}
+		if (vehicle.getStatus() == VehicleStatus.REPAIR) {
+			throw new IllegalArgumentException("Ce vehicule est en reparation, vente impossible.");
+		}
+		if (vehicle.getStatus() == VehicleStatus.RESERVED) {
+			throw new IllegalArgumentException("Ce vehicule est reserve, vente impossible.");
+		}
 		if (vehicle.getSalePrice() == null || request.getAmount().compareTo(vehicle.getSalePrice()) != 0) {
 			throw new IllegalArgumentException(
 				"Le montant de vente doit etre exactement egal au prix du vehicule: " + vehicle.getSalePrice()

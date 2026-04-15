@@ -16,6 +16,7 @@ import RentalForm from "./pages/RentalForm";
 import Receipts from "./pages/Receipts";
 import HistoryPage from "./pages/HistoryPage";
 import RentedVehicles from "./pages/RentedVehicles";
+import ReservedVehicles from "./pages/ReservedVehicles";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import NotFound from "./pages/NotFound";
@@ -46,6 +47,7 @@ const App = () => (
                 <Route path="/vehicles/:id" element={<VehicleDetail />} />
                 <Route path="/receipts" element={<Receipts />} />
                 <Route path="/voitures-louees" element={<RentedVehicles />} />
+                <Route path="/voitures-reservees" element={<ReservedVehicles />} />
                 <Route path="/history" element={<HistoryPage />} />
               </Route>
             </Route>

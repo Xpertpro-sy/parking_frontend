@@ -4,6 +4,7 @@ import { History, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { listRentalsRequest } from '@/lib/rental-api';
+import { listReservationsRequest } from '@/lib/vehicle-action-api';
 
 const formatDateTimeFr = (value: string) =>
   new Date(value).toLocaleString('fr-FR', {
@@ -12,28 +13,41 @@ const formatDateTimeFr = (value: string) =>
   });
 
 export default function HistoryPage() {
-  const { data: rentals = [], isLoading, isError, error } = useQuery({
+  const { data: rentals = [], isLoading: loadingRentals, isError: rentalError, error: rentalErrorValue } = useQuery({
     queryKey: ['rentals', 'list'],
     queryFn: listRentalsRequest,
     staleTime: 3 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
+  const { data: reservations = [], isLoading: loadingReservations, isError: reservationError, error: reservationErrorValue } = useQuery({
+    queryKey: ['reservations', 'list'],
+    queryFn: listReservationsRequest,
+    staleTime: 3 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
 
   useEffect(() => {
-    if (isError) {
-      toast.error(error instanceof Error ? error.message : "Impossible de charger l'historique.");
+    if (rentalError) {
+      toast.error(rentalErrorValue instanceof Error ? rentalErrorValue.message : "Impossible de charger l'historique des locations.");
     }
-  }, [isError, error]);
+    if (reservationError) {
+      toast.error(reservationErrorValue instanceof Error ? reservationErrorValue.message : "Impossible de charger l'historique des reservations.");
+    }
+  }, [rentalError, rentalErrorValue, reservationError, reservationErrorValue]);
 
   const orderedRentals = [...rentals].sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
   );
+  const orderedReservations = [...reservations].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  );
+  const isLoading = loadingRentals || loadingReservations;
 
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Historique</h1>
-        <p className="text-muted-foreground mt-1">Historique des locations enregistrees</p>
+        <p className="text-muted-foreground mt-1">Historique des locations et reservations enregistrees</p>
       </div>
 
       {isLoading ? (
@@ -41,12 +55,63 @@ export default function HistoryPage() {
           <Loader2 className="w-6 h-6 mx-auto animate-spin text-primary mb-3" />
           <p className="text-muted-foreground">Chargement de l'historique...</p>
         </div>
-      ) : orderedRentals.length > 0 ? (
+      ) : orderedRentals.length > 0 || orderedReservations.length > 0 ? (
         <div className="space-y-3">
+          {orderedReservations.map((reservation) => {
+            const isActive = reservation.status === 'ACTIVE';
+            const isCancelled = reservation.status === 'CANCELLED';
+            return (
+              <div key={`reservation-${reservation.id}`} className="glass-card p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold text-foreground">
+                      Reservation - <Link to={`/vehicles/${reservation.vehicleId}`} className="hover:underline">{reservation.vehicleBrand} {reservation.vehicleModel}</Link>
+                    </p>
+                    <p className="text-xs text-muted-foreground">{reservation.vehiclePlate}</p>
+                    <p className="text-xs text-muted-foreground">{formatDateTimeFr(reservation.createdAt)}</p>
+                  </div>
+                  <span
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                      isActive ? 'bg-purple-100 text-purple-700' : isCancelled ? 'bg-destructive/10 text-destructive' : 'bg-success/10 text-success'
+                    }`}
+                  >
+                    {isActive ? 'Reserve' : isCancelled ? 'Annulee' : 'Completee'}
+                  </span>
+                </div>
+
+                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Client</p>
+                    <p className="text-foreground font-medium">{reservation.customerName}</p>
+                    <p className="text-xs text-muted-foreground">{reservation.customerPhone}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Jour de reservation</p>
+                    <p className="text-foreground">{new Date(reservation.reservationDate).toLocaleDateString('fr-FR')}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Montant paye</p>
+                    <p className="text-foreground font-semibold">{reservation.amountPaid.toLocaleString()} CFA</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Notes</p>
+                    <p className="text-foreground">{reservation.notes || 'Aucune'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Annulee le</p>
+                    <p className="text-foreground">
+                      {reservation.cancelledAt ? formatDateTimeFr(reservation.cancelledAt) : 'Pas annulee'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+
           {orderedRentals.map((rental) => {
             const isCompleted = rental.status?.toLowerCase() === 'completed';
             return (
-              <div key={rental.id} className="glass-card p-4">
+              <div key={`rental-${rental.id}`} className="glass-card p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="space-y-1">
                     <p className="text-sm font-semibold text-foreground">
@@ -181,8 +246,8 @@ export default function HistoryPage() {
       ) : (
         <div className="glass-card p-12 text-center">
           <History className="w-12 h-12 mx-auto text-muted-foreground/40 mb-3" />
-          <p className="text-muted-foreground">Aucune location enregistree.</p>
-          <p className="text-sm text-muted-foreground mt-1">L'historique apparaitra ici apres les prochaines locations.</p>
+          <p className="text-muted-foreground">Aucune operation enregistree.</p>
+          <p className="text-sm text-muted-foreground mt-1">L'historique apparaitra ici apres les prochaines locations ou reservations.</p>
         </div>
       )}
     </div>

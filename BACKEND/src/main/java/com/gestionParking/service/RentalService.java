@@ -53,6 +53,12 @@ public class RentalService {
 		if (vehicle.getStatus() == VehicleStatus.SOLD) {
 			throw new IllegalArgumentException("Ce vehicule est vendu, location impossible.");
 		}
+		if (vehicle.getStatus() == VehicleStatus.REPAIR) {
+			throw new IllegalArgumentException("Ce vehicule est en reparation, location impossible.");
+		}
+		if (vehicle.getStatus() == VehicleStatus.RESERVED) {
+			throw new IllegalArgumentException("Ce vehicule est reserve, location impossible.");
+		}
 		if (vehicle.getStatus() == VehicleStatus.RENTED
 			|| rentalRepository.existsByVehicle_IdAndStatus(vehicle.getId(), RentalStatus.ACTIVE)) {
 			throw new IllegalArgumentException("Ce vehicule est deja en location.");
