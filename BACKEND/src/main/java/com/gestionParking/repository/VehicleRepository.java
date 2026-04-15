@@ -11,6 +11,8 @@ public interface VehicleRepository extends JpaRepository<Vehicle, UUID> {
 
 	boolean existsByPlateIgnoreCase(String plate);
 
+	boolean existsByPlateIgnoreCaseAndIdNot(String plate, UUID id);
+
 	List<Vehicle> findAllByUser_IdOrderByCreatedAtDesc(Long userId);
 
 	Optional<Vehicle> findByIdAndUser_Id(UUID id, Long userId);

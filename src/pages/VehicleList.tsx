@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Plus, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { VehicleStatus, STATUS_LABELS } from '@/types/vehicle';
@@ -9,6 +9,7 @@ import { useVehiclesQuery } from '@/lib/vehicle-queries';
 const statusFilters: (VehicleStatus | 'all')[] = ['all', 'available', 'sold', 'rented', 'repair', 'reserved'];
 
 export default function VehicleList() {
+  const navigate = useNavigate();
   const [filter, setFilter] = useState<VehicleStatus | 'all'>('all');
   const [search, setSearch] = useState('');
   const { data: vehicles = [], isLoading, isError, error } = useVehiclesQuery();
@@ -84,7 +85,7 @@ export default function VehicleList() {
               vehicle={v}
               showActions
               onEdit={(vehicle) => {
-                toast.info(`Modification de ${vehicle.brand} ${vehicle.model} bientot disponible.`);
+                navigate(`/vehicles/${vehicle.id}/edit`);
               }}
               onDelete={(vehicle) => {
                 toast.warning(`Suppression de ${vehicle.brand} ${vehicle.model} bientot disponible.`);

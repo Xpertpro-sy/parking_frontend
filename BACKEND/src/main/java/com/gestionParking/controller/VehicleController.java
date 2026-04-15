@@ -1,6 +1,7 @@
 package com.gestionParking.controller;
 
 import com.gestionParking.dto.vehicle.CreateVehicleRequest;
+import com.gestionParking.dto.vehicle.UpdateVehicleRequest;
 import com.gestionParking.dto.vehicle.VehicleResponse;
 import com.gestionParking.service.VehicleService;
 import jakarta.validation.Valid;
@@ -11,11 +12,13 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -50,5 +53,20 @@ public class VehicleController {
 		return vehicleService.getByIdForOwner(id, principal.getUsername())
 			.map(ResponseEntity::ok)
 			.orElse(ResponseEntity.notFound().build());
+	}
+
+	@PutMapping("/vehicles/{id}")
+	public ResponseEntity<?> update(
+		@PathVariable UUID id,
+		@Valid @RequestBody UpdateVehicleRequest request,
+		@AuthenticationPrincipal UserDetails principal
+	) {
+		try {
+			return vehicleService.updateForOwner(id, request, principal.getUsername())
+				.map(ResponseEntity::ok)
+				.orElse(ResponseEntity.notFound().build());
+		} catch (IllegalArgumentException ex) {
+			return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
+		}
 	}
 }

@@ -1,6 +1,7 @@
 package com.gestionParking.service;
 
 import com.gestionParking.dto.vehicle.CreateVehicleRequest;
+import com.gestionParking.dto.vehicle.UpdateVehicleRequest;
 import com.gestionParking.dto.vehicle.VehicleResponse;
 import com.gestionParking.entity.User;
 import com.gestionParking.entity.Vehicle;
@@ -70,6 +71,40 @@ public class VehicleService {
 		User owner = resolveOwner(ownerEmail);
 		return vehicleRepository.findByIdAndUser_Id(vehicleId, owner.getId())
 			.map(VehicleResponse::fromEntity);
+	}
+
+	@Transactional
+	public Optional<VehicleResponse> updateForOwner(UUID vehicleId, UpdateVehicleRequest request, String ownerEmail) {
+		User owner = resolveOwner(ownerEmail);
+		Optional<Vehicle> vehicleOpt = vehicleRepository.findByIdAndUser_Id(vehicleId, owner.getId());
+		if (vehicleOpt.isEmpty()) {
+			return Optional.empty();
+		}
+
+		Vehicle vehicle = vehicleOpt.get();
+		String plate = normalizePlate(request.getPlate());
+		if (vehicleRepository.existsByPlateIgnoreCaseAndIdNot(plate, vehicle.getId())) {
+			throw new IllegalArgumentException("Une voiture avec cette immatriculation existe deja.");
+		}
+
+		vehicle.setBrand(trim(request.getBrand()));
+		vehicle.setModel(trim(request.getModel()));
+		vehicle.setYear(request.getYear());
+		vehicle.setColor(trim(request.getColor()));
+		vehicle.setPlate(plate);
+		vehicle.setFuel(trim(request.getFuel()));
+		vehicle.setMileage(request.getMileage());
+		vehicle.setSalePrice(request.getSalePrice());
+		vehicle.setRentalPrice(request.getRentalPrice());
+		vehicle.setDescription(trimToNull(request.getDescription()));
+		vehicle.setCondition(trim(request.getCondition()));
+		if (request.getStatus() != null) {
+			vehicle.setStatus(request.getStatus());
+		}
+		vehicle.setPhotos(copyPhotoUrls(request.getPhotos()));
+
+		Vehicle saved = vehicleRepository.save(vehicle);
+		return Optional.of(VehicleResponse.fromEntity(saved));
 	}
 
 	private User resolveOwner(String ownerEmail) {

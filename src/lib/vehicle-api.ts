@@ -16,6 +16,22 @@ export type CreateVehiclePayload = {
   photos: string[];
 };
 
+export type UpdateVehiclePayload = {
+  brand: string;
+  model: string;
+  year: number;
+  color: string;
+  plate: string;
+  fuel: string;
+  mileage: number;
+  salePrice: number;
+  rentalPrice: number;
+  description?: string;
+  condition: string;
+  photos: string[];
+  status?: string;
+};
+
 export type VehicleApiResponse = {
   id: string;
   brand: string;
@@ -106,6 +122,28 @@ export async function createVehicleRequest(payload: CreateVehiclePayload): Promi
 
   const response = await fetch(`${API_BASE_URL}/api/auth/vehicles`, {
     method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
+
+  return (await response.json()) as VehicleApiResponse;
+}
+
+export async function updateVehicleRequest(vehicleId: string, payload: UpdateVehiclePayload): Promise<VehicleApiResponse> {
+  const token = getAccessToken();
+  if (!token) {
+    throw new Error("Session expiree. Veuillez vous reconnecter.");
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/auth/vehicles/${vehicleId}`, {
+    method: "PUT",
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
