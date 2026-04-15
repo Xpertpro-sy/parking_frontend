@@ -10,10 +10,20 @@ interface VehicleCardProps {
 export default function VehicleCard({ vehicle }: VehicleCardProps) {
   return (
     <Link to={`/vehicles/${vehicle.id}`} className="glass-card overflow-hidden group hover:border-primary/30 transition-all animate-fade-in">
-      {/* Photo placeholder */}
-      <div className="h-40 bg-secondary flex items-center justify-center">
-        <Car className="w-12 h-12 text-muted-foreground/40" />
-      </div>
+      {/* Vehicle cover */}
+      {vehicle.photos.length > 0 ? (
+        <div className="h-40 bg-secondary">
+          <img
+            src={vehicle.photos[0]}
+            alt={`${vehicle.brand} ${vehicle.model}`}
+            className="w-full h-full object-cover"
+          />
+        </div>
+      ) : (
+        <div className="h-40 bg-secondary flex items-center justify-center">
+          <Car className="w-12 h-12 text-muted-foreground/40" />
+        </div>
+      )}
 
       <div className="p-4 space-y-3">
         <div className="flex items-start justify-between">
@@ -40,11 +50,11 @@ export default function VehicleCard({ vehicle }: VehicleCardProps) {
         <div className="flex items-center justify-between pt-2 border-t border-border">
           <div>
             <p className="text-xs text-muted-foreground">Vente</p>
-            <p className="text-sm font-semibold text-foreground">{vehicle.salePrice.toLocaleString()} €</p>
+            <p className="text-sm font-semibold text-foreground">{vehicle.salePrice.toLocaleString()} CFA</p>
           </div>
           <div className="text-right">
             <p className="text-xs text-muted-foreground">Location/jour</p>
-            <p className="text-sm font-semibold text-foreground">{vehicle.rentalPrice} €</p>
+            <p className="text-sm font-semibold text-foreground">{vehicle.rentalPrice} CFA</p>
           </div>
         </div>
       </div>

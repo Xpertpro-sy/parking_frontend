@@ -1,11 +1,60 @@
+import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Car, Fuel, Gauge, Calendar, FileText } from 'lucide-react';
-import { mockVehicles } from '@/data/mockVehicles';
+import { ArrowLeft, Car, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import StatusBadge from '@/components/StatusBadge';
+import { Vehicle } from '@/types/vehicle';
+import { getVehicleByIdRequest } from '@/lib/vehicle-api';
 
 export default function VehicleDetail() {
   const { id } = useParams();
-  const vehicle = mockVehicles.find(v => v.id === id);
+  const [vehicle, setVehicle] = useState<Vehicle | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
+
+  useEffect(() => {
+    const loadVehicle = async () => {
+      if (!id) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        const data = await getVehicleByIdRequest(id);
+        setVehicle(data);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Impossible de charger le vehicule.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void loadVehicle();
+  }, [id]);
+
+  useEffect(() => {
+    setCurrentPhotoIndex(0);
+  }, [vehicle?.id]);
+
+  useEffect(() => {
+    if (!vehicle || vehicle.photos.length <= 1) return;
+
+    const timer = window.setInterval(() => {
+      setCurrentPhotoIndex((prev) => (prev + 1) % vehicle.photos.length);
+    }, 3000);
+
+    return () => window.clearInterval(timer);
+  }, [vehicle]);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20">
+        <Loader2 className="w-6 h-6 animate-spin text-primary mb-3" />
+        <p className="text-muted-foreground text-lg">Chargement du vehicule...</p>
+      </div>
+    );
+  }
 
   if (!vehicle) {
     return (
@@ -18,16 +67,27 @@ export default function VehicleDetail() {
 
   const details = [
     { label: 'Marque', value: vehicle.brand },
-    { label: 'Modèle', value: vehicle.model },
-    { label: 'Année', value: vehicle.year },
+    { label: 'Modele', value: vehicle.model },
+    { label: 'Annee', value: vehicle.year },
     { label: 'Couleur', value: vehicle.color },
     { label: 'Immatriculation', value: vehicle.plate },
     { label: 'Carburant', value: vehicle.fuel },
-    { label: 'Kilométrage', value: `${vehicle.mileage.toLocaleString()} km` },
-    { label: 'État', value: vehicle.condition },
-    { label: 'Prix de vente', value: `${vehicle.salePrice.toLocaleString()} €` },
-    { label: 'Prix location/jour', value: `${vehicle.rentalPrice} €` },
+    { label: 'Kilometrage', value: `${vehicle.mileage.toLocaleString()} km` },
+    { label: 'Etat', value: vehicle.condition },
+    { label: 'Prix de vente', value: `${vehicle.salePrice.toLocaleString()} CFA` },
+    { label: 'Prix location/jour', value: `${vehicle.rentalPrice.toLocaleString()} CFA` },
   ];
+
+  const hasMultiplePhotos = vehicle.photos.length > 1;
+  const currentPhoto = vehicle.photos[currentPhotoIndex];
+
+  const goToPreviousPhoto = () => {
+    setCurrentPhotoIndex((prev) => (prev - 1 + vehicle.photos.length) % vehicle.photos.length);
+  };
+
+  const goToNextPhoto = () => {
+    setCurrentPhotoIndex((prev) => (prev + 1) % vehicle.photos.length);
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -37,18 +97,91 @@ export default function VehicleDetail() {
         </Link>
         <div className="flex-1">
           <h1 className="text-2xl font-bold text-foreground">{vehicle.brand} {vehicle.model}</h1>
-          <p className="text-muted-foreground text-sm">{vehicle.plate} · Ajouté le {vehicle.createdAt}</p>
+          <p className="text-muted-foreground text-sm">
+            {vehicle.plate} · Ajoute le {new Date(vehicle.createdAt).toLocaleDateString()}
+          </p>
         </div>
         <StatusBadge status={vehicle.status} />
       </div>
 
-      {/* Photo area */}
-      <div className="glass-card h-64 flex items-center justify-center">
-        <div className="text-center text-muted-foreground">
-          <Car className="w-16 h-16 mx-auto mb-2 opacity-30" />
-          <p className="text-sm">Aucune photo disponible</p>
+      {/* Photos */}
+      {vehicle.photos.length > 0 ? (
+        <div className="glass-card p-3 space-y-3">
+          <div className="relative">
+            <img
+              src={currentPhoto}
+              alt={`${vehicle.brand} ${vehicle.model} - photo ${currentPhotoIndex + 1}`}
+              className="h-80 md:h-96 w-full object-cover rounded-lg"
+            />
+
+            {hasMultiplePhotos && (
+              <>
+                <button
+                  type="button"
+                  onClick={goToPreviousPhoto}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-background/80 border border-border flex items-center justify-center hover:bg-background transition-colors"
+                >
+                  <ChevronLeft className="w-4 h-4 text-foreground" />
+                </button>
+                <button
+                  type="button"
+                  onClick={goToNextPhoto}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-background/80 border border-border flex items-center justify-center hover:bg-background transition-colors"
+                >
+                  <ChevronRight className="w-4 h-4 text-foreground" />
+                </button>
+              </>
+            )}
+          </div>
+
+          {hasMultiplePhotos && (
+            <div className="flex items-center justify-center gap-2">
+              {vehicle.photos.map((photoUrl, index) => (
+                <button
+                  key={`${photoUrl}-${index}`}
+                  type="button"
+                  onClick={() => setCurrentPhotoIndex(index)}
+                  className={`h-2.5 rounded-full transition-all ${
+                    currentPhotoIndex === index ? 'w-6 bg-primary' : 'w-2.5 bg-muted'
+                  }`}
+                  aria-label={`Afficher la photo ${index + 1}`}
+                />
+              ))}
+            </div>
+          )}
+
+          {vehicle.photos.length > 1 && (
+            <div className="grid grid-cols-4 gap-2">
+              {vehicle.photos.map((photoUrl, index) => (
+                <button
+                  key={`thumb-${photoUrl}-${index}`}
+                  type="button"
+                  onClick={() => setCurrentPhotoIndex(index)}
+                  className={`overflow-hidden rounded-md border ${
+                    currentPhotoIndex === index ? 'border-primary' : 'border-border'
+                  }`}
+                >
+                  <img
+                    src={photoUrl}
+                    alt={`Miniature ${index + 1}`}
+                    className="h-16 w-full object-cover"
+                  />
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="text-xs text-muted-foreground text-center">
+            Photo {currentPhotoIndex + 1} / {vehicle.photos.length}
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="glass-card h-64 flex items-center justify-center">
+          <div className="text-center text-muted-foreground">
+            <Car className="w-16 h-16 mx-auto mb-2 opacity-30" />
+            <p className="text-sm">Aucune photo disponible</p>
+          </div>
+        </div>
+      )}
 
       {/* Details grid */}
       <div className="glass-card p-6">

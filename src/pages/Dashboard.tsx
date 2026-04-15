@@ -1,17 +1,40 @@
+import { useEffect, useMemo, useState } from 'react';
 import { Car, CheckCircle, Wrench, Key, DollarSign } from 'lucide-react';
-import { mockVehicles } from '@/data/mockVehicles';
+import { toast } from 'sonner';
 import StatCard from '@/components/StatCard';
 import VehicleCard from '@/components/VehicleCard';
 import heroImage from '@/assets/hero-parking.jpg';
+import { listVehiclesRequest } from '@/lib/vehicle-api';
+import { Vehicle } from '@/types/vehicle';
 
 export default function Dashboard() {
-  const total = mockVehicles.length;
-  const available = mockVehicles.filter(v => v.status === 'available').length;
-  const sold = mockVehicles.filter(v => v.status === 'sold').length;
-  const rented = mockVehicles.filter(v => v.status === 'rented').length;
-  const inRepair = mockVehicles.filter(v => v.status === 'repair').length;
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
 
-  const recentVehicles = mockVehicles.slice(0, 4);
+  useEffect(() => {
+    const loadVehicles = async () => {
+      try {
+        const data = await listVehiclesRequest();
+        setVehicles(data);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Impossible de charger le tableau de bord.");
+      }
+    };
+
+    void loadVehicles();
+  }, []);
+
+  const { total, available, sold, rented, inRepair, recentVehicles } = useMemo(() => {
+    return {
+      total: vehicles.length,
+      available: vehicles.filter((v) => v.status === 'available').length,
+      sold: vehicles.filter((v) => v.status === 'sold').length,
+      rented: vehicles.filter((v) => v.status === 'rented').length,
+      inRepair: vehicles.filter((v) => v.status === 'repair').length,
+      recentVehicles: [...vehicles]
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .slice(0, 4),
+    };
+  }, [vehicles]);
 
   return (
     <div className="space-y-8">
