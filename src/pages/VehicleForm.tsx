@@ -9,6 +9,61 @@ const fuelOptions = ['Essence', 'Diesel', 'Hybride', 'Electrique'];
 const conditionOptions = ['Excellent', 'Bon', 'Moyen', 'A reparer'];
 const MAX_PHOTOS = 4;
 const MAX_FILE_SIZE_MB = 8;
+const MAX_IMAGE_DIMENSION = 1600;
+const OUTPUT_IMAGE_QUALITY = 0.8;
+
+async function compressImage(file: File): Promise<File> {
+  if (!file.type.startsWith('image/')) {
+    throw new Error("Le fichier selectionne n'est pas une image.");
+  }
+
+  const sourceImage = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(img);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Impossible de lire l'image selectionnee."));
+    };
+    img.src = objectUrl;
+  });
+
+  const ratio = Math.min(1, MAX_IMAGE_DIMENSION / Math.max(sourceImage.width, sourceImage.height));
+  const targetWidth = Math.max(1, Math.round(sourceImage.width * ratio));
+  const targetHeight = Math.max(1, Math.round(sourceImage.height * ratio));
+
+  const canvas = document.createElement('canvas');
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
+
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    throw new Error("Impossible de preparer la compression de l'image.");
+  }
+
+  ctx.drawImage(sourceImage, 0, 0, targetWidth, targetHeight);
+
+  const outputType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+  const compressedBlob = await new Promise<Blob | null>((resolve) => {
+    canvas.toBlob(resolve, outputType, OUTPUT_IMAGE_QUALITY);
+  });
+
+  if (!compressedBlob) {
+    throw new Error("La compression de l'image a echoue.");
+  }
+
+  const extension = outputType === 'image/png' ? 'png' : 'jpg';
+  const baseName = file.name.replace(/\.[^/.]+$/, '');
+  const compressedName = `${baseName}-compressed.${extension}`;
+
+  return new File([compressedBlob], compressedName, {
+    type: outputType,
+    lastModified: Date.now(),
+  });
+}
 
 export default function VehicleForm() {
   const navigate = useNavigate();
@@ -45,7 +100,8 @@ export default function VehicleForm() {
 
     setUploading(true);
     try {
-      const uploadedUrls = await Promise.all(files.map((file) => uploadImageToR2(file)));
+      const compressedFiles = await Promise.all(files.map((file) => compressImage(file)));
+      const uploadedUrls = await Promise.all(compressedFiles.map((file) => uploadImageToR2(file)));
       setPhotos((prev) => [...prev, ...uploadedUrls]);
       toast.success(`${uploadedUrls.length} image(s) uploadee(s).`);
     } catch (error) {
