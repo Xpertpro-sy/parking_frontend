@@ -79,7 +79,17 @@ export default function VehicleList() {
       ) : filtered.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filtered.map(v => (
-            <VehicleCard key={v.id} vehicle={v} />
+            <VehicleCard
+              key={v.id}
+              vehicle={v}
+              showActions
+              onEdit={(vehicle) => {
+                toast.info(`Modification de ${vehicle.brand} ${vehicle.model} bientot disponible.`);
+              }}
+              onDelete={(vehicle) => {
+                toast.warning(`Suppression de ${vehicle.brand} ${vehicle.model} bientot disponible.`);
+              }}
+            />
           ))}
         </div>
       ) : (

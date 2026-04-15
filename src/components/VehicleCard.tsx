@@ -1,31 +1,72 @@
 import { Link } from 'react-router-dom';
-import { Car, Fuel, Gauge } from 'lucide-react';
+import { Car, Fuel, Gauge, MoreVertical } from 'lucide-react';
 import { Vehicle } from '@/types/vehicle';
 import StatusBadge from './StatusBadge';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface VehicleCardProps {
   vehicle: Vehicle;
+  showActions?: boolean;
+  onEdit?: (vehicle: Vehicle) => void;
+  onDelete?: (vehicle: Vehicle) => void;
 }
 
-export default function VehicleCard({ vehicle }: VehicleCardProps) {
+export default function VehicleCard({ vehicle, showActions = false, onEdit, onDelete }: VehicleCardProps) {
   return (
-    <Link to={`/vehicles/${vehicle.id}`} className="glass-card overflow-hidden group hover:border-primary/30 transition-all animate-fade-in">
+    <div className="glass-card overflow-hidden group hover:border-primary/30 transition-all animate-fade-in">
       {/* Vehicle cover */}
-      {vehicle.photos.length > 0 ? (
-        <div className="h-40 bg-secondary">
-          <img
-            src={vehicle.photos[0]}
-            alt={`${vehicle.brand} ${vehicle.model}`}
-            className="w-full h-full object-cover"
-          />
-        </div>
-      ) : (
-        <div className="h-40 bg-secondary flex items-center justify-center">
-          <Car className="w-12 h-12 text-muted-foreground/40" />
-        </div>
-      )}
+      <div className="relative">
+        <Link to={`/vehicles/${vehicle.id}`} className="block h-40 bg-secondary">
+          {vehicle.photos.length > 0 ? (
+            <img
+              src={vehicle.photos[0]}
+              alt={`${vehicle.brand} ${vehicle.model}`}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="h-full bg-secondary flex items-center justify-center">
+              <Car className="w-12 h-12 text-muted-foreground/40" />
+            </div>
+          )}
+        </Link>
 
-      <div className="p-4 space-y-3">
+        {showActions && (
+          <div className="absolute top-2 right-2 z-20">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  onClick={(event) => event.preventDefault()}
+                  className="w-8 h-8 rounded-md bg-background/85 border border-border flex items-center justify-center hover:bg-background transition-colors"
+                  aria-label="Actions vehicule"
+                >
+                  <MoreVertical className="w-4 h-4 text-foreground" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-40">
+                {vehicle.status !== 'sold' && (
+                  <DropdownMenuItem onClick={() => onEdit?.(vehicle)}>
+                    Modifier
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem
+                  onClick={() => onDelete?.(vehicle)}
+                  className="text-destructive focus:text-destructive"
+                >
+                  Supprimer
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        )}
+      </div>
+
+      <Link to={`/vehicles/${vehicle.id}`} className="block p-4 space-y-3">
         <div className="flex items-start justify-between">
           <div>
             <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors">
@@ -57,7 +98,7 @@ export default function VehicleCard({ vehicle }: VehicleCardProps) {
             <p className="text-sm font-semibold text-foreground">{vehicle.rentalPrice} CFA</p>
           </div>
         </div>
-      </div>
-    </Link>
+      </Link>
+    </div>
   );
 }
