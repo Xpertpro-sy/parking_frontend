@@ -75,7 +75,7 @@ export default function VehicleForm() {
   const [photos, setPhotos] = useState<string[]>([]);
   const [form, setForm] = useState({
     brand: '', model: '', year: new Date().getFullYear(), color: '',
-    plate: '', fuel: 'Essence', mileage: 0, salePrice: 0, rentalPrice: 0,
+    plate: '', fuel: 'Essence', mileage: 0, salePrice: '', rentalPrice: '',
     description: '', condition: 'Bon',
   });
 
@@ -149,14 +149,14 @@ export default function VehicleForm() {
   };
 
   const fields = [
-    { key: 'brand', label: 'Marque', type: 'text', required: true },
-    { key: 'model', label: 'Modele', type: 'text', required: true },
+    { key: 'brand', label: 'Marque', type: 'text', required: true, placeholder: 'Ex: Toyota' },
+    { key: 'model', label: 'Modele', type: 'text', required: true, placeholder: 'Ex: RAV4' },
     { key: 'year', label: 'Annee', type: 'number' },
-    { key: 'color', label: 'Couleur', type: 'text' },
-    { key: 'plate', label: 'Immatriculation', type: 'text', required: true },
+    { key: 'color', label: 'Couleur', type: 'text', placeholder: 'Ex: Blanc' },
+    { key: 'plate', label: 'Immatriculation', type: 'text', required: true, placeholder: 'Ex: AB-123-CD' },
     { key: 'mileage', label: 'Kilometrage', type: 'number' },
-    { key: 'salePrice', label: 'Prix de vente (CFA)', type: 'number' },
-    { key: 'rentalPrice', label: 'Prix location/jour (CFA)', type: 'number' },
+    { key: 'salePrice', label: 'Prix de vente (CFA)', type: 'number', placeholder: '0' },
+    { key: 'rentalPrice', label: 'Prix location/jour (CFA)', type: 'number', placeholder: '0' },
   ];
 
   return (
@@ -178,7 +178,15 @@ export default function VehicleForm() {
                 required={f.required}
                 disabled={!canSubmit}
                 value={(form as Record<string, string | number>)[f.key]}
-                onChange={e => update(f.key, f.type === 'number' ? Number(e.target.value) : e.target.value)}
+                placeholder={f.placeholder}
+                onChange={e =>
+                  update(
+                    f.key,
+                    f.type === 'number'
+                      ? (e.target.value === '' ? '' : Number(e.target.value))
+                      : e.target.value,
+                  )
+                }
                 className="w-full px-3 py-2.5 bg-secondary border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
               />
             </div>

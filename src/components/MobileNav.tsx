@@ -8,6 +8,7 @@ const navItems = [
   { to: '/vehicles', icon: Car, label: 'Véhicules' },
   { to: '/vehicles/new', icon: Plus, label: 'Ajouter' },
   { to: '/receipts', icon: Receipt, label: 'Reçus' },
+  { to: '/comptability', icon: Receipt, label: 'Comptabilité' },
   { to: '/history', icon: History, label: 'Historique' },
 ];
 

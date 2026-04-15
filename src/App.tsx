@@ -10,6 +10,7 @@ import Dashboard from "./pages/Dashboard";
 import VehicleList from "./pages/VehicleList";
 import VehicleDetail from "./pages/VehicleDetail";
 import VehicleForm from "./pages/VehicleForm";
+import SaleForm from "./pages/SaleForm";
 import Receipts from "./pages/Receipts";
 import HistoryPage from "./pages/HistoryPage";
 import Login from "./pages/Login";
@@ -36,6 +37,7 @@ const App = () => (
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/vehicles" element={<VehicleList />} />
                 <Route path="/vehicles/new" element={<VehicleForm />} />
+                <Route path="/sales/new" element={<SaleForm />} />
                 <Route path="/vehicles/:id" element={<VehicleDetail />} />
                 <Route path="/receipts" element={<Receipts />} />
                 <Route path="/history" element={<HistoryPage />} />

@@ -189,11 +189,17 @@ export default function VehicleDetail() {
       <div className="flex flex-wrap gap-3">
         {vehicle.status === 'available' && (
           <>
-            <button className="px-4 py-2.5 bg-success text-success-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity">
-              Déclarer vendu
-            </button>
+            <Link
+              to={`/sales/new?vehicleId=${vehicle.id}`}
+              className="px-4 py-2.5 bg-success text-success-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
+            >
+              Vendre
+            </Link>
             <button className="px-4 py-2.5 bg-info text-info-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity">
-              Mettre en location
+              Louer
+            </button>
+            <button className="px-4 py-2.5 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-500 transition-colors">
+              Réserver
             </button>
             <button className="px-4 py-2.5 bg-warning text-warning-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity">
               En réparation
