@@ -87,6 +87,39 @@ export default function VehicleDetail() {
         <StatusBadge status={vehicle.status} />
       </div>
 
+      {/* Action buttons */}
+      <div className="flex flex-wrap gap-3">
+        {vehicle.status === 'available' && (
+          <>
+            <Link
+              to={`/sales/new?vehicleId=${vehicle.id}`}
+              className="px-4 py-2.5 bg-success text-success-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
+            >
+              Vendre
+            </Link>
+            <button className="px-4 py-2.5 bg-info text-info-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity">
+              Louer
+            </button>
+            <button className="px-4 py-2.5 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-500 transition-colors">
+              Réserver
+            </button>
+            <button className="px-4 py-2.5 bg-warning text-warning-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity">
+              En réparation
+            </button>
+          </>
+        )}
+        {vehicle.status === 'repair' && (
+          <button className="px-4 py-2.5 bg-success text-success-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity">
+            Réparation terminée
+          </button>
+        )}
+        {vehicle.status === 'rented' && (
+          <button className="px-4 py-2.5 bg-success text-success-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity">
+            Fin de location
+          </button>
+        )}
+      </div>
+
       {/* Photos */}
       {vehicle.photos.length > 0 ? (
         <div className="glass-card p-3 space-y-3">
@@ -182,39 +215,6 @@ export default function VehicleDetail() {
             <p className="text-xs text-muted-foreground mb-1">Description</p>
             <p className="text-sm text-foreground">{vehicle.description}</p>
           </div>
-        )}
-      </div>
-
-      {/* Action buttons */}
-      <div className="flex flex-wrap gap-3">
-        {vehicle.status === 'available' && (
-          <>
-            <Link
-              to={`/sales/new?vehicleId=${vehicle.id}`}
-              className="px-4 py-2.5 bg-success text-success-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
-            >
-              Vendre
-            </Link>
-            <button className="px-4 py-2.5 bg-info text-info-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity">
-              Louer
-            </button>
-            <button className="px-4 py-2.5 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-500 transition-colors">
-              Réserver
-            </button>
-            <button className="px-4 py-2.5 bg-warning text-warning-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity">
-              En réparation
-            </button>
-          </>
-        )}
-        {vehicle.status === 'repair' && (
-          <button className="px-4 py-2.5 bg-success text-success-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity">
-            Réparation terminée
-          </button>
-        )}
-        {vehicle.status === 'rented' && (
-          <button className="px-4 py-2.5 bg-success text-success-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity">
-            Fin de location
-          </button>
         )}
       </div>
     </div>
