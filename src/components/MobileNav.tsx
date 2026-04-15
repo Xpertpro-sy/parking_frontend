@@ -8,7 +8,7 @@ const navItems = [
   { to: '/vehicles', icon: Car, label: 'Véhicules' },
   { to: '/vehicles/new', icon: Plus, label: 'Ajouter' },
   { to: '/receipts', icon: Receipt, label: 'Reçus' },
-  { to: '/comptability', icon: Receipt, label: 'Comptabilité' },
+  { to: '/voitures-louees', icon: Car, label: 'Voitures louées' },
   { to: '/history', icon: History, label: 'Historique' },
 ];
 
@@ -19,7 +19,6 @@ export default function MobileNav() {
 
   return (
     <>
-      {/* Top bar */}
       <header className="md:hidden flex items-center justify-between px-4 py-3 bg-sidebar border-b border-sidebar-border">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
@@ -32,7 +31,6 @@ export default function MobileNav() {
         </button>
       </header>
 
-      {/* Mobile menu */}
       {open && (
         <div className="md:hidden fixed inset-0 top-14 z-50 bg-background/95 backdrop-blur-sm">
           <nav className="flex flex-col p-4 gap-1">

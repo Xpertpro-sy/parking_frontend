@@ -2,8 +2,6 @@ package com.gestionParking.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -13,7 +11,6 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
-import com.gestionParking.enums.RentalStatus;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -24,16 +21,23 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "rentals")
+@Table(name = "rental_receipts")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class Rental {
+public class RentalReceipt {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
 	private UUID id;
+
+	@Column(name = "receipt_number", nullable = false, unique = true, length = 40)
+	private String receiptNumber;
+
+	@OneToOne(optional = false, fetch = FetchType.LAZY)
+	@JoinColumn(name = "rental_id", nullable = false, unique = true)
+	private Rental rental;
 
 	@ManyToOne(optional = false, fetch = FetchType.LAZY)
 	@JoinColumn(name = "vehicle_id", nullable = false)
@@ -42,6 +46,15 @@ public class Rental {
 	@ManyToOne(optional = false, fetch = FetchType.LAZY)
 	@JoinColumn(name = "owner_user_id", nullable = false)
 	private User owner;
+
+	@Column(name = "vehicle_brand", nullable = false)
+	private String vehicleBrand;
+
+	@Column(name = "vehicle_model", nullable = false)
+	private String vehicleModel;
+
+	@Column(name = "vehicle_plate", nullable = false)
+	private String vehiclePlate;
 
 	@Column(name = "tenant_name", nullable = false)
 	private String tenantName;
@@ -55,15 +68,6 @@ public class Rental {
 	@Column(name = "tenant_id_card_photo_url", length = 2048)
 	private String tenantIdCardPhotoUrl;
 
-	@Column(name = "tenant_address", length = 500)
-	private String tenantAddress;
-
-	@Column(name = "emergency_contact_name", length = 160)
-	private String emergencyContactName;
-
-	@Column(name = "emergency_contact_phone", length = 40)
-	private String emergencyContactPhone;
-
 	@Column(name = "start_date", nullable = false)
 	private LocalDateTime startDate;
 
@@ -76,29 +80,19 @@ public class Rental {
 	@Column(name = "daily_price", nullable = false, precision = 12, scale = 2)
 	private BigDecimal dailyPrice;
 
-	@Column(nullable = false, precision = 12, scale = 2)
-	private BigDecimal amount;
+	@Column(name = "rental_amount", nullable = false, precision = 12, scale = 2)
+	private BigDecimal rentalAmount;
 
 	@Column(name = "deposit_amount", precision = 12, scale = 2)
 	private BigDecimal depositAmount;
 
-	@Enumerated(EnumType.STRING)
-	@Column(nullable = false, length = 20)
-	private RentalStatus status;
-
-	@Column(name = "completed_at")
-	private LocalDateTime completedAt;
-
-	@Column(name = "created_at", nullable = false)
-	private LocalDateTime createdAt;
-
-	@OneToOne(mappedBy = "rental", fetch = FetchType.LAZY)
-	private RentalReceipt receipt;
+	@Column(name = "issued_at", nullable = false)
+	private LocalDateTime issuedAt;
 
 	@PrePersist
 	void prePersist() {
-		if (createdAt == null) {
-			createdAt = LocalDateTime.now();
+		if (issuedAt == null) {
+			issuedAt = LocalDateTime.now();
 		}
 	}
 }

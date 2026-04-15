@@ -7,6 +7,7 @@ import {
   History,
   Settings,
   LogOut,
+  Calculator,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
@@ -15,7 +16,8 @@ const navItems = [
   { to: '/vehicles', icon: Car, label: 'Véhicules' },
   { to: '/vehicles/new', icon: Plus, label: 'Ajouter véhicule' },
   { to: '/receipts', icon: Receipt, label: 'Reçus' },
-  { to: '/comptability', icon: Receipt, label: 'Comptabilité' },
+  { to: '/comptability', icon: Calculator, label: 'Comptabilité' },
+  { to: '/voitures-louees', icon: Car, label: 'Voitures louées' },
   { to: '/history', icon: History, label: 'Historique' },
 ];
 

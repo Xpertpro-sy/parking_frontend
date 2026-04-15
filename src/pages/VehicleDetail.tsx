@@ -1,14 +1,36 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Car, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import StatusBadge from '@/components/StatusBadge';
 import { useVehicleDetailQuery } from '@/lib/vehicle-queries';
+import { completeRentalRequest, listRentalsRequest } from '@/lib/rental-api';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 export default function VehicleDetail() {
   const { id } = useParams();
+  const queryClient = useQueryClient();
   const { data: vehicle, isLoading, isError, error } = useVehicleDetailQuery(id);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
+  const [completingRental, setCompletingRental] = useState(false);
+  const [showCompleteRentalPopup, setShowCompleteRentalPopup] = useState(false);
+
+  const { data: rentals = [] } = useQuery({
+    queryKey: ['rentals', 'list'],
+    queryFn: listRentalsRequest,
+    staleTime: 3 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
 
   useEffect(() => {
     if (isError) {
@@ -72,6 +94,38 @@ export default function VehicleDetail() {
     setCurrentPhotoIndex((prev) => (prev + 1) % vehicle.photos.length);
   };
 
+  const activeRental = rentals.find(
+    (rental) => rental.vehicleId === vehicle.id && rental.status?.toLowerCase() === 'active',
+  );
+
+  const handleCompleteRentalClick = () => {
+    if (!activeRental) {
+      toast.error("Aucune location active trouvee pour ce vehicule.");
+      return;
+    }
+    setShowCompleteRentalPopup(true);
+  };
+
+  const handleConfirmCompleteRental = async () => {
+    if (!activeRental) {
+      toast.error("Aucune location active trouvee pour ce vehicule.");
+      return;
+    }
+    setCompletingRental(true);
+    try {
+      await completeRentalRequest(activeRental.id);
+      await queryClient.invalidateQueries({ queryKey: ['rentals', 'list'] });
+      await queryClient.invalidateQueries({ queryKey: ['receipts', 'list'] });
+      await queryClient.invalidateQueries({ queryKey: ['vehicles'] });
+      toast.success("Location terminee. Recu genere avec succes.");
+      setShowCompleteRentalPopup(false);
+    } catch (completeError) {
+      toast.error(completeError instanceof Error ? completeError.message : "Impossible de terminer la location.");
+    } finally {
+      setCompletingRental(false);
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center gap-4">
@@ -97,9 +151,12 @@ export default function VehicleDetail() {
             >
               Vendre
             </Link>
-            <button className="px-4 py-2.5 bg-info text-info-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity">
+            <Link
+              to={`/rentals/new?vehicleId=${vehicle.id}`}
+              className="px-4 py-2.5 bg-info text-info-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
+            >
               Louer
-            </button>
+            </Link>
             <button className="px-4 py-2.5 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-500 transition-colors">
               Réserver
             </button>
@@ -114,8 +171,12 @@ export default function VehicleDetail() {
           </button>
         )}
         {vehicle.status === 'rented' && (
-          <button className="px-4 py-2.5 bg-success text-success-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity">
-            Fin de location
+          <button
+            onClick={handleCompleteRentalClick}
+            disabled={completingRental}
+            className="px-4 py-2.5 bg-success text-success-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-60"
+          >
+            {completingRental ? "Cloture..." : "Fin de location"}
           </button>
         )}
       </div>
@@ -217,6 +278,27 @@ export default function VehicleDetail() {
           </div>
         )}
       </div>
+
+      <AlertDialog open={showCompleteRentalPopup} onOpenChange={setShowCompleteRentalPopup}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmer la fin de location</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action va cloturer la location en cours.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={completingRental}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmCompleteRental}
+              disabled={completingRental}
+              className="bg-success text-success-foreground hover:opacity-90"
+            >
+              {completingRental ? "Cloture..." : "Confirmer"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

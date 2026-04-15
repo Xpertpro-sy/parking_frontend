@@ -49,6 +49,7 @@ export default function SaleForm() {
         date: saleDate || undefined,
       });
       await queryClient.invalidateQueries({ queryKey: vehicleQueryKeys.all });
+      await queryClient.invalidateQueries({ queryKey: ["receipts", "list"] });
       toast.success("Vente enregistree avec succes.");
       navigate(`/vehicles/${vehicleId}`);
     } catch (error) {

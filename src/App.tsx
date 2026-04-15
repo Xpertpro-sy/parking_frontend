@@ -12,8 +12,10 @@ import VehicleDetail from "./pages/VehicleDetail";
 import VehicleForm from "./pages/VehicleForm";
 import VehicleEditForm from "./pages/VehicleEditForm";
 import SaleForm from "./pages/SaleForm";
+import RentalForm from "./pages/RentalForm";
 import Receipts from "./pages/Receipts";
 import HistoryPage from "./pages/HistoryPage";
+import RentedVehicles from "./pages/RentedVehicles";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import NotFound from "./pages/NotFound";
@@ -40,8 +42,10 @@ const App = () => (
                 <Route path="/vehicles/new" element={<VehicleForm />} />
                 <Route path="/vehicles/:id/edit" element={<VehicleEditForm />} />
                 <Route path="/sales/new" element={<SaleForm />} />
+                <Route path="/rentals/new" element={<RentalForm />} />
                 <Route path="/vehicles/:id" element={<VehicleDetail />} />
                 <Route path="/receipts" element={<Receipts />} />
+                <Route path="/voitures-louees" element={<RentedVehicles />} />
                 <Route path="/history" element={<HistoryPage />} />
               </Route>
             </Route>
