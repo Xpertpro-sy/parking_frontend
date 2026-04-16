@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { getAuth, onAuthStateChanged, type User } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
@@ -40,4 +40,17 @@ export function getFirebaseDb() {
   const app = getFirebaseApp();
   firebaseDbInstance = getFirestore(app);
   return firebaseDbInstance;
+}
+
+export async function waitForFirebaseUser(): Promise<User | null> {
+  const auth = getFirebaseAuth();
+  if (auth.currentUser) {
+    return auth.currentUser;
+  }
+  return await new Promise<User | null>((resolve) => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      unsubscribe();
+      resolve(user);
+    });
+  });
 }

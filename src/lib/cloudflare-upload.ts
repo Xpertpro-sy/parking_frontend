@@ -1,39 +1,34 @@
 import { getAccessToken } from "@/context/AuthContext";
+const CLOUDFLARE_PRESIGN_URL = (import.meta.env.VITE_CLOUDFLARE_PRESIGN_URL as string | undefined)?.trim();
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
-const PRESIGN_ENDPOINT_URL = (import.meta.env.VITE_UPLOAD_PRESIGN_URL as string | undefined)?.trim();
-
-type PresignUploadResponse = {
-  uploadUrl: string;
+type UploadResponse = {
   objectKey: string;
   publicUrl: string;
 };
 
-function resolvePresignUrl(): string {
-  if (PRESIGN_ENDPOINT_URL) return PRESIGN_ENDPOINT_URL;
-  if (API_BASE_URL) return `${API_BASE_URL}/api/auth/uploads/presign`;
+function resolveUploadUrl(): string {
+  if (CLOUDFLARE_PRESIGN_URL) return CLOUDFLARE_PRESIGN_URL;
   throw new Error(
-    "Aucun endpoint de presign configure. Ajoutez VITE_UPLOAD_PRESIGN_URL (ou VITE_API_BASE_URL) dans .env."
+    "Aucun endpoint Cloudflare configure. Ajoutez VITE_CLOUDFLARE_PRESIGN_URL dans .env."
   );
 }
 
-async function requestPresign(token: string, fileName: string, contentType: string): Promise<Response> {
-  const presignUrl = resolvePresignUrl();
+async function requestUpload(token: string, file: File): Promise<Response> {
+  const uploadUrl = resolveUploadUrl();
+  const formData = new FormData();
+  formData.append("file", file);
+
   try {
-    return await fetch(presignUrl, {
+    return await fetch(uploadUrl, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        fileName,
-        contentType,
-      }),
+      body: formData,
     });
   } catch (error) {
     const details = error instanceof Error ? error.message : "erreur reseau";
-    throw new Error(`Impossible de joindre le service de presign (${presignUrl}). ${details}`);
+    throw new Error(`Impossible de joindre le service upload Cloudflare (${uploadUrl}). ${details}`);
   }
 }
 
@@ -56,26 +51,12 @@ export async function uploadImageToR2(file: File): Promise<string> {
   if (!token) {
     throw new Error("Session expiree. Veuillez vous reconnecter.");
   }
-
-  const contentType = file.type?.trim() || "application/octet-stream";
-  const presignResponse = await requestPresign(token, file.name, contentType);
-
-  if (!presignResponse.ok) {
-    throw new Error(await parseApiError(presignResponse));
-  }
-
-  const { uploadUrl, publicUrl } = (await presignResponse.json()) as PresignUploadResponse;
-  const uploadResponse = await fetch(uploadUrl, {
-    method: "PUT",
-    headers: {
-      "Content-Type": contentType,
-    },
-    body: file,
-  });
+  const uploadResponse = await requestUpload(token, file);
 
   if (!uploadResponse.ok) {
-    throw new Error("Upload R2 echoue. Veuillez reessayer.");
+    throw new Error(await parseApiError(uploadResponse));
   }
 
-  return publicUrl;
+  const data = (await uploadResponse.json()) as UploadResponse;
+  return data.publicUrl;
 }

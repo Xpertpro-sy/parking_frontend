@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Loader2, Save, Upload, X } from 'lucide-react';
@@ -73,6 +73,8 @@ export default function VehicleForm() {
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [photos, setPhotos] = useState<string[]>([]);
+  const [pendingPhotoFiles, setPendingPhotoFiles] = useState<File[]>([]);
+  const [pendingPhotoPreviews, setPendingPhotoPreviews] = useState<string[]>([]);
   const [form, setForm] = useState({
     brand: '', model: '', year: new Date().getFullYear(), color: '',
     plate: '', fuel: 'Essence', mileage: 0, salePrice: '', rentalPrice: '',
@@ -84,11 +86,17 @@ export default function VehicleForm() {
 
   const canSubmit = useMemo(() => !submitting && !uploading, [submitting, uploading]);
 
+  useEffect(() => {
+    return () => {
+      pendingPhotoPreviews.forEach((preview) => URL.revokeObjectURL(preview));
+    };
+  }, [pendingPhotoPreviews]);
+
   const onSelectPhotos = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(event.target.files ?? []);
     if (selectedFiles.length === 0) return;
 
-    const remainingSlots = MAX_PHOTOS - photos.length;
+    const remainingSlots = MAX_PHOTOS - photos.length - pendingPhotoFiles.length;
     if (remainingSlots <= 0) {
       toast.error(`Maximum ${MAX_PHOTOS} photos.`);
       return;
@@ -101,22 +109,23 @@ export default function VehicleForm() {
       return;
     }
 
-    setUploading(true);
-    try {
-      const compressedFiles = await Promise.all(files.map((file) => compressImage(file)));
-      const uploadedUrls = await Promise.all(compressedFiles.map((file) => uploadImageToR2(file)));
-      setPhotos((prev) => [...prev, ...uploadedUrls]);
-      toast.success(`${uploadedUrls.length} image(s) uploadee(s).`);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Erreur pendant l'upload.");
-    } finally {
-      setUploading(false);
-      event.target.value = '';
-    }
+    setPendingPhotoFiles((prev) => [...prev, ...files]);
+    setPendingPhotoPreviews((prev) => [...prev, ...files.map((file) => URL.createObjectURL(file))]);
+    toast.success(`${files.length} image(s) ajoutee(s).`);
+    event.target.value = '';
   };
 
   const removePhoto = (index: number) => {
     setPhotos((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const removePendingPhoto = (index: number) => {
+    setPendingPhotoFiles((prev) => prev.filter((_, i) => i !== index));
+    setPendingPhotoPreviews((prev) => {
+      const previewToRemove = prev[index];
+      if (previewToRemove) URL.revokeObjectURL(previewToRemove);
+      return prev.filter((_, i) => i !== index);
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -124,6 +133,11 @@ export default function VehicleForm() {
 
     setSubmitting(true);
     try {
+      setUploading(true);
+      const compressedFiles = await Promise.all(pendingPhotoFiles.map((file) => compressImage(file)));
+      const uploadedUrls = await Promise.all(compressedFiles.map((file) => uploadImageToR2(file)));
+      const finalPhotos = [...photos, ...uploadedUrls];
+
       await createVehicleRequest({
         brand: form.brand.trim(),
         model: form.model.trim(),
@@ -136,14 +150,16 @@ export default function VehicleForm() {
         rentalPrice: Number(form.rentalPrice),
         description: form.description.trim() || undefined,
         condition: form.condition.trim(),
-        photos,
+        photos: finalPhotos,
       });
       await queryClient.invalidateQueries({ queryKey: vehicleQueryKeys.all });
       toast.success('Vehicule ajoute avec succes !');
+      pendingPhotoPreviews.forEach((preview) => URL.revokeObjectURL(preview));
       navigate('/vehicles');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Impossible d'ajouter le vehicule.");
     } finally {
+      setUploading(false);
       setSubmitting(false);
     }
   };
@@ -232,7 +248,7 @@ export default function VehicleForm() {
         <div>
           <div className="flex items-center justify-between mb-1.5">
             <label className="block text-sm font-medium text-foreground">Photos (max 4)</label>
-            <span className="text-xs text-muted-foreground">{photos.length}/{MAX_PHOTOS}</span>
+            <span className="text-xs text-muted-foreground">{photos.length + pendingPhotoFiles.length}/{MAX_PHOTOS}</span>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {photos.map((url, index) => (
@@ -249,7 +265,24 @@ export default function VehicleForm() {
               </div>
             ))}
 
-            {photos.length < MAX_PHOTOS && (
+            {pendingPhotoPreviews.map((url, index) => (
+              <div key={`${url}-${index}`} className="relative aspect-square bg-secondary border border-border rounded-lg overflow-hidden">
+                <img src={url} alt={`Nouvelle photo ${index + 1}`} className="w-full h-full object-cover opacity-90" />
+                <div className="absolute left-1 top-1 rounded bg-background/80 px-1.5 py-0.5 text-[10px] text-foreground">
+                  En attente
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removePendingPhoto(index)}
+                  disabled={!canSubmit}
+                  className="absolute top-1 right-1 w-6 h-6 rounded-full bg-background/80 border border-border flex items-center justify-center hover:bg-background disabled:opacity-60"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+
+            {photos.length + pendingPhotoFiles.length < MAX_PHOTOS && (
               <label className="aspect-square bg-secondary border-2 border-dashed border-border rounded-lg flex flex-col items-center justify-center gap-1 cursor-pointer hover:border-primary/50 transition-colors">
                 {uploading ? <Loader2 className="w-4 h-4 animate-spin text-primary" /> : <Upload className="w-4 h-4 text-muted-foreground" />}
                 <span className="text-xs text-muted-foreground">{uploading ? 'Upload...' : 'Ajouter'}</span>

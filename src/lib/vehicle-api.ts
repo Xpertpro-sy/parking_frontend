@@ -1,5 +1,5 @@
 import { getAccessToken } from "@/context/AuthContext";
-import { getFirebaseDb } from "@/lib/firebase";
+import { getFirebaseDb, waitForFirebaseUser } from "@/lib/firebase";
 import { Vehicle, VehicleStatus } from "@/types/vehicle";
 import {
   addDoc,
@@ -124,27 +124,16 @@ export function mapVehicleApiResponseToVehicle(apiVehicle: VehicleApiResponse): 
   };
 }
 
-function decodeFirebaseUid(token: string): string | null {
-  try {
-    const parts = token.split(".");
-    if (parts.length < 2) return null;
-    const payload = JSON.parse(atob(parts[1])) as { sub?: string; user_id?: string };
-    return payload.user_id ?? payload.sub ?? null;
-  } catch {
-    return null;
-  }
-}
-
-function getAuthIdentity() {
+async function getAuthIdentity() {
   const token = getAccessToken();
   if (!token) {
     throw new Error("Session expiree. Veuillez vous reconnecter.");
   }
-  const uid = decodeFirebaseUid(token);
-  if (!uid) {
+  const user = await waitForFirebaseUser();
+  if (!user?.uid) {
     throw new Error("Session Firebase invalide. Veuillez vous reconnecter.");
   }
-  return { uid };
+  return { uid: user.uid, email: user.email ?? null };
 }
 
 function normalizePlate(plate: string): string {
@@ -189,7 +178,7 @@ async function assertPlateUnique(ownerUid: string, plate: string, excludeVehicle
 
 export async function createVehicleRequest(payload: CreateVehiclePayload): Promise<VehicleApiResponse> {
   const db = getFirebaseDb();
-  const { uid } = getAuthIdentity();
+  const { uid, email } = await getAuthIdentity();
   await assertPlateUnique(uid, payload.plate);
 
   const docPayload: VehicleFirestoreCreateDoc = {
@@ -208,7 +197,7 @@ export async function createVehicleRequest(payload: CreateVehiclePayload): Promi
     status: "available",
     photos: payload.photos ?? [],
     ownerUid: uid,
-    ownerEmail: null,
+    ownerEmail: email,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   };
@@ -239,7 +228,7 @@ export async function createVehicleRequest(payload: CreateVehiclePayload): Promi
 
 export async function updateVehicleRequest(vehicleId: string, payload: UpdateVehiclePayload): Promise<VehicleApiResponse> {
   const db = getFirebaseDb();
-  const { uid } = getAuthIdentity();
+  const { uid } = await getAuthIdentity();
   const ref = doc(db, "vehicles", vehicleId);
   const snap = await getDoc(ref);
   if (!snap.exists()) {
@@ -298,7 +287,7 @@ export async function updateVehicleRequest(vehicleId: string, payload: UpdateVeh
 
 export async function listVehiclesRequest(): Promise<Vehicle[]> {
   const db = getFirebaseDb();
-  const { uid } = getAuthIdentity();
+  const { uid } = await getAuthIdentity();
   const q = query(collection(db, "vehicles"), where("ownerUid", "==", uid));
   const snapshot = await getDocs(q);
   return snapshot.docs
@@ -308,7 +297,7 @@ export async function listVehiclesRequest(): Promise<Vehicle[]> {
 
 export async function getVehicleByIdRequest(vehicleId: string): Promise<Vehicle | null> {
   const db = getFirebaseDb();
-  const { uid } = getAuthIdentity();
+  const { uid } = await getAuthIdentity();
   const snap = await getDoc(doc(db, "vehicles", vehicleId));
   if (!snap.exists()) {
     return null;

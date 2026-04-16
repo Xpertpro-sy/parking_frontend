@@ -20,11 +20,19 @@ service cloud.firestore {
     }
 
     match /vehicles/{vehicleId} {
-      allow read, update, delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      // Lecture autorisee uniquement pour le proprietaire
+      allow read: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+
+      // Creation: le document doit appartenir a l'utilisateur connecte
       allow create: if isSignedIn()
-        && request.resource.data.ownerUid == request.auth.uid
-        && request.resource.data.plateNormalized is string
-        && request.resource.data.status is string;
+        && request.resource.data.ownerUid == request.auth.uid;
+
+      // Update/Delete: uniquement le proprietaire du document existant
+      // + interdiction de changer le ownerUid
+      allow update: if isSignedIn()
+        && resource.data.ownerUid == request.auth.uid
+        && request.resource.data.ownerUid == resource.data.ownerUid;
+      allow delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
     }
 
     // Tout le reste est refuse par defaut.

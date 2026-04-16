@@ -28,6 +28,14 @@ type VehicleFormState = {
   condition: string;
 };
 
+type VehicleFieldConfig = {
+  key: keyof VehicleFormState;
+  label: string;
+  type: 'text' | 'number';
+  required?: boolean;
+  placeholder?: string;
+};
+
 async function compressImage(file: File): Promise<File> {
   if (!file.type.startsWith('image/')) {
     throw new Error("Le fichier selectionne n'est pas une image.");
@@ -82,6 +90,8 @@ export default function VehicleEditForm() {
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [photos, setPhotos] = useState<string[]>([]);
+  const [pendingPhotoFiles, setPendingPhotoFiles] = useState<File[]>([]);
+  const [pendingPhotoPreviews, setPendingPhotoPreviews] = useState<string[]>([]);
   const [form, setForm] = useState<VehicleFormState>({
     brand: '',
     model: '',
@@ -123,7 +133,7 @@ export default function VehicleEditForm() {
     const selectedFiles = Array.from(event.target.files ?? []);
     if (selectedFiles.length === 0) return;
 
-    const remainingSlots = MAX_PHOTOS - photos.length;
+    const remainingSlots = MAX_PHOTOS - photos.length - pendingPhotoFiles.length;
     if (remainingSlots <= 0) {
       toast.error(`Maximum ${MAX_PHOTOS} photos.`);
       return;
@@ -136,22 +146,23 @@ export default function VehicleEditForm() {
       return;
     }
 
-    setUploading(true);
-    try {
-      const compressedFiles = await Promise.all(files.map((file) => compressImage(file)));
-      const uploadedUrls = await Promise.all(compressedFiles.map((file) => uploadImageToR2(file)));
-      setPhotos((prev) => [...prev, ...uploadedUrls]);
-      toast.success(`${uploadedUrls.length} image(s) uploadee(s).`);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Erreur pendant l'upload.");
-    } finally {
-      setUploading(false);
-      event.target.value = '';
-    }
+    setPendingPhotoFiles((prev) => [...prev, ...files]);
+    setPendingPhotoPreviews((prev) => [...prev, ...files.map((file) => URL.createObjectURL(file))]);
+    toast.success(`${files.length} image(s) ajoutee(s).`);
+    event.target.value = '';
   };
 
   const removePhoto = (index: number) => {
     setPhotos((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const removePendingPhoto = (index: number) => {
+    setPendingPhotoFiles((prev) => prev.filter((_, i) => i !== index));
+    setPendingPhotoPreviews((prev) => {
+      const previewToRemove = prev[index];
+      if (previewToRemove) URL.revokeObjectURL(previewToRemove);
+      return prev.filter((_, i) => i !== index);
+    });
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -160,6 +171,11 @@ export default function VehicleEditForm() {
 
     setSubmitting(true);
     try {
+      setUploading(true);
+      const compressedFiles = await Promise.all(pendingPhotoFiles.map((file) => compressImage(file)));
+      const uploadedUrls = await Promise.all(compressedFiles.map((file) => uploadImageToR2(file)));
+      const finalPhotos = [...photos, ...uploadedUrls];
+
       await updateVehicleRequest(id, {
         brand: form.brand.trim(),
         model: form.model.trim(),
@@ -172,19 +188,21 @@ export default function VehicleEditForm() {
         rentalPrice: Number(form.rentalPrice),
         description: form.description.trim() || undefined,
         condition: form.condition.trim(),
-        photos,
+        photos: finalPhotos,
       });
       await queryClient.invalidateQueries({ queryKey: vehicleQueryKeys.all });
       toast.success('Vehicule modifie avec succes.');
+      pendingPhotoPreviews.forEach((preview) => URL.revokeObjectURL(preview));
       navigate(`/vehicles/${id}`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Impossible de modifier le vehicule.");
     } finally {
+      setUploading(false);
       setSubmitting(false);
     }
   };
 
-  const fields = [
+  const fields: VehicleFieldConfig[] = [
     { key: 'brand', label: 'Marque', type: 'text', required: true, placeholder: 'Ex: Toyota' },
     { key: 'model', label: 'Modele', type: 'text', required: true, placeholder: 'Ex: RAV4' },
     { key: 'year', label: 'Annee', type: 'number' },
@@ -193,7 +211,7 @@ export default function VehicleEditForm() {
     { key: 'mileage', label: 'Kilometrage', type: 'number' },
     { key: 'salePrice', label: 'Prix de vente (CFA)', type: 'number', placeholder: 'Ex: 18000000' },
     { key: 'rentalPrice', label: 'Prix location/jour (CFA)', type: 'number', placeholder: 'Ex: 45000' },
-  ] as const;
+  ];
 
   if (isLoading) {
     return (
@@ -317,7 +335,24 @@ export default function VehicleEditForm() {
               </div>
             ))}
 
-            {photos.length < MAX_PHOTOS && (
+            {pendingPhotoPreviews.map((url, index) => (
+              <div key={`${url}-${index}`} className="relative aspect-square bg-secondary border border-border rounded-lg overflow-hidden">
+                <img src={url} alt={`Nouvelle photo ${index + 1}`} className="w-full h-full object-cover opacity-90" />
+                <div className="absolute left-1 top-1 rounded bg-background/80 px-1.5 py-0.5 text-[10px] text-foreground">
+                  En attente
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removePendingPhoto(index)}
+                  disabled={!canSubmit}
+                  className="absolute top-1 right-1 w-6 h-6 rounded-full bg-background/80 border border-border flex items-center justify-center hover:bg-background disabled:opacity-60"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+
+            {photos.length + pendingPhotoFiles.length < MAX_PHOTOS && (
               <label className="aspect-square bg-secondary border-2 border-dashed border-border rounded-lg flex flex-col items-center justify-center gap-1 cursor-pointer hover:border-primary/50 transition-colors">
                 {uploading ? <Loader2 className="w-4 h-4 animate-spin text-primary" /> : <Upload className="w-4 h-4 text-muted-foreground" />}
                 <span className="text-xs text-muted-foreground">{uploading ? 'Upload...' : 'Ajouter'}</span>
