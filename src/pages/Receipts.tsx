@@ -41,7 +41,6 @@ type UiReceipt =
       endDate: string;
       totalDays: number;
       dailyPrice: number;
-      depositAmount: number | null;
       issuedAt: string;
     };
 
@@ -96,7 +95,6 @@ function printInvoice(receipt: UiReceipt) {
             <div><span>Période</span><strong>${formatDateTime(receipt.startDate)} au ${formatDateTime(receipt.endDate)}</strong></div>
             <div><span>Durée</span><strong>${receipt.totalDays} jour(s)</strong></div>
             <div><span>Tarif / jour</span><strong>${formatCurrency(receipt.dailyPrice)}</strong></div>
-            <div><span>Caution</span><strong>${receipt.depositAmount ? formatCurrency(receipt.depositAmount) : '-'}</strong></div>
           </div>
         </div>
         <div class="section">
@@ -209,7 +207,6 @@ export default function Receipts() {
         endDate: receipt.endDate,
         totalDays: receipt.totalDays,
         dailyPrice: receipt.dailyPrice,
-        depositAmount: receipt.depositAmount,
         issuedAt: receipt.issuedAt,
       }));
 

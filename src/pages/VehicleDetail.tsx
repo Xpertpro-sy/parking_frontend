@@ -57,7 +57,7 @@ export default function VehicleDetail() {
   const [repairCost, setRepairCost] = useState('');
   const [repairStartDate, setRepairStartDate] = useState(new Date().toISOString().slice(0, 10));
 
-  const { data: rentals = [] } = useQuery({
+  const { data: rentals = [], isLoading: loadingRentals } = useQuery({
     queryKey: ['rentals', 'list'],
     queryFn: listRentalsRequest,
     staleTime: 3 * 60 * 1000,
@@ -140,6 +140,10 @@ export default function VehicleDetail() {
   );
 
   const handleCompleteRentalClick = () => {
+    if (loadingRentals) {
+      toast.info("Chargement de la location en cours...");
+      return;
+    }
     if (!activeRental) {
       toast.error("Aucune location active trouvee pour ce vehicule.");
       return;
@@ -158,7 +162,7 @@ export default function VehicleDetail() {
       await queryClient.invalidateQueries({ queryKey: ['rentals', 'list'] });
       await queryClient.invalidateQueries({ queryKey: ['receipts', 'list'] });
       await queryClient.invalidateQueries({ queryKey: vehicleQueryKeys.all });
-      toast.success("Location terminee. Recu genere avec succes.");
+      toast.success("Location terminee avec succes.");
       setShowCompleteRentalPopup(false);
     } catch (completeError) {
       toast.error(completeError instanceof Error ? completeError.message : "Impossible de terminer la location.");

@@ -1,4 +1,16 @@
-import { getAccessToken } from "@/context/AuthContext";
+import { getFirebaseDb, waitForFirebaseUser } from "@/lib/firebase";
+import type { VehicleFirestoreDoc } from "@/lib/vehicle-api";
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  runTransaction,
+  serverTimestamp,
+  where,
+  Timestamp,
+} from "firebase/firestore";
 
 export type CreateRentalPayload = {
   vehicleId: string;
@@ -12,7 +24,6 @@ export type CreateRentalPayload = {
   startDate: string;
   endDate: string;
   amount: number;
-  depositAmount?: number;
 };
 
 export type RentalApiResponse = {
@@ -21,7 +32,7 @@ export type RentalApiResponse = {
   vehicleBrand: string;
   vehicleModel: string;
   vehiclePlate: string;
-  ownerUserId: number;
+  ownerUid: string;
   tenantName: string;
   tenantPhone: string;
   tenantIdCardNumber: string;
@@ -34,7 +45,6 @@ export type RentalApiResponse = {
   totalDays: number;
   dailyPrice: number;
   amount: number;
-  depositAmount: number | null;
   status: string;
   completedAt: string | null;
   createdAt: string;
@@ -46,7 +56,7 @@ export type RentalReceiptApiResponse = {
   receiptNumber: string;
   rentalId: string;
   vehicleId: string;
-  ownerUserId: number;
+  ownerUid: string;
   vehicleBrand: string;
   vehicleModel: string;
   vehiclePlate: string;
@@ -59,109 +69,333 @@ export type RentalReceiptApiResponse = {
   totalDays: number;
   dailyPrice: number;
   rentalAmount: number;
-  depositAmount: number | null;
   issuedAt: string;
 };
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() || "http://localhost:8080";
+type RentalFirestoreDoc = {
+  vehicleId: string;
+  ownerUid: string;
+  ownerEmail: string | null;
+  vehicleBrand: string;
+  vehicleModel: string;
+  vehiclePlate: string;
+  tenantName: string;
+  tenantPhone: string;
+  tenantIdCardNumber: string;
+  tenantIdCardPhotoUrl: string | null;
+  tenantAddress: string | null;
+  emergencyContactName: string | null;
+  emergencyContactPhone: string | null;
+  startDate: string;
+  endDate: string;
+  totalDays: number;
+  dailyPrice: number;
+  amount: number;
+  status: "active" | "completed";
+  completedAt: string | null;
+  receiptId: string | null;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
+};
 
-async function parseApiError(response: Response): Promise<string> {
-  try {
-    const data = (await response.json()) as { error?: string; message?: string };
-    if (data.error) return data.error;
-    if (data.message) return data.message;
-  } catch {
-    // Ignore parsing failure.
+type RentalReceiptFirestoreDoc = {
+  receiptNumber: string;
+  rentalId: string;
+  vehicleId: string;
+  ownerUid: string;
+  ownerEmail: string | null;
+  vehicleBrand: string;
+  vehicleModel: string;
+  vehiclePlate: string;
+  tenantName: string;
+  tenantPhone: string;
+  tenantIdCardNumber: string;
+  tenantIdCardPhotoUrl: string | null;
+  startDate: string;
+  endDate: string;
+  totalDays: number;
+  dailyPrice: number;
+  rentalAmount: number;
+  issuedAt?: Timestamp;
+  createdAt?: Timestamp;
+};
+
+async function getAuthIdentity() {
+  const user = await waitForFirebaseUser();
+  if (!user?.uid) {
+    throw new Error("Session Firebase invalide. Veuillez vous reconnecter.");
   }
-  return "Erreur serveur. Veuillez reessayer.";
+  return { uid: user.uid, email: user.email ?? null };
 }
 
-function getTokenOrThrow() {
-  const token = getAccessToken();
-  if (!token) {
-    throw new Error("Session expiree. Veuillez vous reconnecter.");
+function parseDateTime(value: string, fieldLabel: string): Date {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error(`${fieldLabel} invalide.`);
   }
-  return token;
+  return parsed;
+}
+
+function computeTotalDays(startDate: Date, endDate: Date): number {
+  const minutes = (endDate.getTime() - startDate.getTime()) / (60 * 1000);
+  return Math.max(1, Math.ceil(minutes / (24 * 60)));
+}
+
+function buildRentalReceiptNumber(endDateIso: string, rentalId: string) {
+  const endDate = new Date(endDateIso);
+  const yyyy = endDate.getFullYear();
+  const mm = String(endDate.getMonth() + 1).padStart(2, "0");
+  const dd = String(endDate.getDate()).padStart(2, "0");
+  return `LOC-${yyyy}${mm}${dd}-${rentalId.slice(0, 8).toUpperCase()}`;
+}
+
+function mapRentalDoc(id: string, data: RentalFirestoreDoc): RentalApiResponse {
+  return {
+    id,
+    vehicleId: data.vehicleId,
+    vehicleBrand: data.vehicleBrand,
+    vehicleModel: data.vehicleModel,
+    vehiclePlate: data.vehiclePlate,
+    ownerUid: data.ownerUid,
+    tenantName: data.tenantName,
+    tenantPhone: data.tenantPhone,
+    tenantIdCardNumber: data.tenantIdCardNumber,
+    tenantIdCardPhotoUrl: data.tenantIdCardPhotoUrl,
+    tenantAddress: data.tenantAddress,
+    emergencyContactName: data.emergencyContactName,
+    emergencyContactPhone: data.emergencyContactPhone,
+    startDate: data.startDate,
+    endDate: data.endDate,
+    totalDays: data.totalDays,
+    dailyPrice: data.dailyPrice,
+    amount: data.amount,
+    status: data.status,
+    completedAt: data.completedAt,
+    createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
+    receipt: null,
+  };
+}
+
+function mapRentalReceiptDoc(id: string, data: RentalReceiptFirestoreDoc): RentalReceiptApiResponse {
+  return {
+    id,
+    receiptNumber: data.receiptNumber,
+    rentalId: data.rentalId,
+    vehicleId: data.vehicleId,
+    ownerUid: data.ownerUid,
+    vehicleBrand: data.vehicleBrand,
+    vehicleModel: data.vehicleModel,
+    vehiclePlate: data.vehiclePlate,
+    tenantName: data.tenantName,
+    tenantPhone: data.tenantPhone,
+    tenantIdCardNumber: data.tenantIdCardNumber,
+    tenantIdCardPhotoUrl: data.tenantIdCardPhotoUrl,
+    startDate: data.startDate,
+    endDate: data.endDate,
+    totalDays: data.totalDays,
+    dailyPrice: data.dailyPrice,
+    rentalAmount: data.rentalAmount,
+    issuedAt: data.issuedAt ? data.issuedAt.toDate().toISOString() : new Date().toISOString(),
+  };
 }
 
 export async function createRentalRequest(payload: CreateRentalPayload): Promise<RentalApiResponse> {
-  const token = getTokenOrThrow();
+  const db = getFirebaseDb();
+  const { uid, email } = await getAuthIdentity();
 
-  const response = await fetch(`${API_BASE_URL}/api/auth/rentals`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
+  if (!payload.tenantName.trim()) throw new Error("Le nom du locataire est obligatoire.");
+  if (!payload.tenantPhone.trim()) throw new Error("Le telephone du locataire est obligatoire.");
+  if (!payload.tenantIdCardNumber.trim()) throw new Error("Le numero de piece est obligatoire.");
 
-  if (!response.ok) {
-    throw new Error(await parseApiError(response));
+  const startDate = parseDateTime(payload.startDate, "Date de debut");
+  const endDate = parseDateTime(payload.endDate, "Date de fin");
+  if (endDate <= startDate) {
+    throw new Error("La date de fin doit etre apres la date de debut.");
   }
 
-  return (await response.json()) as RentalApiResponse;
+  const vehicleRef = doc(db, "vehicles", payload.vehicleId);
+  const rentalRef = doc(collection(db, "rentals"));
+  const receiptRef = doc(collection(db, "rentalReceipts"));
+
+  await runTransaction(db, async (transaction) => {
+    const vehicleSnap = await transaction.get(vehicleRef);
+    if (!vehicleSnap.exists()) {
+      throw new Error("Vehicule introuvable.");
+    }
+    const vehicle = vehicleSnap.data() as VehicleFirestoreDoc;
+    if (vehicle.ownerUid !== uid) {
+      throw new Error("Acces refuse a ce vehicule.");
+    }
+    if (vehicle.status !== "available") {
+      throw new Error("Seuls les vehicules disponibles peuvent etre loues.");
+    }
+
+    const totalDays = computeTotalDays(startDate, endDate);
+    const expectedAmount = totalDays * Number(vehicle.rentalPrice);
+    if (Number(payload.amount) !== expectedAmount) {
+      throw new Error("Le montant calcule est invalide. Veuillez verifier les dates.");
+    }
+    const receiptNumber = buildRentalReceiptNumber(endDate.toISOString(), rentalRef.id);
+
+    transaction.set(rentalRef, {
+      vehicleId: payload.vehicleId,
+      ownerUid: uid,
+      ownerEmail: email,
+      vehicleBrand: vehicle.brand,
+      vehicleModel: vehicle.model,
+      vehiclePlate: vehicle.plate,
+      tenantName: payload.tenantName.trim(),
+      tenantPhone: payload.tenantPhone.trim(),
+      tenantIdCardNumber: payload.tenantIdCardNumber.trim(),
+      tenantIdCardPhotoUrl: payload.tenantIdCardPhotoUrl?.trim() || null,
+      tenantAddress: payload.tenantAddress?.trim() || null,
+      emergencyContactName: payload.emergencyContactName?.trim() || null,
+      emergencyContactPhone: payload.emergencyContactPhone?.trim() || null,
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+      totalDays,
+      dailyPrice: Number(vehicle.rentalPrice),
+      amount: expectedAmount,
+      status: "active",
+      completedAt: null,
+      receiptId: receiptRef.id,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
+    transaction.set(receiptRef, {
+      receiptNumber,
+      rentalId: rentalRef.id,
+      vehicleId: payload.vehicleId,
+      ownerUid: uid,
+      ownerEmail: email,
+      vehicleBrand: vehicle.brand,
+      vehicleModel: vehicle.model,
+      vehiclePlate: vehicle.plate,
+      tenantName: payload.tenantName.trim(),
+      tenantPhone: payload.tenantPhone.trim(),
+      tenantIdCardNumber: payload.tenantIdCardNumber.trim(),
+      tenantIdCardPhotoUrl: payload.tenantIdCardPhotoUrl?.trim() || null,
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+      totalDays,
+      dailyPrice: Number(vehicle.rentalPrice),
+      rentalAmount: expectedAmount,
+      issuedAt: serverTimestamp(),
+      createdAt: serverTimestamp(),
+    });
+
+    transaction.update(vehicleRef, {
+      status: "rented",
+      updatedAt: serverTimestamp(),
+      currentRentalId: rentalRef.id,
+    });
+  });
+
+  const createdSnap = await getDoc(rentalRef);
+  const createdData = createdSnap.data() as RentalFirestoreDoc | undefined;
+  if (!createdData) {
+    throw new Error("La location a ete enregistree, mais la lecture a echoue.");
+  }
+  return mapRentalDoc(rentalRef.id, createdData);
 }
 
 export async function listRentalsRequest(): Promise<RentalApiResponse[]> {
-  const token = getTokenOrThrow();
+  const db = getFirebaseDb();
+  const { uid } = await getAuthIdentity();
 
-  const response = await fetch(`${API_BASE_URL}/api/auth/rentals`, {
-    method: "GET",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-  });
+  const rentalsSnap = await getDocs(query(collection(db, "rentals"), where("ownerUid", "==", uid)));
+  const receiptsSnap = await getDocs(query(collection(db, "rentalReceipts"), where("ownerUid", "==", uid)));
+  const receiptByRentalId = new Map(
+    receiptsSnap.docs.map((docSnap) => {
+      const data = docSnap.data() as RentalReceiptFirestoreDoc;
+      return [data.rentalId, mapRentalReceiptDoc(docSnap.id, data)] as const;
+    }),
+  );
 
-  if (!response.ok) {
-    throw new Error(await parseApiError(response));
-  }
-
-  return (await response.json()) as RentalApiResponse[];
+  return rentalsSnap.docs
+    .map((docSnap) => {
+      const data = docSnap.data() as RentalFirestoreDoc;
+      return {
+        ...mapRentalDoc(docSnap.id, data),
+        receipt: receiptByRentalId.get(docSnap.id) ?? null,
+      };
+    })
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
 export async function completeRentalRequest(rentalId: string): Promise<RentalApiResponse> {
-  const token = getTokenOrThrow();
+  const db = getFirebaseDb();
+  const { uid } = await getAuthIdentity();
+  const rentalRef = doc(db, "rentals", rentalId);
 
-  const response = await fetch(`${API_BASE_URL}/api/auth/rentals/${rentalId}/complete`, {
-    method: "PUT",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
+  await runTransaction(db, async (transaction) => {
+    const rentalSnap = await transaction.get(rentalRef);
+    if (!rentalSnap.exists()) {
+      throw new Error("Location introuvable.");
+    }
+    const rental = rentalSnap.data() as RentalFirestoreDoc;
+    if (rental.ownerUid !== uid) {
+      throw new Error("Acces refuse a cette location.");
+    }
+    if (rental.status !== "active") {
+      throw new Error("Cette location est deja terminee.");
+    }
+
+    const vehicleRef = doc(db, "vehicles", rental.vehicleId);
+    const vehicleSnap = await transaction.get(vehicleRef);
+    if (!vehicleSnap.exists()) {
+      throw new Error("Vehicule associe introuvable.");
+    }
+    const vehicle = vehicleSnap.data() as VehicleFirestoreDoc;
+    if (vehicle.ownerUid !== uid) {
+      throw new Error("Acces refuse au vehicule associe.");
+    }
+
+    transaction.update(rentalRef, {
+      status: "completed",
+      completedAt: new Date().toISOString(),
+      updatedAt: serverTimestamp(),
+    });
+
+    transaction.update(vehicleRef, {
+      status: "available",
+      updatedAt: serverTimestamp(),
+      currentRentalId: null,
+    });
   });
 
-  if (!response.ok) {
-    throw new Error(await parseApiError(response));
-  }
+  const updatedRentalSnap = await getDoc(rentalRef);
+  const updatedRentalData = updatedRentalSnap.data() as RentalFirestoreDoc | undefined;
+  const receipt = await getReceiptByRentalIdRequest(rentalId);
 
-  return (await response.json()) as RentalApiResponse;
+  if (!updatedRentalData) {
+    throw new Error("Location terminee, mais impossible de relire les donnees.");
+  }
+  return {
+    ...mapRentalDoc(rentalId, updatedRentalData),
+    receipt,
+  };
 }
 
 export async function getReceiptByRentalIdRequest(rentalId: string): Promise<RentalReceiptApiResponse | null> {
-  const token = getTokenOrThrow();
-
-  const response = await fetch(`${API_BASE_URL}/api/auth/rentals/${rentalId}/receipt`, {
-    method: "GET",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-  });
-
-  if (response.status === 404) {
+  const db = getFirebaseDb();
+  const { uid } = await getAuthIdentity();
+  const receiptSnap = await getDocs(
+    query(collection(db, "rentalReceipts"), where("rentalId", "==", rentalId), where("ownerUid", "==", uid)),
+  );
+  const receiptDoc = receiptSnap.docs[0];
+  if (!receiptDoc) {
     return null;
   }
-  if (!response.ok) {
-    throw new Error(await parseApiError(response));
-  }
-
-  return (await response.json()) as RentalReceiptApiResponse;
+  return mapRentalReceiptDoc(receiptDoc.id, receiptDoc.data() as RentalReceiptFirestoreDoc);
 }
 
 export async function listRentalReceiptsRequest(): Promise<RentalReceiptApiResponse[]> {
-  const rentals = await listRentalsRequest();
-  const receipts = await Promise.all(rentals.map((rental) => getReceiptByRentalIdRequest(rental.id)));
-  return receipts.filter((receipt): receipt is RentalReceiptApiResponse => receipt !== null);
+  const db = getFirebaseDb();
+  const { uid } = await getAuthIdentity();
+  const receiptSnap = await getDocs(query(collection(db, "rentalReceipts"), where("ownerUid", "==", uid)));
+  return receiptSnap.docs
+    .map((docSnap) => mapRentalReceiptDoc(docSnap.id, docSnap.data() as RentalReceiptFirestoreDoc))
+    .sort((a, b) => new Date(b.issuedAt).getTime() - new Date(a.issuedAt).getTime());
 }

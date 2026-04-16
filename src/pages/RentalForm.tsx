@@ -76,7 +76,6 @@ export default function RentalForm() {
   const [tenantIdCardPhotoUrl, setTenantIdCardPhotoUrl] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [depositAmount, setDepositAmount] = useState("");
   const [uploadingIdCard, setUploadingIdCard] = useState(false);
 
   const amount = useMemo(() => {
@@ -132,11 +131,11 @@ export default function RentalForm() {
         startDate,
         endDate,
         amount: Number(amount),
-        depositAmount: depositAmount.trim() ? Number(depositAmount) : undefined,
       });
+      await queryClient.invalidateQueries({ queryKey: ["rentals", "list"] });
       await queryClient.invalidateQueries({ queryKey: vehicleQueryKeys.all });
       await queryClient.invalidateQueries({ queryKey: ["receipts", "list"] });
-      toast.success("Location enregistree avec succes.");
+      toast.success("Location enregistree avec succes. Recu genere automatiquement.");
       navigate(`/vehicles/${vehicleId}`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Impossible d'enregistrer la location.");
@@ -197,29 +196,6 @@ export default function RentalForm() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">Numero CNI / ID</label>
-            <input
-              type="text"
-              required
-              value={tenantIdCardNumber}
-              onChange={(event) => setTenantIdCardNumber(event.target.value)}
-              placeholder="Ex: CNI123456789"
-              disabled={submitting}
-              className="w-full px-3 py-2.5 bg-secondary border border-border rounded-lg text-sm text-foreground"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">Caution (optionnel)</label>
-            <input
-              type="number"
-              value={depositAmount}
-              onChange={(event) => setDepositAmount(event.target.value)}
-              placeholder="0"
-              disabled={submitting}
-              className="w-full px-3 py-2.5 bg-secondary border border-border rounded-lg text-sm text-foreground"
-            />
-          </div>
-          <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">Date et heure debut</label>
             <input
               type="datetime-local"
@@ -242,6 +218,19 @@ export default function RentalForm() {
             />
           </div>
         </div>
+
+        <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">Numero CNI / ID</label>
+            <input
+              type="text"
+              required
+              value={tenantIdCardNumber}
+              onChange={(event) => setTenantIdCardNumber(event.target.value)}
+              placeholder="Ex: CNI123456789"
+              disabled={submitting}
+              className="w-full px-3 py-2.5 bg-secondary border border-border rounded-lg text-sm text-foreground"
+            />
+          </div>
 
         <div>
           <label className="block text-sm font-medium text-foreground mb-1.5">Adresse locataire (optionnel)</label>

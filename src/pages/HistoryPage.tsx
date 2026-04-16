@@ -184,12 +184,6 @@ export default function HistoryPage() {
                     <p className="text-foreground">{rental.dailyPrice.toLocaleString()} CFA</p>
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground">Caution</p>
-                    <p className="text-foreground">
-                      {rental.depositAmount !== null ? `${rental.depositAmount.toLocaleString()} CFA` : 'Aucune'}
-                    </p>
-                  </div>
-                  <div>
                     <p className="text-xs text-muted-foreground">Fin de location</p>
                     <p className="text-foreground">
                       {rental.completedAt ? formatDateTimeFr(rental.completedAt) : 'Pas encore terminee'}
@@ -222,14 +216,6 @@ export default function HistoryPage() {
                         <p className="text-xs text-muted-foreground">Periode recu</p>
                         <p className="text-foreground">
                           {formatDateTimeFr(rental.receipt.startDate)} - {formatDateTimeFr(rental.receipt.endDate)}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Caution recu</p>
-                        <p className="text-foreground">
-                          {rental.receipt.depositAmount !== null
-                            ? `${rental.receipt.depositAmount.toLocaleString()} CFA`
-                            : 'Aucune'}
                         </p>
                       </div>
                       <div>

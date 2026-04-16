@@ -112,12 +112,6 @@ export default function RentedVehicles() {
                   <p className="text-xs text-muted-foreground">Prix / jour</p>
                   <p className="text-foreground">{rental.dailyPrice.toLocaleString()} CFA</p>
                 </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Caution</p>
-                  <p className="text-foreground">
-                    {rental.depositAmount !== null ? `${rental.depositAmount.toLocaleString()} CFA` : 'Aucune'}
-                  </p>
-                </div>
               </div>
 
               <div className="pt-2 border-t border-border">

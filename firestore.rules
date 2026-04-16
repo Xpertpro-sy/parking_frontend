@@ -60,6 +60,37 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    match /rentals/{rentalId} {
+      allow read: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      allow create: if isSignedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.vehicleId is string
+        && request.resource.data.tenantName is string
+        && request.resource.data.tenantPhone is string
+        && request.resource.data.tenantIdCardNumber is string
+        && request.resource.data.startDate is string
+        && request.resource.data.endDate is string
+        && request.resource.data.amount is number
+        && request.resource.data.dailyPrice is number
+        && request.resource.data.totalDays is number
+        && request.resource.data.status is string;
+      allow update: if isSignedIn()
+        && resource.data.ownerUid == request.auth.uid
+        && request.resource.data.ownerUid == resource.data.ownerUid;
+      allow delete: if false;
+    }
+
+    match /rentalReceipts/{receiptId} {
+      allow read: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      allow create: if isSignedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.rentalId is string
+        && request.resource.data.vehicleId is string
+        && request.resource.data.receiptNumber is string
+        && request.resource.data.rentalAmount is number;
+      allow update, delete: if false;
+    }
+
     // Tout le reste est refuse par defaut.
     match /{document=**} {
       allow read, write: if false;
