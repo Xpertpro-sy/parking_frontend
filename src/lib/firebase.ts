@@ -1,5 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: (import.meta.env.VITE_FIREBASE_API_KEY as string | undefined)?.trim(),
@@ -17,11 +18,26 @@ function ensureFirebaseConfig() {
 }
 
 let firebaseAuthInstance: ReturnType<typeof getAuth> | null = null;
+let firebaseDbInstance: ReturnType<typeof getFirestore> | null = null;
+let firebaseAppInstance: ReturnType<typeof initializeApp> | null = null;
+
+function getFirebaseApp() {
+  if (firebaseAppInstance) return firebaseAppInstance;
+  ensureFirebaseConfig();
+  firebaseAppInstance = initializeApp(firebaseConfig);
+  return firebaseAppInstance;
+}
 
 export function getFirebaseAuth() {
   if (firebaseAuthInstance) return firebaseAuthInstance;
-  ensureFirebaseConfig();
-  const app = initializeApp(firebaseConfig);
+  const app = getFirebaseApp();
   firebaseAuthInstance = getAuth(app);
   return firebaseAuthInstance;
+}
+
+export function getFirebaseDb() {
+  if (firebaseDbInstance) return firebaseDbInstance;
+  const app = getFirebaseApp();
+  firebaseDbInstance = getFirestore(app);
+  return firebaseDbInstance;
 }
