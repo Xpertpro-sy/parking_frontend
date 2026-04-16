@@ -1,0 +1,12 @@
+name = "gestionparking-upload"
+main = "upload-worker.js"
+compatibility_date = "2026-04-16"
+workers_dev = true
+
+[[r2_buckets]]
+binding = "R2_BUCKET"
+bucket_name = "gestionparking-images"
+
+[vars]
+FIREBASE_PROJECT_ID = "parking-506c1"
+R2_PUBLIC_BASE_URL = "https://pub-73dab8b3102d4371910468ab0d612b2a.r2.dev"
