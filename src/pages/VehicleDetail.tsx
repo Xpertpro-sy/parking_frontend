@@ -177,6 +177,10 @@ export default function VehicleDetail() {
       toast.error("Nom, telephone, jour et montant paye sont obligatoires.");
       return;
     }
+    if (parsedAmount > vehicle.rentalPrice) {
+      toast.error("Le montant paye ne peut pas depasser le prix de location de cette voiture.");
+      return;
+    }
     setSubmittingReservation(true);
     try {
       await createReservationRequest(vehicle.id, {
@@ -289,7 +293,10 @@ export default function VehicleDetail() {
               Louer
             </Link>
             <button
-              onClick={() => setShowReservationModal(true)}
+              onClick={() => {
+                setReservationAmountPaid(String(vehicle.rentalPrice));
+                setShowReservationModal(true);
+              }}
               className="px-4 py-2.5 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-500 transition-colors"
             >
               Réserver
@@ -542,10 +549,14 @@ export default function VehicleDetail() {
               <input
                 type="number"
                 min={0}
+                max={vehicle.rentalPrice}
                 value={reservationAmountPaid}
                 onChange={(event) => setReservationAmountPaid(event.target.value)}
                 className="w-full px-3 py-2.5 bg-secondary border border-border rounded-lg text-sm text-foreground"
               />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Maximum autorise: {vehicle.rentalPrice.toLocaleString()} CFA
+              </p>
             </div>
             <div>
               <label className="block text-sm text-foreground mb-1">Notes (optionnel)</label>
