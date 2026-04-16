@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CalendarClock, Loader2 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { cancelReservationRequest, listReservationsRequest } from '@/lib/vehicle-action-api';
 import { vehicleQueryKeys } from '@/lib/vehicle-queries';
@@ -13,6 +13,7 @@ const formatDateFr = (value: string) =>
 
 export default function ReservedVehicles() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const { data: reservations = [], isLoading, isError, error } = useQuery({
     queryKey: ['reservations', 'list'],
     queryFn: listReservationsRequest,
@@ -37,6 +38,10 @@ export default function ReservedVehicles() {
     } catch (cancelError) {
       toast.error(cancelError instanceof Error ? cancelError.message : "Impossible d'annuler la reservation.");
     }
+  };
+
+  const goToFinalizeRental = (vehicleId: string) => {
+    navigate(`/rentals/finalize-from-reservation?vehicleId=${vehicleId}`);
   };
 
   return (
@@ -88,13 +93,22 @@ export default function ReservedVehicles() {
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => onCancelReservation(reservation.vehicleId)}
-                className="w-full px-4 py-2.5 bg-destructive text-destructive-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
-              >
-                Annuler reservation
-              </button>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => goToFinalizeRental(reservation.vehicleId)}
+                  className="w-full px-4 py-2.5 bg-info text-info-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
+                >
+                  Louer maintenant
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onCancelReservation(reservation.vehicleId)}
+                  className="w-full px-4 py-2.5 bg-destructive text-destructive-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
+                >
+                  Annuler reservation
+                </button>
+              </div>
             </div>
           ))}
         </div>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Car, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -34,6 +34,7 @@ import {
 
 export default function VehicleDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: vehicle, isLoading, isError, error } = useVehicleDetailQuery(id);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
@@ -327,13 +328,21 @@ export default function VehicleDetail() {
           </button>
         )}
         {vehicle.status === 'reserved' && (
-          <button
-            onClick={() => setShowCancelReservationPopup(true)}
-            disabled={submittingReservation}
-            className="px-4 py-2.5 bg-destructive text-destructive-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-60"
-          >
-            {submittingReservation ? "Annulation..." : "Annuler reservation"}
-          </button>
+          <>
+            <button
+              onClick={() => navigate(`/rentals/finalize-from-reservation?vehicleId=${vehicle.id}`)}
+              className="px-4 py-2.5 bg-info text-info-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-60"
+            >
+              Louer maintenant
+            </button>
+            <button
+              onClick={() => setShowCancelReservationPopup(true)}
+              disabled={submittingReservation}
+              className="px-4 py-2.5 bg-destructive text-destructive-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-60"
+            >
+              {submittingReservation ? "Annulation..." : "Annuler reservation"}
+            </button>
+          </>
         )}
       </div>
       {vehicle.status === 'reserved' && activeReservation && (
@@ -551,11 +560,12 @@ export default function VehicleDetail() {
                 min={0}
                 max={vehicle.rentalPrice}
                 value={reservationAmountPaid}
-                onChange={(event) => setReservationAmountPaid(event.target.value)}
-                className="w-full px-3 py-2.5 bg-secondary border border-border rounded-lg text-sm text-foreground"
+                readOnly
+                disabled
+                className="w-full px-3 py-2.5 bg-muted border border-border rounded-lg text-sm text-foreground/90 cursor-not-allowed"
               />
               <p className="mt-1 text-xs text-muted-foreground">
-                Maximum autorise: {vehicle.rentalPrice.toLocaleString()} CFA
+                Montant fixe selon le prix de location: {vehicle.rentalPrice.toLocaleString()} CFA
               </p>
             </div>
             <div>

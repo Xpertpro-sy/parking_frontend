@@ -27,6 +27,18 @@ export type CreateRepairPayload = {
   startDate: string;
 };
 
+export type FinalizeReservationToRentalPayload = {
+  tenantName: string;
+  tenantPhone: string;
+  tenantIdCardNumber: string;
+  tenantIdCardPhotoUrl?: string;
+  tenantAddress?: string;
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
+  startDate: string;
+  endDate: string;
+};
+
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() || "http://localhost:8080";
 
 export type ReservationApiResponse = {
@@ -62,6 +74,54 @@ type ReservationFirestoreDoc = {
   cancelledAt: string | null;
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
+};
+
+type RentalFirestoreDoc = {
+  vehicleId: string;
+  ownerUid: string;
+  ownerEmail: string | null;
+  vehicleBrand: string;
+  vehicleModel: string;
+  vehiclePlate: string;
+  tenantName: string;
+  tenantPhone: string;
+  tenantIdCardNumber: string;
+  tenantIdCardPhotoUrl: string | null;
+  tenantAddress: string | null;
+  emergencyContactName: string | null;
+  emergencyContactPhone: string | null;
+  startDate: string;
+  endDate: string;
+  totalDays: number;
+  dailyPrice: number;
+  amount: number;
+  status: "active" | "completed";
+  completedAt: string | null;
+  receiptId: string | null;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
+};
+
+type RentalReceiptFirestoreDoc = {
+  receiptNumber: string;
+  rentalId: string;
+  vehicleId: string;
+  ownerUid: string;
+  ownerEmail: string | null;
+  vehicleBrand: string;
+  vehicleModel: string;
+  vehiclePlate: string;
+  tenantName: string;
+  tenantPhone: string;
+  tenantIdCardNumber: string;
+  tenantIdCardPhotoUrl: string | null;
+  startDate: string;
+  endDate: string;
+  totalDays: number;
+  dailyPrice: number;
+  rentalAmount: number;
+  issuedAt?: Timestamp;
+  createdAt?: Timestamp;
 };
 
 async function parseApiError(response: Response): Promise<string> {
@@ -115,6 +175,27 @@ function parseReservationDate(value: string) {
     throw new Error("Jour de reservation invalide.");
   }
   return parsed.toISOString();
+}
+
+function parseDateTime(value: string, fieldLabel: string): Date {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error(`${fieldLabel} invalide.`);
+  }
+  return parsed;
+}
+
+function computeTotalDays(startDate: Date, endDate: Date): number {
+  const minutes = (endDate.getTime() - startDate.getTime()) / (60 * 1000);
+  return Math.max(1, Math.ceil(minutes / (24 * 60)));
+}
+
+function buildRentalReceiptNumber(endDateIso: string, rentalId: string) {
+  const endDate = new Date(endDateIso);
+  const yyyy = endDate.getFullYear();
+  const mm = String(endDate.getMonth() + 1).padStart(2, "0");
+  const dd = String(endDate.getDate()).padStart(2, "0");
+  return `LOC-${yyyy}${mm}${dd}-${rentalId.slice(0, 8).toUpperCase()}`;
 }
 
 function mapReservationDoc(id: string, data: ReservationFirestoreDoc): ReservationApiResponse {
@@ -196,6 +277,124 @@ export async function createReservationRequest(vehicleId: string, payload: Creat
 
 export async function createRepairRequest(vehicleId: string, payload: CreateRepairPayload): Promise<void> {
   await postWithAuth(`/api/auth/vehicles/${vehicleId}/repairs`, payload);
+}
+
+export async function finalizeReservationToRentalRequest(
+  vehicleId: string,
+  payload: FinalizeReservationToRentalPayload,
+): Promise<void> {
+  const db = getFirebaseDb();
+  const { uid, email } = await getAuthIdentity();
+
+  if (!payload.tenantIdCardNumber.trim()) {
+    throw new Error("Le numero de piece du locataire est obligatoire.");
+  }
+  if (!payload.tenantName.trim() || !payload.tenantPhone.trim()) {
+    throw new Error("Nom et telephone du locataire sont obligatoires.");
+  }
+  const startDate = parseDateTime(payload.startDate, "Date de debut");
+  const endDate = parseDateTime(payload.endDate, "Date de fin");
+  if (endDate <= startDate) {
+    throw new Error("La date de fin doit etre apres la date de debut.");
+  }
+
+  const vehicleRef = doc(db, "vehicles", vehicleId);
+  const rentalRef = doc(collection(db, "rentals"));
+  const receiptRef = doc(collection(db, "rentalReceipts"));
+
+  await runTransaction(db, async (transaction) => {
+    const vehicleSnap = await transaction.get(vehicleRef);
+    if (!vehicleSnap.exists()) {
+      throw new Error("Vehicule introuvable.");
+    }
+    const vehicleData = vehicleSnap.data() as VehicleFirestoreDoc & { activeReservationId?: string | null };
+    if (vehicleData.ownerUid !== uid) {
+      throw new Error("Acces refuse a ce vehicule.");
+    }
+    if (vehicleData.status !== "reserved") {
+      throw new Error("Ce vehicule doit etre reserve pour lancer la location.");
+    }
+    if (!vehicleData.activeReservationId) {
+      throw new Error("Aucune reservation active reliee a ce vehicule.");
+    }
+
+    const reservationRef = doc(db, "reservations", vehicleData.activeReservationId);
+    const reservationSnap = await transaction.get(reservationRef);
+    if (!reservationSnap.exists()) {
+      throw new Error("Reservation introuvable.");
+    }
+    const reservationData = reservationSnap.data() as ReservationFirestoreDoc;
+    if (reservationData.ownerUid !== uid || reservationData.status !== "ACTIVE") {
+      throw new Error("Reservation inactive ou inaccessible.");
+    }
+
+    const totalDays = computeTotalDays(startDate, endDate);
+    const dailyPrice = Number(vehicleData.rentalPrice);
+    const amount = totalDays * dailyPrice;
+    const receiptNumber = buildRentalReceiptNumber(endDate.toISOString(), rentalRef.id);
+
+    const rentalPayload: RentalFirestoreDoc = {
+      vehicleId,
+      ownerUid: uid,
+      ownerEmail: email,
+      vehicleBrand: vehicleData.brand,
+      vehicleModel: vehicleData.model,
+      vehiclePlate: vehicleData.plate,
+      tenantName: payload.tenantName.trim(),
+      tenantPhone: payload.tenantPhone.trim(),
+      tenantIdCardNumber: payload.tenantIdCardNumber.trim(),
+      tenantIdCardPhotoUrl: payload.tenantIdCardPhotoUrl?.trim() || null,
+      tenantAddress: payload.tenantAddress?.trim() || null,
+      emergencyContactName: payload.emergencyContactName?.trim() || null,
+      emergencyContactPhone: payload.emergencyContactPhone?.trim() || null,
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+      totalDays,
+      dailyPrice,
+      amount,
+      status: "active",
+      completedAt: null,
+      receiptId: receiptRef.id,
+      createdAt: serverTimestamp() as unknown as Timestamp,
+      updatedAt: serverTimestamp() as unknown as Timestamp,
+    };
+
+    const receiptPayload: RentalReceiptFirestoreDoc = {
+      receiptNumber,
+      rentalId: rentalRef.id,
+      vehicleId,
+      ownerUid: uid,
+      ownerEmail: email,
+      vehicleBrand: vehicleData.brand,
+      vehicleModel: vehicleData.model,
+      vehiclePlate: vehicleData.plate,
+      tenantName: payload.tenantName.trim(),
+      tenantPhone: payload.tenantPhone.trim(),
+      tenantIdCardNumber: payload.tenantIdCardNumber.trim(),
+      tenantIdCardPhotoUrl: payload.tenantIdCardPhotoUrl?.trim() || null,
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+      totalDays,
+      dailyPrice,
+      rentalAmount: amount,
+      issuedAt: serverTimestamp() as unknown as Timestamp,
+      createdAt: serverTimestamp() as unknown as Timestamp,
+    };
+
+    transaction.set(rentalRef, rentalPayload);
+    transaction.set(receiptRef, receiptPayload);
+    transaction.update(reservationRef, {
+      status: "COMPLETED",
+      updatedAt: serverTimestamp(),
+      cancelledAt: null,
+    });
+    transaction.update(vehicleRef, {
+      status: "rented",
+      updatedAt: serverTimestamp(),
+      activeReservationId: null,
+      currentRentalId: rentalRef.id,
+    });
+  });
 }
 
 export async function completeRepairRequest(vehicleId: string): Promise<void> {
