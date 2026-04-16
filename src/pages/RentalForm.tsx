@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Loader2, Save, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { useVehicleDetailQuery, vehicleQueryKeys } from "@/lib/vehicle-queries";
+import { accountMovementsQueryKey } from "@/lib/accounting-api";
 import { createRentalRequest } from "@/lib/rental-api";
 import { uploadImageToR2 } from "@/lib/cloudflare-upload";
 
@@ -135,6 +136,7 @@ export default function RentalForm() {
       await queryClient.invalidateQueries({ queryKey: ["rentals", "list"] });
       await queryClient.invalidateQueries({ queryKey: vehicleQueryKeys.all });
       await queryClient.invalidateQueries({ queryKey: ["receipts", "list"] });
+      await queryClient.invalidateQueries({ queryKey: accountMovementsQueryKey });
       toast.success("Location enregistree avec succes. Recu genere automatiquement.");
       navigate(`/vehicles/${vehicleId}`);
     } catch (error) {

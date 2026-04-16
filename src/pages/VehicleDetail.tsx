@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Car, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import StatusBadge from '@/components/StatusBadge';
+import { accountMovementsQueryKey } from '@/lib/accounting-api';
 import { useVehicleDetailQuery, vehicleQueryKeys } from '@/lib/vehicle-queries';
 import { completeRentalRequest, listRentalsRequest } from '@/lib/rental-api';
 import {
@@ -197,6 +198,7 @@ export default function VehicleDetail() {
       });
       await queryClient.invalidateQueries({ queryKey: vehicleQueryKeys.all });
       await queryClient.invalidateQueries({ queryKey: ['reservations', 'list'] });
+      await queryClient.invalidateQueries({ queryKey: accountMovementsQueryKey });
       toast.success("Reservation enregistree avec succes.");
       setShowReservationModal(false);
       setCustomerName('');
@@ -248,6 +250,7 @@ export default function VehicleDetail() {
         notes: repairNotes.trim() || undefined,
       });
       await queryClient.invalidateQueries({ queryKey: vehicleQueryKeys.all });
+      await queryClient.invalidateQueries({ queryKey: accountMovementsQueryKey });
       toast.success("Vehicule marque en reparation.");
       setShowRepairModal(false);
       setRepairReason('');

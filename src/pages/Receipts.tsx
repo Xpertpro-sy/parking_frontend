@@ -71,7 +71,7 @@ function printInvoice(receipt: UiReceipt) {
             <div><span>Téléphone</span><strong>${receipt.personPhone}</strong></div>
             <div><span>Email</span><strong>${receipt.buyerEmail ?? '-'}</strong></div>
             <div><span>Pièce</span><strong>${receipt.buyerIdCardNumber}</strong></div>
-            <div class="full"><span>Adresse</span><strong>${receipt.buyerAddress}</strong></div>
+            <div class="full"><span>Adresse</span><strong>${receipt.buyerAddress?.trim() ? receipt.buyerAddress : "Non renseignee"}</strong></div>
             <div><span>Paiement</span><strong>${getPaymentMethodLabel(receipt.paymentMethod)}</strong></div>
           </div>
         </div>

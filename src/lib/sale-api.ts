@@ -17,7 +17,7 @@ export type CreateSalePayload = {
   buyerName: string;
   buyerPhone: string;
   buyerEmail?: string;
-  buyerAddress: string;
+  buyerAddress?: string;
   buyerIdCardNumber: string;
   paymentMethod: "cash" | "bank-transfer" | "mobile-money" | "cheque";
   amount: number;
@@ -219,7 +219,6 @@ export async function createSaleRequest(payload: CreateSalePayload): Promise<Sal
 
   if (!payload.buyerName.trim()) throw new Error("Le nom de l'acheteur est obligatoire.");
   if (!payload.buyerPhone.trim()) throw new Error("Le telephone de l'acheteur est obligatoire.");
-  if (!payload.buyerAddress.trim()) throw new Error("L'adresse de l'acheteur est obligatoire.");
   if (!payload.buyerIdCardNumber.trim()) throw new Error("Le numero de piece de l'acheteur est obligatoire.");
   requirePositiveAmount(payload.amount);
 
@@ -227,6 +226,7 @@ export async function createSaleRequest(payload: CreateSalePayload): Promise<Sal
   const vehicleRef = doc(db, "vehicles", payload.vehicleId);
   const saleRef = doc(collection(db, "sales"));
   const receiptRef = doc(collection(db, "saleReceipts"));
+  const movementRef = doc(collection(db, "accountMovements"));
   const receiptNumber = buildReceiptNumber(saleDateIso, saleRef.id);
 
   await runTransaction(db, async (transaction) => {
@@ -256,7 +256,7 @@ export async function createSaleRequest(payload: CreateSalePayload): Promise<Sal
       buyerName: payload.buyerName.trim(),
       buyerPhone: payload.buyerPhone.trim(),
       buyerEmail: payload.buyerEmail?.trim() || null,
-      buyerAddress: payload.buyerAddress.trim(),
+      buyerAddress: (payload.buyerAddress ?? "").trim(),
       buyerIdCardNumber: payload.buyerIdCardNumber.trim(),
       paymentMethod: payload.paymentMethod,
       amount: Number(payload.amount),
@@ -283,7 +283,7 @@ export async function createSaleRequest(payload: CreateSalePayload): Promise<Sal
       buyerName: payload.buyerName.trim(),
       buyerPhone: payload.buyerPhone.trim(),
       buyerEmail: payload.buyerEmail?.trim() || null,
-      buyerAddress: payload.buyerAddress.trim(),
+      buyerAddress: (payload.buyerAddress ?? "").trim(),
       buyerIdCardNumber: payload.buyerIdCardNumber.trim(),
       paymentMethod: payload.paymentMethod,
       amount: Number(payload.amount),
@@ -295,6 +295,35 @@ export async function createSaleRequest(payload: CreateSalePayload): Promise<Sal
 
     transaction.set(saleRef, saleDoc);
     transaction.set(receiptRef, receiptDoc);
+    transaction.set(movementRef, {
+      ownerUid: uid,
+      ownerEmail: email,
+      operationType: "sale",
+      direction: "entree",
+      category: "Vente",
+      source:
+        payload.paymentMethod === "bank-transfer"
+          ? "banque"
+          : payload.paymentMethod === "mobile-money"
+            ? "mobile-money"
+            : payload.paymentMethod === "cheque"
+              ? "banque"
+              : "caisse",
+      reference: receiptNumber,
+      amount: Number(payload.amount),
+      unitPrice: Number(payload.amount),
+      quantity: 1,
+      operationDate: saleDateIso,
+      vehicleId: payload.vehicleId,
+      vehicleBrand: vehicle.brand,
+      vehicleModel: vehicle.model,
+      vehiclePlate: vehicle.plate,
+      counterpartyName: payload.buyerName.trim(),
+      counterpartyPhone: payload.buyerPhone.trim(),
+      description: `Vente vehicule ${vehicle.brand} ${vehicle.model}`,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
     transaction.update(vehicleRef, {
       status: "sold",
       updatedAt: serverTimestamp(),

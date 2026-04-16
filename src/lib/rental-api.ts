@@ -216,6 +216,7 @@ export async function createRentalRequest(payload: CreateRentalPayload): Promise
   const vehicleRef = doc(db, "vehicles", payload.vehicleId);
   const rentalRef = doc(collection(db, "rentals"));
   const receiptRef = doc(collection(db, "rentalReceipts"));
+  const movementRef = doc(collection(db, "accountMovements"));
 
   await runTransaction(db, async (transaction) => {
     const vehicleSnap = await transaction.get(vehicleRef);
@@ -283,6 +284,29 @@ export async function createRentalRequest(payload: CreateRentalPayload): Promise
       rentalAmount: expectedAmount,
       issuedAt: serverTimestamp(),
       createdAt: serverTimestamp(),
+    });
+
+    transaction.set(movementRef, {
+      ownerUid: uid,
+      ownerEmail: email,
+      operationType: "rental",
+      direction: "entree",
+      category: "Location",
+      source: "caisse",
+      reference: receiptNumber,
+      amount: expectedAmount,
+      unitPrice: Number(vehicle.rentalPrice),
+      quantity: totalDays,
+      operationDate: startDate.toISOString(),
+      vehicleId: payload.vehicleId,
+      vehicleBrand: vehicle.brand,
+      vehicleModel: vehicle.model,
+      vehiclePlate: vehicle.plate,
+      counterpartyName: payload.tenantName.trim(),
+      counterpartyPhone: payload.tenantPhone.trim(),
+      description: `Location vehicule ${vehicle.brand} ${vehicle.model}`,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
     });
 
     transaction.update(vehicleRef, {

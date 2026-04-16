@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Car, LayoutDashboard, Plus, Receipt, History, Menu, X, LogOut } from 'lucide-react';
+import { Car, LayoutDashboard, Plus, Receipt, History, Menu, X, LogOut, Calculator } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import {
   AlertDialog,
@@ -18,6 +18,7 @@ const navItems = [
   { to: '/vehicles', icon: Car, label: 'Véhicules' },
   // { to: '/vehicles/new', icon: Plus, label: 'Ajouter' },
   { to: '/receipts', icon: Receipt, label: 'Reçus' },
+  { to: '/comptability', icon: Calculator, label: 'Comptabilité' },
   { to: '/voitures-louees', icon: Car, label: 'Voitures louées' },
   { to: '/voitures-reservees', icon: Car, label: 'Voitures réservées' },
   { to: '/history', icon: History, label: 'Historique' },

@@ -5,6 +5,7 @@ import { ArrowLeft, Loader2, Save, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { uploadImageToR2 } from "@/lib/cloudflare-upload";
 import { useVehicleDetailQuery, vehicleQueryKeys } from "@/lib/vehicle-queries";
+import { accountMovementsQueryKey } from "@/lib/accounting-api";
 import { finalizeReservationToRentalRequest, listReservationsRequest } from "@/lib/vehicle-action-api";
 
 const MAX_FILE_SIZE_MB = 8;
@@ -163,6 +164,7 @@ export default function FinalizeReservationRentalForm() {
       await queryClient.invalidateQueries({ queryKey: ["rentals", "list"] });
       await queryClient.invalidateQueries({ queryKey: ["receipts", "list"] });
       await queryClient.invalidateQueries({ queryKey: vehicleQueryKeys.all });
+      await queryClient.invalidateQueries({ queryKey: accountMovementsQueryKey });
       toast.success("Reservation finalisee en location avec succes.");
       navigate(`/vehicles/${vehicleId}`);
     } catch (error) {

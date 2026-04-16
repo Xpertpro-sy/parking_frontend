@@ -1,13 +1,19 @@
-import { useMemo, useState } from "react";
-import { ArrowDownLeft, ArrowUpRight, Landmark, Search, Smartphone, Wallet } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Landmark, Search, Smartphone, Wallet } from "lucide-react";
+import { toast } from "sonner";
+import { accountMovementsQueryKey, listAccountMovementsRequest } from "@/lib/accounting-api";
 
-type MovementType = "entree" | "sortie" | "transfert" | "credit";
+type MovementType = "entree" | "sortie";
 type MovementSource = "caisse" | "banque" | "mobile-money" | "credit";
 
 type Movement = {
   id: string;
   reference: string;
+  /** Date d'enregistrement du mouvement (Firestore) — tri et colonne « Date creation ». */
   createdAt: string;
+  /** Date métier de l'opération — filtre semaine / mois. */
+  operationDate: string;
   origin: string;
   label: string;
   category: string;
@@ -26,71 +32,10 @@ const sourceLabel: Record<MovementSource, string> = {
   credit: "Credit",
 };
 
-const typeLabel: Record<MovementType, string> = {
+const directionLabel: Record<MovementType, string> = {
   entree: "Entree",
   sortie: "Sortie",
-  transfert: "Transfert",
-  credit: "Credit",
 };
-
-const movementData: Movement[] = [
-  {
-    id: "m1",
-    reference: "C-002-04-2026",
-    createdAt: "2026-04-13T11:00:00.000Z",
-    origin: "POS - Agence ACI",
-    label: "Vente location weekend",
-    category: "Location",
-    manager: "Diakari D.",
-    unitPrice: 154000,
-    quantity: 1,
-    amount: 154000,
-    type: "entree",
-    source: "caisse",
-  },
-  {
-    id: "m2",
-    reference: "B-008-04-2026",
-    createdAt: "2026-04-14T10:20:00.000Z",
-    origin: "Virement client",
-    label: "Acompte vente vehicule",
-    category: "Vente",
-    manager: "Aicha K.",
-    unitPrice: 350000,
-    quantity: 1,
-    amount: 350000,
-    type: "entree",
-    source: "banque",
-  },
-  {
-    id: "m3",
-    reference: "MM-003-04-2026",
-    createdAt: "2026-04-15T15:30:00.000Z",
-    origin: "Orange Money",
-    label: "Remboursement reservation",
-    category: "Reservation",
-    manager: "Fatou T.",
-    unitPrice: 10000,
-    quantity: 1,
-    amount: 10000,
-    type: "sortie",
-    source: "mobile-money",
-  },
-  {
-    id: "m4",
-    reference: "CR-001-04-2026",
-    createdAt: "2026-04-16T08:00:00.000Z",
-    origin: "Paiement differe",
-    label: "Paiement partiel entreprise",
-    category: "Credit client",
-    manager: "Paul N.",
-    unitPrice: 267900,
-    quantity: 1,
-    amount: 267900,
-    type: "credit",
-    source: "credit",
-  },
-];
 
 const formatDateFr = (value: string) =>
   new Date(value).toLocaleDateString("fr-FR", {
@@ -104,9 +49,55 @@ export default function ComptabilityPage() {
   const [sourceFilter, setSourceFilter] = useState<"all" | MovementSource>("all");
   const [typeFilter, setTypeFilter] = useState<"all" | MovementType>("all");
   const [search, setSearch] = useState("");
+  const {
+    data: accountMovements = [],
+    isLoading,
+    isError,
+    error,
+  } = useQuery({
+    queryKey: accountMovementsQueryKey,
+    queryFn: listAccountMovementsRequest,
+    staleTime: 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: true,
+  });
+
+  useEffect(() => {
+    if (isError) {
+      toast.error(error instanceof Error ? error.message : "Impossible de charger les mouvements comptables.");
+    }
+  }, [isError, error]);
+
+  const movementData = useMemo<Movement[]>(() => {
+    return accountMovements
+      .map((movement) => ({
+        id: movement.id,
+        reference: movement.reference,
+        createdAt: movement.createdAt,
+        operationDate: movement.operationDate,
+        origin: `${movement.vehicleBrand} ${movement.vehicleModel} · ${movement.vehiclePlate}`,
+        label: movement.description,
+        category: movement.category,
+        manager: movement.counterpartyName,
+        unitPrice: movement.unitPrice,
+        quantity: movement.quantity,
+        amount: movement.amount,
+        type: movement.direction,
+        source: movement.source,
+      }))
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [accountMovements]);
 
   const filteredMovements = useMemo(() => {
+    const now = new Date();
+    const startDate =
+      periodFilter === "semaine"
+        ? new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+        : new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
     return movementData.filter((movement) => {
+      const movementDate = new Date(movement.operationDate);
+      if (movementDate < startDate) return false;
       if (sourceFilter !== "all" && movement.source !== sourceFilter) return false;
       if (typeFilter !== "all" && movement.type !== typeFilter) return false;
       if (!search.trim()) return true;
@@ -118,46 +109,62 @@ export default function ComptabilityPage() {
         movement.manager.toLowerCase().includes(q)
       );
     });
-  }, [search, sourceFilter, typeFilter]);
+  }, [movementData, periodFilter, search, sourceFilter, typeFilter]);
 
   const metrics = useMemo(() => {
-    const bySource = (source: MovementSource) =>
-      filteredMovements.filter((item) => item.source === source).reduce((sum, item) => sum + item.amount, 0);
+    const accumulate = (source: MovementSource) => {
+      let entree = 0;
+      let sortie = 0;
+      for (const item of filteredMovements) {
+        if (item.source !== source) continue;
+        if (item.type === "entree") entree += item.amount;
+        else sortie += item.amount;
+      }
+      return { entree, sortie, net: entree - sortie };
+    };
     return {
-      caisse: bySource("caisse"),
-      banque: bySource("banque"),
-      mobileMoney: bySource("mobile-money"),
-      credit: bySource("credit"),
+      caisse: accumulate("caisse"),
+      banque: accumulate("banque"),
+      mobileMoney: accumulate("mobile-money"),
+      credit: accumulate("credit"),
     };
   }, [filteredMovements]);
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Entrees et sorties</h1>
           <p className="text-sm text-muted-foreground mt-1">Suivi comptable simplifie des flux financiers.</p>
         </div>
-        <button className="px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity">
-          Effectuer un mouvement
-        </button>
+        <div className="px-4 py-2.5 rounded-lg bg-primary/10 text-primary text-sm font-medium">
+          {filteredMovements.length} mouvement(s)
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <div className="rounded-xl border border-emerald-200/40 bg-emerald-500/10 p-4">
           <div className="flex items-center justify-between">
             <p className="text-xs font-medium text-emerald-600">Caisse</p>
             <Wallet className="w-4 h-4 text-emerald-500" />
           </div>
-          <p className="mt-2 text-3xl font-bold text-foreground">{metrics.caisse.toLocaleString()} CFA</p>
-          <p className="text-xs text-muted-foreground mt-1">Periode: {periodFilter}</p>
+          <p
+            className={`mt-2 text-3xl font-bold ${
+              metrics.caisse.net < 0 ? "text-rose-600" : "text-foreground"
+            }`}
+          >
+            {metrics.caisse.net.toLocaleString()} CFA
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Déductions : {metrics.caisse.sortie.toLocaleString()} CFA
+          </p>
         </div>
         <div className="rounded-xl border border-sky-200/40 bg-sky-500/10 p-4">
           <div className="flex items-center justify-between">
             <p className="text-xs font-medium text-sky-600">Banque</p>
             <Landmark className="w-4 h-4 text-sky-500" />
           </div>
-          <p className="mt-2 text-3xl font-bold text-foreground">{metrics.banque.toLocaleString()} CFA</p>
+          <p className="mt-2 text-3xl font-bold text-foreground">{metrics.banque.net.toLocaleString()} CFA</p>
           <p className="text-xs text-muted-foreground mt-1">Periode: {periodFilter}</p>
         </div>
         <div className="rounded-xl border border-violet-200/40 bg-violet-500/10 p-4">
@@ -165,22 +172,22 @@ export default function ComptabilityPage() {
             <p className="text-xs font-medium text-violet-600">Mobile Money</p>
             <Smartphone className="w-4 h-4 text-violet-500" />
           </div>
-          <p className="mt-2 text-3xl font-bold text-foreground">{metrics.mobileMoney.toLocaleString()} CFA</p>
+          <p className="mt-2 text-3xl font-bold text-foreground">{metrics.mobileMoney.net.toLocaleString()} CFA</p>
           <p className="text-xs text-muted-foreground mt-1">Periode: {periodFilter}</p>
         </div>
         <div className="rounded-xl border border-amber-200/40 bg-amber-500/10 p-4">
           <div className="flex items-center justify-between">
             <p className="text-xs font-medium text-amber-600">Credit</p>
-            <ArrowDownLeft className="w-4 h-4 text-amber-500" />
+            <Wallet className="w-4 h-4 text-amber-500" />
           </div>
-          <p className="mt-2 text-3xl font-bold text-foreground">{metrics.credit.toLocaleString()} CFA</p>
+          <p className="mt-2 text-3xl font-bold text-foreground">{metrics.credit.net.toLocaleString()} CFA</p>
           <p className="text-xs text-muted-foreground mt-1">Periode: {periodFilter}</p>
         </div>
       </div>
 
       <div className="rounded-xl border border-border bg-card p-4 space-y-4 shadow-sm">
-        <div className="flex flex-wrap gap-3">
-          <div className="relative min-w-[220px] flex-1">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_auto] gap-3">
+          <div className="relative min-w-0">
             <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               value={search}
@@ -192,7 +199,7 @@ export default function ComptabilityPage() {
           <select
             value={periodFilter}
             onChange={(event) => setPeriodFilter(event.target.value as "semaine" | "mois")}
-            className="px-3 py-2.5 rounded-lg bg-secondary border border-border text-sm"
+            className="w-full lg:w-auto px-3 py-2.5 rounded-lg bg-secondary border border-border text-sm"
           >
             <option value="semaine">Semaine</option>
             <option value="mois">Mois</option>
@@ -200,7 +207,7 @@ export default function ComptabilityPage() {
           <select
             value={sourceFilter}
             onChange={(event) => setSourceFilter(event.target.value as "all" | MovementSource)}
-            className="px-3 py-2.5 rounded-lg bg-secondary border border-border text-sm"
+            className="w-full lg:w-auto px-3 py-2.5 rounded-lg bg-secondary border border-border text-sm"
           >
             <option value="all">Toutes les sources</option>
             <option value="caisse">Caisse</option>
@@ -215,8 +222,6 @@ export default function ComptabilityPage() {
             { key: "all", label: "Tous les mouvements" },
             { key: "entree", label: "Entrees" },
             { key: "sortie", label: "Sorties" },
-            { key: "transfert", label: "Transferts" },
-            { key: "credit", label: "Credit" },
           ].map((option) => (
             <button
               key={option.key}
@@ -231,7 +236,52 @@ export default function ComptabilityPage() {
           ))}
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="space-y-3 lg:hidden">
+          {filteredMovements.map((movement) => (
+            <div key={`mobile-${movement.id}`} className="rounded-lg border border-border bg-secondary/20 p-3 space-y-2">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">{movement.reference}</p>
+                  <p className="text-xs text-muted-foreground">{formatDateFr(movement.createdAt)}</p>
+                </div>
+                <span className="inline-flex rounded-full bg-secondary px-2.5 py-1 text-[11px] font-medium text-foreground">
+                  {sourceLabel[movement.source]} - {directionLabel[movement.type]}
+                </span>
+              </div>
+              <p className="text-sm text-foreground">{movement.label}</p>
+              <p className="text-xs text-muted-foreground">{movement.origin}</p>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <p className="text-muted-foreground">Categorie</p>
+                  <p className="text-foreground font-medium">{movement.category}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Responsable</p>
+                  <p className="text-foreground font-medium">{movement.manager}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Prix U</p>
+                  <p className="text-foreground">{movement.unitPrice.toLocaleString()} CFA</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Qte</p>
+                  <p className="text-foreground">{movement.quantity}</p>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-muted-foreground">Montant</p>
+                  <p
+                    className={`text-sm font-semibold ${movement.type === "sortie" ? "text-rose-600" : "text-emerald-600"}`}
+                  >
+                    {movement.type === "sortie" ? "-" : "+"}
+                    {movement.amount.toLocaleString()} CFA
+                  </p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="hidden lg:block overflow-x-auto">
           <table className="w-full min-w-[980px] text-sm">
             <thead>
               <tr className="text-left border-b border-border">
@@ -244,7 +294,6 @@ export default function ComptabilityPage() {
                 <th className="py-3 px-2 text-muted-foreground font-medium">Prix U</th>
                 <th className="py-3 px-2 text-muted-foreground font-medium">Qte</th>
                 <th className="py-3 px-2 text-muted-foreground font-medium">Montant</th>
-                <th className="py-3 px-2 text-muted-foreground font-medium">Type</th>
                 <th className="py-3 px-2 text-muted-foreground font-medium">Source</th>
               </tr>
             </thead>
@@ -255,37 +304,56 @@ export default function ComptabilityPage() {
                   <td className="py-3 px-2">{formatDateFr(movement.createdAt)}</td>
                   <td className="py-3 px-2">{movement.origin}</td>
                   <td className="py-3 px-2">{movement.label}</td>
-                  <td className="py-3 px-2">{movement.category}</td>
+                  <td className="py-3 px-2">
+                    <span
+                      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
+                        movement.category.toLowerCase().includes("vente")
+                          ? "bg-emerald-100 text-emerald-700"
+                          : movement.category.toLowerCase().includes("location")
+                            ? "bg-sky-100 text-sky-700"
+                            : movement.category.toLowerCase().includes("reservation")
+                              ? "bg-violet-100 text-violet-700"
+                              : movement.category.toLowerCase().includes("reparation")
+                                ? "bg-rose-100 text-rose-700"
+                                : "bg-secondary text-foreground"
+                      }`}
+                    >
+                      {movement.category}
+                    </span>
+                  </td>
                   <td className="py-3 px-2">{movement.manager}</td>
                   <td className="py-3 px-2">{movement.unitPrice.toLocaleString()} CFA</td>
                   <td className="py-3 px-2">{movement.quantity}</td>
-                  <td className="py-3 px-2 font-semibold">{movement.amount.toLocaleString()} CFA</td>
-                  <td className="py-3 px-2">
-                    <span
-                      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${
-                        movement.type === "entree"
-                          ? "bg-emerald-100 text-emerald-700"
-                          : movement.type === "sortie"
-                            ? "bg-rose-100 text-rose-700"
-                            : movement.type === "transfert"
-                              ? "bg-sky-100 text-sky-700"
-                              : "bg-amber-100 text-amber-700"
-                      }`}
-                    >
-                      {movement.type === "entree" ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownLeft className="w-3 h-3" />}
-                      {typeLabel[movement.type]}
-                    </span>
+                  <td
+                    className={`py-3 px-2 font-semibold ${
+                      movement.type === "sortie" ? "text-rose-600" : "text-emerald-600"
+                    }`}
+                  >
+                    {movement.type === "sortie" ? "-" : "+"}
+                    {movement.amount.toLocaleString()} CFA
                   </td>
                   <td className="py-3 px-2">
                     <span className="inline-flex rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-foreground">
-                      {sourceLabel[movement.source]}
+                      {sourceLabel[movement.source]} - {directionLabel[movement.type]}
                     </span>
                   </td>
                 </tr>
               ))}
+              {!isLoading && filteredMovements.length === 0 && (
+                <tr>
+                  <td colSpan={10} className="py-10 text-center text-muted-foreground">
+                    Aucun mouvement comptable trouve pour ces filtres.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
+        {!isLoading && filteredMovements.length === 0 && (
+          <div className="py-8 text-center text-muted-foreground lg:hidden">
+            Aucun mouvement comptable trouve pour ces filtres.
+          </div>
+        )}
       </div>
     </div>
   );

@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
 import { useVehicleDetailQuery, vehicleQueryKeys } from "@/lib/vehicle-queries";
+import { accountMovementsQueryKey } from "@/lib/accounting-api";
 import { createSaleRequest, getPaymentMethodLabel } from "@/lib/sale-api";
 
 const paymentMethods = [
@@ -63,7 +64,7 @@ export default function SaleForm() {
         buyerName: buyerName.trim(),
         buyerPhone: buyerPhone.trim(),
         buyerEmail: buyerEmail.trim() || undefined,
-        buyerAddress: buyerAddress.trim(),
+        buyerAddress: buyerAddress.trim() || undefined,
         buyerIdCardNumber: buyerIdCardNumber.trim(),
         paymentMethod,
         amount: numericAmount,
@@ -72,6 +73,7 @@ export default function SaleForm() {
       });
       await queryClient.invalidateQueries({ queryKey: vehicleQueryKeys.all });
       await queryClient.invalidateQueries({ queryKey: ["receipts", "list"] });
+      await queryClient.invalidateQueries({ queryKey: accountMovementsQueryKey });
       toast.success("Vente enregistree et facture generee avec succes.");
       navigate("/receipts");
     } catch (error) {
@@ -184,10 +186,9 @@ export default function SaleForm() {
           </div>
 
           <div className="sm:col-span-2">
-            <label className="block text-sm font-medium text-foreground mb-1.5">Adresse de l'acheteur</label>
+            <label className="block text-sm font-medium text-foreground mb-1.5">Adresse de l'acheteur (optionnel)</label>
             <input
               type="text"
-              required
               value={buyerAddress}
               onChange={(event) => setBuyerAddress(event.target.value)}
               placeholder="Quartier, ville ou adresse complete"

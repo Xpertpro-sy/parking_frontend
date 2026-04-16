@@ -122,6 +122,21 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /accountMovements/{movementId} {
+      allow read: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      allow create: if isSignedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.operationType is string
+        && request.resource.data.direction is string
+        && request.resource.data.category is string
+        && request.resource.data.source is string
+        && request.resource.data.reference is string
+        && request.resource.data.amount is number
+        && request.resource.data.operationDate is string
+        && request.resource.data.vehicleId is string;
+      allow update, delete: if false;
+    }
+
     // Tout le reste est refuse par defaut.
     match /{document=**} {
       allow read, write: if false;

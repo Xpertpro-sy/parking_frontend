@@ -212,6 +212,7 @@ export async function createReservationRequest(vehicleId: string, payload: Creat
   const reservationDateIso = parseReservationDate(payload.reservationDate);
   const vehicleRef = doc(db, "vehicles", vehicleId);
   const reservationRef = doc(collection(db, "reservations"));
+  const movementRef = doc(collection(db, "accountMovements"));
 
   await runTransaction(db, async (transaction) => {
     const vehicleSnap = await transaction.get(vehicleRef);
@@ -248,6 +249,29 @@ export async function createReservationRequest(vehicleId: string, payload: Creat
       updatedAt: serverTimestamp(),
     });
 
+    transaction.set(movementRef, {
+      ownerUid: uid,
+      ownerEmail: email,
+      operationType: "reservation",
+      direction: "entree",
+      category: "Reservation",
+      source: "caisse",
+      reference: `RES-${reservationRef.id.slice(0, 8).toUpperCase()}`,
+      amount: Number(payload.amountPaid),
+      unitPrice: Number(payload.amountPaid),
+      quantity: 1,
+      operationDate: reservationDateIso,
+      vehicleId,
+      vehicleBrand: vehicle.brand,
+      vehicleModel: vehicle.model,
+      vehiclePlate: vehicle.plate,
+      counterpartyName: payload.customerName.trim(),
+      counterpartyPhone: payload.customerPhone.trim(),
+      description: `Reservation vehicule ${vehicle.brand} ${vehicle.model}`,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
     transaction.update(vehicleRef, {
       status: "reserved",
       updatedAt: serverTimestamp(),
@@ -261,6 +285,7 @@ export async function createRepairRequest(vehicleId: string, payload: CreateRepa
   const { uid, email } = await getAuthIdentity();
   const vehicleRef = doc(db, "vehicles", vehicleId);
   const repairRef = doc(collection(db, "repairs"));
+  const movementRef = doc(collection(db, "accountMovements"));
 
   if (!payload.reason.trim()) {
     throw new Error("Le motif de reparation est obligatoire.");
@@ -307,6 +332,28 @@ export async function createRepairRequest(vehicleId: string, payload: CreateRepa
     };
 
     transaction.set(repairRef, repairPayload);
+    transaction.set(movementRef, {
+      ownerUid: uid,
+      ownerEmail: email,
+      operationType: "repair",
+      direction: "sortie",
+      category: "Reparation",
+      source: "caisse",
+      reference: `REP-${repairRef.id.slice(0, 8).toUpperCase()}`,
+      amount: Number(payload.cost),
+      unitPrice: Number(payload.cost),
+      quantity: 1,
+      operationDate: parsedStartDate.toISOString(),
+      vehicleId,
+      vehicleBrand: vehicle.brand,
+      vehicleModel: vehicle.model,
+      vehiclePlate: vehicle.plate,
+      counterpartyName: payload.garageName?.trim() || "Garage externe",
+      counterpartyPhone: null,
+      description: payload.reason.trim(),
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
     transaction.update(vehicleRef, {
       status: "repair",
       updatedAt: serverTimestamp(),
@@ -337,6 +384,7 @@ export async function finalizeReservationToRentalRequest(
   const vehicleRef = doc(db, "vehicles", vehicleId);
   const rentalRef = doc(collection(db, "rentals"));
   const receiptRef = doc(collection(db, "rentalReceipts"));
+  const movementRef = doc(collection(db, "accountMovements"));
 
   await runTransaction(db, async (transaction) => {
     const vehicleSnap = await transaction.get(vehicleRef);
@@ -367,6 +415,8 @@ export async function finalizeReservationToRentalRequest(
     const totalDays = computeTotalDays(startDate, endDate);
     const dailyPrice = Number(vehicleData.rentalPrice);
     const amount = totalDays * dailyPrice;
+    const prepaidFromReservation = Math.max(0, Number(reservationData.amountPaid) || 0);
+    const balanceDue = Math.max(0, amount - prepaidFromReservation);
     const receiptNumber = buildRentalReceiptNumber(endDate.toISOString(), rentalRef.id);
 
     const rentalPayload: RentalFirestoreDoc = {
@@ -419,6 +469,34 @@ export async function finalizeReservationToRentalRequest(
 
     transaction.set(rentalRef, rentalPayload);
     transaction.set(receiptRef, receiptPayload);
+    // L'acompte réservation est déjà comptabilisé (operationType "reservation") : on n'enregistre ici que le solde encaissé à la mise en location.
+    if (balanceDue > 0) {
+      const useDayBreakdown = prepaidFromReservation === 0;
+      transaction.set(movementRef, {
+        ownerUid: uid,
+        ownerEmail: email,
+        operationType: "rental",
+        direction: "entree",
+        category: "Location",
+        source: "caisse",
+        reference: receiptNumber,
+        amount: balanceDue,
+        unitPrice: useDayBreakdown ? dailyPrice : balanceDue,
+        quantity: useDayBreakdown ? totalDays : 1,
+        operationDate: startDate.toISOString(),
+        vehicleId,
+        vehicleBrand: vehicleData.brand,
+        vehicleModel: vehicleData.model,
+        vehiclePlate: vehicleData.plate,
+        counterpartyName: payload.tenantName.trim(),
+        counterpartyPhone: payload.tenantPhone.trim(),
+        description: prepaidFromReservation
+          ? `Solde location ${vehicleData.brand} ${vehicleData.model} (apres acompte reservation)`
+          : `Location depuis reservation ${vehicleData.brand} ${vehicleData.model}`,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    }
     transaction.update(reservationRef, {
       status: "COMPLETED",
       updatedAt: serverTimestamp(),
