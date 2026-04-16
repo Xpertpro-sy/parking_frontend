@@ -35,6 +35,31 @@ service cloud.firestore {
       allow delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
     }
 
+    match /sales/{saleId} {
+      allow read: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      allow create: if isSignedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.vehicleId is string
+        && request.resource.data.buyerName is string
+        && request.resource.data.buyerPhone is string
+        && request.resource.data.buyerAddress is string
+        && request.resource.data.buyerIdCardNumber is string
+        && request.resource.data.amount is number
+        && request.resource.data.paymentMethod is string;
+      allow update, delete: if false;
+    }
+
+    match /saleReceipts/{receiptId} {
+      allow read: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      allow create: if isSignedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.saleId is string
+        && request.resource.data.vehicleId is string
+        && request.resource.data.receiptNumber is string
+        && request.resource.data.amount is number;
+      allow update, delete: if false;
+    }
+
     // Tout le reste est refuse par defaut.
     match /{document=**} {
       allow read, write: if false;

@@ -4,7 +4,14 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
 import { useVehicleDetailQuery, vehicleQueryKeys } from "@/lib/vehicle-queries";
-import { createSaleRequest } from "@/lib/sale-api";
+import { createSaleRequest, getPaymentMethodLabel } from "@/lib/sale-api";
+
+const paymentMethods = [
+  "cash",
+  "bank-transfer",
+  "mobile-money",
+  "cheque",
+] as const;
 
 export default function SaleForm() {
   const [searchParams] = useSearchParams();
@@ -16,12 +23,18 @@ export default function SaleForm() {
   const [submitting, setSubmitting] = useState(false);
   const [buyerName, setBuyerName] = useState("");
   const [buyerPhone, setBuyerPhone] = useState("");
+  const [buyerEmail, setBuyerEmail] = useState("");
+  const [buyerAddress, setBuyerAddress] = useState("");
+  const [buyerIdCardNumber, setBuyerIdCardNumber] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<(typeof paymentMethods)[number]>("cash");
   const [amount, setAmount] = useState("");
   const [saleDate, setSaleDate] = useState("");
+  const [notes, setNotes] = useState("");
 
   useEffect(() => {
     if (vehicle) {
       setAmount(String(vehicle.salePrice));
+      setSaleDate(new Date().toISOString().slice(0, 10));
     }
   }, [vehicle]);
 
@@ -38,6 +51,10 @@ export default function SaleForm() {
       toast.error("Montant invalide.");
       return;
     }
+    if (vehicle && numericAmount !== vehicle.salePrice) {
+      toast.error("Le montant de vente doit etre exactement egal au prix de vente du vehicule.");
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -45,13 +62,18 @@ export default function SaleForm() {
         vehicleId,
         buyerName: buyerName.trim(),
         buyerPhone: buyerPhone.trim(),
+        buyerEmail: buyerEmail.trim() || undefined,
+        buyerAddress: buyerAddress.trim(),
+        buyerIdCardNumber: buyerIdCardNumber.trim(),
+        paymentMethod,
         amount: numericAmount,
         date: saleDate || undefined,
+        notes: notes.trim() || undefined,
       });
       await queryClient.invalidateQueries({ queryKey: vehicleQueryKeys.all });
       await queryClient.invalidateQueries({ queryKey: ["receipts", "list"] });
-      toast.success("Vente enregistree avec succes.");
-      navigate(`/vehicles/${vehicleId}`);
+      toast.success("Vente enregistree et facture generee avec succes.");
+      navigate("/receipts");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Impossible d'enregistrer la vente.");
     } finally {
@@ -85,6 +107,30 @@ export default function SaleForm() {
       </div>
 
       <form onSubmit={onSubmit} className="glass-card p-6 space-y-5">
+        {vehicle && (
+          <div className="rounded-xl border border-border bg-secondary/40 p-4">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">Resume du vehicule</p>
+            <div className="grid gap-3 sm:grid-cols-4 text-sm">
+              <div>
+                <p className="text-muted-foreground">Vehicule</p>
+                <p className="font-medium text-foreground">{vehicle.brand} {vehicle.model}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Immatriculation</p>
+                <p className="font-medium text-foreground">{vehicle.plate}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Etat</p>
+                <p className="font-medium text-foreground">{vehicle.condition}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Prix recommande</p>
+                <p className="font-medium text-foreground">{vehicle.salePrice.toLocaleString()} CFA</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">Nom de l'acheteur</label>
@@ -113,13 +159,54 @@ export default function SaleForm() {
           </div>
 
           <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">Email de l'acheteur (optionnel)</label>
+            <input
+              type="email"
+              value={buyerEmail}
+              onChange={(event) => setBuyerEmail(event.target.value)}
+              placeholder="client@email.com"
+              disabled={submitting}
+              className="w-full px-3 py-2.5 bg-secondary border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">Numero de piece</label>
+            <input
+              type="text"
+              required
+              value={buyerIdCardNumber}
+              onChange={(event) => setBuyerIdCardNumber(event.target.value)}
+              placeholder="CNI, passeport ou autre"
+              disabled={submitting}
+              className="w-full px-3 py-2.5 bg-secondary border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
+            />
+          </div>
+
+          <div className="sm:col-span-2">
+            <label className="block text-sm font-medium text-foreground mb-1.5">Adresse de l'acheteur</label>
+            <input
+              type="text"
+              required
+              value={buyerAddress}
+              onChange={(event) => setBuyerAddress(event.target.value)}
+              placeholder="Quartier, ville ou adresse complete"
+              disabled={submitting}
+              className="w-full px-3 py-2.5 bg-secondary border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
+            />
+          </div>
+
+          <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">Montant de vente (CFA)</label>
             <input
               type="number"
               required
               value={amount}
               onChange={(event) => setAmount(event.target.value)}
-              placeholder="Ex: 18000000"
+              placeholder="0"
+              min={vehicle?.salePrice}
+              max={vehicle?.salePrice}
+              step="1"
               disabled={submitting}
               className="w-full px-3 py-2.5 bg-secondary border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
             />
@@ -140,6 +227,34 @@ export default function SaleForm() {
               className="w-full px-3 py-2.5 bg-secondary border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
             />
           </div>
+
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">Mode de paiement</label>
+            <select
+              value={paymentMethod}
+              onChange={(event) => setPaymentMethod(event.target.value as (typeof paymentMethods)[number])}
+              disabled={submitting}
+              className="w-full px-3 py-2.5 bg-secondary border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
+            >
+              {paymentMethods.map((method) => (
+                <option key={method} value={method}>
+                  {getPaymentMethodLabel(method)}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-1.5">Observations (optionnel)</label>
+          <textarea
+            rows={4}
+            value={notes}
+            onChange={(event) => setNotes(event.target.value)}
+            placeholder="Precisions utiles pour la vente ou la facture"
+            disabled={submitting}
+            className="w-full px-3 py-2.5 bg-secondary border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none disabled:opacity-60"
+          />
         </div>
 
         <button

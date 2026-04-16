@@ -65,7 +65,7 @@ export type VehicleApiResponse = {
   ownerUserId: number;
 };
 
-type VehicleFirestoreDoc = {
+export type VehicleFirestoreDoc = {
   brand: string;
   model: string;
   year: number;
