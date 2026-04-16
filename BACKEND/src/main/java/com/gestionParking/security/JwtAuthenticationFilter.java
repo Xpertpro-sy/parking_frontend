@@ -8,6 +8,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
@@ -15,6 +16,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Optional;
 
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
@@ -23,10 +26,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
 	private final JwtService jwtService;
 	private final CustomUserDetailsService userDetailsService;
+	private final FirebaseTokenVerifier firebaseTokenVerifier;
 
-	public JwtAuthenticationFilter(JwtService jwtService, CustomUserDetailsService userDetailsService) {
+	public JwtAuthenticationFilter(
+		JwtService jwtService,
+		CustomUserDetailsService userDetailsService,
+		FirebaseTokenVerifier firebaseTokenVerifier
+	) {
 		this.jwtService = jwtService;
 		this.userDetailsService = userDetailsService;
+		this.firebaseTokenVerifier = firebaseTokenVerifier;
 	}
 
 	@Override
@@ -56,11 +65,35 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 				}
 			}
 		} catch (Exception ex) {
-			log.warn("JWT invalide pour la requete {} {}: {}", request.getMethod(), request.getRequestURI(), ex.getMessage());
+			log.debug("JWT Spring invalide pour {} {}: {}", request.getMethod(), request.getRequestURI(), ex.getMessage());
 			SecurityContextHolder.clearContext();
+			tryAuthenticateWithFirebase(jwt, request);
 		}
 
 		filterChain.doFilter(request, response);
+	}
+
+	private void tryAuthenticateWithFirebase(String idToken, HttpServletRequest request) {
+		if (SecurityContextHolder.getContext().getAuthentication() != null) {
+			return;
+		}
+		Optional<String> emailOpt = firebaseTokenVerifier.verifyAndExtractEmail(idToken);
+		if (emailOpt.isEmpty()) {
+			return;
+		}
+		String email = emailOpt.get();
+		UserDetails firebaseUser = org.springframework.security.core.userdetails.User
+			.withUsername(email)
+			.password("{noop}firebase-user")
+			.authorities(List.of(new SimpleGrantedAuthority("ROLE_ADMIN")))
+			.build();
+		UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+			firebaseUser,
+			null,
+			firebaseUser.getAuthorities()
+		);
+		authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+		SecurityContextHolder.getContext().setAuthentication(authToken);
 	}
 
 	/**

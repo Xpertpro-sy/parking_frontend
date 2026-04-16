@@ -1,12 +1,41 @@
 import { getAccessToken } from "@/context/AuthContext";
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() || "http://localhost:8080";
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
+const PRESIGN_ENDPOINT_URL = (import.meta.env.VITE_UPLOAD_PRESIGN_URL as string | undefined)?.trim();
 
 type PresignUploadResponse = {
   uploadUrl: string;
   objectKey: string;
   publicUrl: string;
 };
+
+function resolvePresignUrl(): string {
+  if (PRESIGN_ENDPOINT_URL) return PRESIGN_ENDPOINT_URL;
+  if (API_BASE_URL) return `${API_BASE_URL}/api/auth/uploads/presign`;
+  throw new Error(
+    "Aucun endpoint de presign configure. Ajoutez VITE_UPLOAD_PRESIGN_URL (ou VITE_API_BASE_URL) dans .env."
+  );
+}
+
+async function requestPresign(token: string, fileName: string, contentType: string): Promise<Response> {
+  const presignUrl = resolvePresignUrl();
+  try {
+    return await fetch(presignUrl, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        fileName,
+        contentType,
+      }),
+    });
+  } catch (error) {
+    const details = error instanceof Error ? error.message : "erreur reseau";
+    throw new Error(`Impossible de joindre le service de presign (${presignUrl}). ${details}`);
+  }
+}
 
 async function parseApiError(response: Response): Promise<string> {
   try {
@@ -29,23 +58,9 @@ export async function uploadImageToR2(file: File): Promise<string> {
   }
 
   const contentType = file.type?.trim() || "application/octet-stream";
-  const presignResponse = await fetch(`${API_BASE_URL}/api/auth/uploads/presign`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      fileName: file.name,
-      contentType,
-    }),
-  });
+  const presignResponse = await requestPresign(token, file.name, contentType);
 
   if (!presignResponse.ok) {
-    if (presignResponse.status === 401) {
-      sessionStorage.clear();
-      window.location.href = "/login";
-    }
     throw new Error(await parseApiError(presignResponse));
   }
 

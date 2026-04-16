@@ -19,6 +19,14 @@ service cloud.firestore {
       allow create: if isOwner(userId) && request.resource.data.uid == userId;
     }
 
+    match /vehicles/{vehicleId} {
+      allow read, update, delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      allow create: if isSignedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.plateNormalized is string
+        && request.resource.data.status is string;
+    }
+
     // Tout le reste est refuse par defaut.
     match /{document=**} {
       allow read, write: if false;
