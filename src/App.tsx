@@ -1,4 +1,6 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient } from "@tanstack/react-query";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
+import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
@@ -18,14 +20,43 @@ import Receipts from "./pages/Receipts";
 import HistoryPage from "./pages/HistoryPage";
 import RentedVehicles from "./pages/RentedVehicles";
 import ReservedVehicles from "./pages/ReservedVehicles";
+import ComptabilityPage from "./pages/ComptabilityPage";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000,
+      gcTime: ONE_DAY_MS,
+      retry: 1,
+      networkMode: "offlineFirst",
+      refetchOnWindowFocus: false,
+    },
+    mutations: {
+      networkMode: "offlineFirst",
+      retry: 0,
+    },
+  },
+});
+
+const persister = createSyncStoragePersister({
+  storage: typeof window !== "undefined" ? window.localStorage : undefined,
+  key: "gestion-parking-react-query-cache-v1",
+  throttleTime: 1000,
+});
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
+  <PersistQueryClientProvider
+    client={queryClient}
+    persistOptions={{
+      persister,
+      maxAge: ONE_DAY_MS,
+    }}
+  >
     <AuthProvider>
       <TooltipProvider>
         <Toaster />
@@ -51,6 +82,7 @@ const App = () => (
                 <Route path="/voitures-louees" element={<RentedVehicles />} />
                 <Route path="/voitures-reservees" element={<ReservedVehicles />} />
                 <Route path="/history" element={<HistoryPage />} />
+                <Route path="/comptability" element={<ComptabilityPage />} />
               </Route>
             </Route>
 
@@ -59,7 +91,7 @@ const App = () => (
         </BrowserRouter>
       </TooltipProvider>
     </AuthProvider>
-  </QueryClientProvider>
+  </PersistQueryClientProvider>
 );
 
 export default App;
