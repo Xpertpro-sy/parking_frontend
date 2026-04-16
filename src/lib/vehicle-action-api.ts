@@ -1,4 +1,3 @@
-import { getAccessToken } from "@/context/AuthContext";
 import { getFirebaseDb, waitForFirebaseUser } from "@/lib/firebase";
 import type { VehicleFirestoreDoc } from "@/lib/vehicle-api";
 import {
@@ -25,6 +24,10 @@ export type CreateRepairPayload = {
   reason: string;
   cost: number;
   startDate: string;
+  expectedEndDate?: string;
+  garageName?: string;
+  technicianName?: string;
+  notes?: string;
 };
 
 export type FinalizeReservationToRentalPayload = {
@@ -38,8 +41,6 @@ export type FinalizeReservationToRentalPayload = {
   startDate: string;
   endDate: string;
 };
-
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() || "http://localhost:8080";
 
 export type ReservationApiResponse = {
   id: string;
@@ -124,42 +125,22 @@ type RentalReceiptFirestoreDoc = {
   createdAt?: Timestamp;
 };
 
-async function parseApiError(response: Response): Promise<string> {
-  try {
-    const data = (await response.json()) as { error?: string; message?: string };
-    if (data.error) return data.error;
-    if (data.message) return data.message;
-  } catch {
-    // Ignore parsing failure
-  }
-  if (response.status === 401) {
-    return "Session expiree. Veuillez vous reconnecter.";
-  }
-  return "Erreur serveur. Veuillez reessayer.";
-}
-
-function getTokenOrThrow() {
-  const token = getAccessToken();
-  if (!token) {
-    throw new Error("Session expiree. Veuillez vous reconnecter.");
-  }
-  return token;
-}
-
-async function postWithAuth(endpoint: string, payload: unknown) {
-  const token = getTokenOrThrow();
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
-  if (!response.ok) {
-    throw new Error(await parseApiError(response));
-  }
-}
+type RepairFirestoreDoc = {
+  vehicleId: string;
+  ownerUid: string;
+  ownerEmail: string | null;
+  reason: string;
+  cost: number;
+  startDate: string;
+  expectedEndDate: string | null;
+  garageName: string | null;
+  technicianName: string | null;
+  notes: string | null;
+  status: "active" | "completed";
+  completedAt: string | null;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
+};
 
 async function getAuthIdentity() {
   const user = await waitForFirebaseUser();
@@ -276,7 +257,62 @@ export async function createReservationRequest(vehicleId: string, payload: Creat
 }
 
 export async function createRepairRequest(vehicleId: string, payload: CreateRepairPayload): Promise<void> {
-  await postWithAuth(`/api/auth/vehicles/${vehicleId}/repairs`, payload);
+  const db = getFirebaseDb();
+  const { uid, email } = await getAuthIdentity();
+  const vehicleRef = doc(db, "vehicles", vehicleId);
+  const repairRef = doc(collection(db, "repairs"));
+
+  if (!payload.reason.trim()) {
+    throw new Error("Le motif de reparation est obligatoire.");
+  }
+  if (!Number.isFinite(payload.cost) || payload.cost < 0) {
+    throw new Error("Le cout de reparation est invalide.");
+  }
+  const parsedStartDate = parseDateTime(payload.startDate, "Date debut reparation");
+  const parsedExpectedEndDate = payload.expectedEndDate
+    ? parseDateTime(payload.expectedEndDate, "Date fin prevue")
+    : null;
+  if (parsedExpectedEndDate && parsedExpectedEndDate < parsedStartDate) {
+    throw new Error("La date fin prevue doit etre apres la date debut.");
+  }
+
+  await runTransaction(db, async (transaction) => {
+    const vehicleSnap = await transaction.get(vehicleRef);
+    if (!vehicleSnap.exists()) {
+      throw new Error("Vehicule introuvable.");
+    }
+    const vehicle = vehicleSnap.data() as VehicleFirestoreDoc;
+    if (vehicle.ownerUid !== uid) {
+      throw new Error("Acces refuse a ce vehicule.");
+    }
+    if (vehicle.status !== "available") {
+      throw new Error("Seuls les vehicules disponibles peuvent etre envoyes en reparation.");
+    }
+
+    const repairPayload: RepairFirestoreDoc = {
+      vehicleId,
+      ownerUid: uid,
+      ownerEmail: email,
+      reason: payload.reason.trim(),
+      cost: Number(payload.cost),
+      startDate: parsedStartDate.toISOString(),
+      expectedEndDate: parsedExpectedEndDate ? parsedExpectedEndDate.toISOString() : null,
+      garageName: payload.garageName?.trim() || null,
+      technicianName: payload.technicianName?.trim() || null,
+      notes: payload.notes?.trim() || null,
+      status: "active",
+      completedAt: null,
+      createdAt: serverTimestamp() as unknown as Timestamp,
+      updatedAt: serverTimestamp() as unknown as Timestamp,
+    };
+
+    transaction.set(repairRef, repairPayload);
+    transaction.update(vehicleRef, {
+      status: "repair",
+      updatedAt: serverTimestamp(),
+      activeRepairId: repairRef.id,
+    });
+  });
 }
 
 export async function finalizeReservationToRentalRequest(
@@ -398,17 +434,49 @@ export async function finalizeReservationToRentalRequest(
 }
 
 export async function completeRepairRequest(vehicleId: string): Promise<void> {
-  const token = getTokenOrThrow();
-  const response = await fetch(`${API_BASE_URL}/api/auth/vehicles/${vehicleId}/repairs/complete`, {
-    method: "PUT",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
+  const db = getFirebaseDb();
+  const { uid } = await getAuthIdentity();
+  const vehicleRef = doc(db, "vehicles", vehicleId);
+
+  await runTransaction(db, async (transaction) => {
+    const vehicleSnap = await transaction.get(vehicleRef);
+    if (!vehicleSnap.exists()) {
+      throw new Error("Vehicule introuvable.");
+    }
+    const vehicle = vehicleSnap.data() as VehicleFirestoreDoc & { activeRepairId?: string | null };
+    if (vehicle.ownerUid !== uid) {
+      throw new Error("Acces refuse a ce vehicule.");
+    }
+    if (vehicle.status !== "repair") {
+      throw new Error("Ce vehicule n'est pas en reparation.");
+    }
+
+    const activeRepairId = vehicle.activeRepairId;
+    if (!activeRepairId) {
+      throw new Error("Aucune reparation active trouvee pour ce vehicule.");
+    }
+
+    const repairRef = doc(db, "repairs", activeRepairId);
+    const repairSnap = await transaction.get(repairRef);
+    if (!repairSnap.exists()) {
+      throw new Error("Reparation introuvable.");
+    }
+    const repair = repairSnap.data() as RepairFirestoreDoc;
+    if (repair.ownerUid !== uid || repair.status !== "active") {
+      throw new Error("Reparation inactive ou inaccessible.");
+    }
+
+    transaction.update(repairRef, {
+      status: "completed",
+      completedAt: new Date().toISOString(),
+      updatedAt: serverTimestamp(),
+    });
+    transaction.update(vehicleRef, {
+      status: "available",
+      updatedAt: serverTimestamp(),
+      activeRepairId: null,
+    });
   });
-  if (!response.ok) {
-    throw new Error(await parseApiError(response));
-  }
 }
 
 export async function listReservationsRequest(): Promise<ReservationApiResponse[]> {

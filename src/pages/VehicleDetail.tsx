@@ -57,6 +57,10 @@ export default function VehicleDetail() {
   const [repairReason, setRepairReason] = useState('');
   const [repairCost, setRepairCost] = useState('');
   const [repairStartDate, setRepairStartDate] = useState(new Date().toISOString().slice(0, 10));
+  const [repairExpectedEndDate, setRepairExpectedEndDate] = useState('');
+  const [repairGarageName, setRepairGarageName] = useState('');
+  const [repairTechnicianName, setRepairTechnicianName] = useState('');
+  const [repairNotes, setRepairNotes] = useState('');
 
   const { data: rentals = [], isLoading: loadingRentals } = useQuery({
     queryKey: ['rentals', 'list'],
@@ -228,12 +232,20 @@ export default function VehicleDetail() {
       toast.error("Renseignez un motif, une date et un cout valide.");
       return;
     }
+    if (repairExpectedEndDate && repairExpectedEndDate < repairStartDate) {
+      toast.error("La date de fin prevue doit etre apres la date de debut.");
+      return;
+    }
     setSubmittingRepair(true);
     try {
       await createRepairRequest(vehicle.id, {
         reason: repairReason.trim(),
         cost: parsedCost,
         startDate: repairStartDate,
+        expectedEndDate: repairExpectedEndDate || undefined,
+        garageName: repairGarageName.trim() || undefined,
+        technicianName: repairTechnicianName.trim() || undefined,
+        notes: repairNotes.trim() || undefined,
       });
       await queryClient.invalidateQueries({ queryKey: vehicleQueryKeys.all });
       toast.success("Vehicule marque en reparation.");
@@ -241,6 +253,10 @@ export default function VehicleDetail() {
       setRepairReason('');
       setRepairCost('');
       setRepairStartDate(new Date().toISOString().slice(0, 10));
+      setRepairExpectedEndDate('');
+      setRepairGarageName('');
+      setRepairTechnicianName('');
+      setRepairNotes('');
     } catch (repairError) {
       toast.error(repairError instanceof Error ? repairError.message : "Impossible de lancer la reparation.");
     } finally {
@@ -614,6 +630,28 @@ export default function VehicleDetail() {
                 className="w-full px-3 py-2.5 bg-secondary border border-border rounded-lg text-sm text-foreground resize-none"
               />
             </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm text-foreground mb-1">Garage (optionnel)</label>
+                <input
+                  type="text"
+                  value={repairGarageName}
+                  onChange={(event) => setRepairGarageName(event.target.value)}
+                  placeholder="Ex: Garage Central"
+                  className="w-full px-3 py-2.5 bg-secondary border border-border rounded-lg text-sm text-foreground"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-foreground mb-1">Technicien (optionnel)</label>
+                <input
+                  type="text"
+                  value={repairTechnicianName}
+                  onChange={(event) => setRepairTechnicianName(event.target.value)}
+                  placeholder="Ex: Mamadou Keita"
+                  className="w-full px-3 py-2.5 bg-secondary border border-border rounded-lg text-sm text-foreground"
+                />
+              </div>
+            </div>
             <div>
               <label className="block text-sm text-foreground mb-1">Cout estime (CFA)</label>
               <input
@@ -624,13 +662,35 @@ export default function VehicleDetail() {
                 className="w-full px-3 py-2.5 bg-secondary border border-border rounded-lg text-sm text-foreground"
               />
             </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm text-foreground mb-1">Date debut reparation</label>
+                <input
+                  type="date"
+                  value={repairStartDate}
+                  onChange={(event) => setRepairStartDate(event.target.value)}
+                  className="w-full px-3 py-2.5 bg-secondary border border-border rounded-lg text-sm text-foreground"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-foreground mb-1">Date fin prevue (optionnel)</label>
+                <input
+                  type="date"
+                  value={repairExpectedEndDate}
+                  min={repairStartDate || undefined}
+                  onChange={(event) => setRepairExpectedEndDate(event.target.value)}
+                  className="w-full px-3 py-2.5 bg-secondary border border-border rounded-lg text-sm text-foreground"
+                />
+              </div>
+            </div>
             <div>
-              <label className="block text-sm text-foreground mb-1">Date debut reparation</label>
-              <input
-                type="date"
-                value={repairStartDate}
-                onChange={(event) => setRepairStartDate(event.target.value)}
-                className="w-full px-3 py-2.5 bg-secondary border border-border rounded-lg text-sm text-foreground"
+              <label className="block text-sm text-foreground mb-1">Notes internes (optionnel)</label>
+              <textarea
+                rows={2}
+                value={repairNotes}
+                onChange={(event) => setRepairNotes(event.target.value)}
+                placeholder="Pieces a changer, priorite, recommandations..."
+                className="w-full px-3 py-2.5 bg-secondary border border-border rounded-lg text-sm text-foreground resize-none"
               />
             </div>
           </div>
