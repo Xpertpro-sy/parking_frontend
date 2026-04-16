@@ -1,3 +1,5 @@
+import { loginWithFirebase, logoutFirebase, registerWithFirebase } from "@/lib/auth-firebase";
+
 export type RegisterPayload = {
   nom: string;
   prenom: string;
@@ -22,6 +24,7 @@ export type AuthApiResponse = {
 };
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() || "http://localhost:8080";
+const AUTH_PROVIDER = ((import.meta.env.VITE_AUTH_PROVIDER as string | undefined)?.trim().toLowerCase() || "spring");
 
 async function parseErrorMessage(response: Response): Promise<string> {
   try {
@@ -56,9 +59,21 @@ async function postAuth<TPayload>(endpoint: string, payload: TPayload): Promise<
 }
 
 export async function registerRequest(payload: RegisterPayload) {
+  if (AUTH_PROVIDER === "firebase") {
+    return registerWithFirebase(payload);
+  }
   return postAuth("/api/auth/register", payload);
 }
 
 export async function loginRequest(payload: LoginPayload) {
+  if (AUTH_PROVIDER === "firebase") {
+    return loginWithFirebase(payload);
+  }
   return postAuth("/api/auth/login", payload);
+}
+
+export async function logoutRequest() {
+  if (AUTH_PROVIDER === "firebase") {
+    await logoutFirebase();
+  }
 }

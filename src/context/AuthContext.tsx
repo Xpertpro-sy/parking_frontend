@@ -1,5 +1,5 @@
 import { createContext, ReactNode, useContext, useEffect, useState } from "react";
-import { loginRequest, registerRequest } from "@/lib/auth-api";
+import { loginRequest, logoutRequest, registerRequest } from "@/lib/auth-api";
 
 type AuthUser = {
   userId: number;
@@ -119,6 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
+    void logoutRequest();
     sessionStorage.removeItem(STORAGE_AUTH_TOKEN_KEY);
     sessionStorage.removeItem(STORAGE_CURRENT_USER_KEY);
     setUser(null);
