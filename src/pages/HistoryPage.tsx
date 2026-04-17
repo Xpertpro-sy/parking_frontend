@@ -142,7 +142,7 @@ export default function HistoryPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         <div className="rounded-xl border border-cyan-200/40 bg-cyan-500/5 dark:border-cyan-800/40 dark:bg-cyan-900/20 p-4">
           <p className="text-xs font-medium text-white">Reservations actives</p>
           <p className="mt-1 text-2xl font-bold text-white">{activeReservationsCount}</p>
@@ -155,22 +155,18 @@ export default function HistoryPage() {
           <p className="text-xs font-medium text-success">Montant total locations</p>
           <p className="mt-1 text-2xl font-bold text-foreground">{totalRevenue.toLocaleString()} CFA</p>
         </div>
-        <div className="rounded-xl border border-emerald-300/30 bg-emerald-500/10 p-4">
-          <p className="text-xs font-medium text-emerald-700">Montant total ventes</p>
-          <p className="mt-1 text-2xl font-bold text-foreground">{totalSalesAmount.toLocaleString()} CFA</p>
-        </div>
         <div className="rounded-xl border border-violet-300/30 bg-violet-500/10 p-4">
           <p className="text-xs font-medium text-violet-700">Montant total reservations</p>
           <p className="mt-1 text-2xl font-bold text-foreground">{totalReservationsAmount.toLocaleString()} CFA</p>
         </div>
       </div>
 
-      <div className="rounded-xl border border-border bg-card p-4 shadow-sm space-y-3">
-        <div className="flex flex-wrap gap-2">
+      <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <select
             value={period}
             onChange={(event) => setPeriod(event.target.value as PeriodFilter)}
-            className="px-3 py-2 rounded-lg border border-border bg-secondary text-sm"
+            className="w-full md:w-auto px-3 py-2 rounded-lg border border-border bg-secondary text-sm"
           >
             {PERIOD_OPTIONS.map((option) => (
               <option key={option.key} value={option.key}>
@@ -178,25 +174,24 @@ export default function HistoryPage() {
               </option>
             ))}
           </select>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          {[
-            { key: 'all', label: 'Tout afficher' },
-            { key: 'reservation', label: 'Reservations' },
-            { key: 'location', label: 'Locations' },
-          ].map((option) => (
-            <button
-              key={option.key}
-              type="button"
-              onClick={() => setTypeFilter(option.key as typeof typeFilter)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                typeFilter === option.key ? 'bg-info text-info-foreground' : 'bg-secondary text-foreground hover:bg-secondary/80'
-              }`}
-            >
-              {option.label}
-            </button>
-          ))}
+          <div className="flex flex-wrap gap-2">
+            {[
+              { key: 'all', label: 'Tout afficher' },
+              { key: 'reservation', label: 'Reservations' },
+              { key: 'location', label: 'Locations' },
+            ].map((option) => (
+              <button
+                key={option.key}
+                type="button"
+                onClick={() => setTypeFilter(option.key as typeof typeFilter)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  typeFilter === option.key ? 'bg-info text-info-foreground' : 'bg-secondary text-foreground hover:bg-secondary/80'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
