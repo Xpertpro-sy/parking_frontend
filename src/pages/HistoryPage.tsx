@@ -1,11 +1,26 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, History, Loader2 } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { ChevronLeft, ChevronRight, History, Loader2, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { listRentalsRequest } from '@/lib/rental-api';
 import { listReservationsRequest } from '@/lib/vehicle-action-api';
 import { listSalesRequest } from '@/lib/sale-api';
+import {
+  moveRentalHistoryToTrashRequest,
+  moveReservationHistoryToTrashRequest,
+  trashItemsQueryKey,
+} from '@/lib/trash-api';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 type PeriodFilter = 'today' | 'yesterday' | 'week' | 'month' | 'year';
 
@@ -26,6 +41,10 @@ const formatDateTimeFr = (value: string) =>
   });
 
 export default function HistoryPage() {
+  const queryClient = useQueryClient();
+  const [pendingDelete, setPendingDelete] = useState<
+    { type: 'reservation' | 'rental'; id: string; label: string } | null
+  >(null);
   const [period, setPeriod] = useState<PeriodFilter>('week');
   const [typeFilter, setTypeFilter] = useState<'all' | 'reservation' | 'location'>('all');
   const [currentPage, setCurrentPage] = useState(1);
@@ -127,12 +146,45 @@ export default function HistoryPage() {
   const activeReservationsCount = filteredReservations.filter((item) => item.status === 'ACTIVE').length;
   const completedRentalsCount = filteredRentals.filter((item) => item.status?.toLowerCase() === 'completed').length;
   const totalRevenue = filteredRentals.reduce((sum, item) => sum + (Number.isFinite(item.amount) ? item.amount : 0), 0);
-  const totalSalesAmount = filteredSales.reduce((sum, item) => sum + (Number.isFinite(item.amount) ? item.amount : 0), 0);
   const totalReservationsAmount = filteredReservations.reduce(
     (sum, item) => sum + (Number.isFinite(item.amountPaid) ? item.amountPaid : 0),
     0,
   );
 
+  const onDeleteReservationHistory = async (reservationId: string) => {
+    try {
+      await moveReservationHistoryToTrashRequest(reservationId);
+      await queryClient.invalidateQueries({ queryKey: ['reservations', 'list'] });
+      await queryClient.invalidateQueries({ queryKey: trashItemsQueryKey });
+      toast.success('Réservation déplacée dans la corbeille.');
+      setPendingDelete(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Echec de la suppression.');
+    }
+  };
+
+  const onDeleteRentalHistory = async (rentalId: string) => {
+    try {
+      await moveRentalHistoryToTrashRequest(rentalId);
+      await queryClient.invalidateQueries({ queryKey: ['rentals', 'list'] });
+      await queryClient.invalidateQueries({ queryKey: trashItemsQueryKey });
+      toast.success('Location déplacée dans la corbeille.');
+      setPendingDelete(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Echec de la suppression.');
+    }
+  };
+
+  const onConfirmDelete = async () => {
+    if (!pendingDelete) return;
+    if (pendingDelete.type === 'reservation') {
+      await onDeleteReservationHistory(pendingDelete.id);
+      return;
+    }
+    await onDeleteRentalHistory(pendingDelete.id);
+  };
+
+  
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="rounded-2xl border border-border bg-gradient-to-r from-primary/10 via-info/10 to-purple-500/10 p-5 md:p-6">
@@ -214,7 +266,23 @@ export default function HistoryPage() {
                     <span className="inline-flex px-2.5 py-1 rounded-full text-[11px] font-semibold bg-purple-100 text-purple-700">
                       Reservation
                     </span>
+                  <div className="flex items-center gap-2">
                     <p className="text-xs text-muted-foreground">{formatDateTimeFr(reservation.createdAt)}</p>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPendingDelete({
+                          type: 'reservation',
+                          id: reservation.id,
+                          label: `Réservation ${reservation.customerName}`,
+                        })
+                      }
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-destructive/40 text-destructive text-xs"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Corbeille
+                    </button>
+                  </div>
                   </div>
 
                   <div className="flex flex-wrap items-start justify-between gap-3">
@@ -264,7 +332,23 @@ export default function HistoryPage() {
                   <span className="inline-flex px-2.5 py-1 rounded-full text-[11px] font-semibold bg-info/15 text-info">
                     Location
                   </span>
-                  <p className="text-xs text-muted-foreground">{formatDateTimeFr(rental.createdAt)}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs text-muted-foreground">{formatDateTimeFr(rental.createdAt)}</p>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPendingDelete({
+                          type: 'rental',
+                          id: rental.id,
+                          label: `Location ${rental.tenantName}`,
+                        })
+                      }
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-destructive/40 text-destructive text-xs"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Corbeille
+                    </button>
+                  </div>
                 </div>
 
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -421,6 +505,21 @@ export default function HistoryPage() {
           <p className="text-sm text-muted-foreground mt-1">L'historique apparaitra ici apres les prochaines locations ou reservations.</p>
         </div>
       )}
+
+      <AlertDialog open={Boolean(pendingDelete)} onOpenChange={(open) => !open && setPendingDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Envoyer à la corbeille</AlertDialogTitle>
+            <AlertDialogDescription>
+              Voulez-vous envoyer {pendingDelete?.label ?? 'cet élément'} dans la corbeille ?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={onConfirmDelete}>Confirmer</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

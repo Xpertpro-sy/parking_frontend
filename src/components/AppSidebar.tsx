@@ -8,6 +8,7 @@ import {
   Settings,
   LogOut,
   Calculator,
+  Trash2,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import {
@@ -81,6 +82,13 @@ export default function AppSidebar() {
         >
           <Settings className="w-5 h-5" />
           Paramètres
+        </NavLink>
+        <NavLink
+          to="/corbeille"
+          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+        >
+          <Trash2 className="w-5 h-5" />
+          Corbeille
         </NavLink>
         <button
           onClick={() => setShowLogoutPopup(true)}

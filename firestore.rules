@@ -57,7 +57,8 @@ service cloud.firestore {
         && request.resource.data.vehicleId is string
         && request.resource.data.receiptNumber is string
         && request.resource.data.amount is number;
-      allow update, delete: if false;
+      allow update: if false;
+      allow delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
     }
 
     match /rentals/{rentalId} {
@@ -77,7 +78,7 @@ service cloud.firestore {
       allow update: if isSignedIn()
         && resource.data.ownerUid == request.auth.uid
         && request.resource.data.ownerUid == resource.data.ownerUid;
-      allow delete: if false;
+      allow delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
     }
 
     match /rentalReceipts/{receiptId} {
@@ -88,7 +89,8 @@ service cloud.firestore {
         && request.resource.data.vehicleId is string
         && request.resource.data.receiptNumber is string
         && request.resource.data.rentalAmount is number;
-      allow update, delete: if false;
+      allow update: if false;
+      allow delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
     }
 
     match /reservations/{reservationId} {
@@ -104,7 +106,7 @@ service cloud.firestore {
       allow update: if isSignedIn()
         && resource.data.ownerUid == request.auth.uid
         && request.resource.data.ownerUid == resource.data.ownerUid;
-      allow delete: if false;
+      allow delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
     }
 
     match /repairs/{repairId} {
@@ -135,6 +137,18 @@ service cloud.firestore {
         && request.resource.data.operationDate is string
         && request.resource.data.vehicleId is string;
       allow update, delete: if false;
+    }
+
+    match /trashItems/{trashId} {
+      allow read: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      allow create: if isSignedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.itemType is string
+        && request.resource.data.sourceCollection is string
+        && request.resource.data.sourceId is string
+        && request.resource.data.title is string;
+      allow update: if false;
+      allow delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
     }
 
     // Tout le reste est refuse par defaut.

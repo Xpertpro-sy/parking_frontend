@@ -1,10 +1,25 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, Printer, Search } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { ChevronLeft, ChevronRight, Printer, Search, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSearchParams } from 'react-router-dom';
 import { getPaymentMethodLabel, listReceiptsRequest, type CreateSalePayload } from '@/lib/sale-api';
 import { listRentalReceiptsRequest } from '@/lib/rental-api';
+import {
+  moveRentalReceiptToTrashRequest,
+  moveSaleReceiptToTrashRequest,
+  trashItemsQueryKey,
+} from '@/lib/trash-api';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 type UiReceipt =
   | {
@@ -165,11 +180,13 @@ function printInvoice(receipt: UiReceipt) {
 }
 
 export default function Receipts() {
+  const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedType, setSelectedType] = useState<'all' | 'sale' | 'rental'>('all');
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('week');
   const [currentPage, setCurrentPage] = useState(1);
+  const [pendingDeleteReceipt, setPendingDeleteReceipt] = useState<UiReceipt | null>(null);
   const { data: receipts = [], isLoading, isError, error } = useQuery({
     queryKey: ['receipts', 'list'],
     queryFn: async (): Promise<UiReceipt[]> => {
@@ -305,6 +322,22 @@ export default function Receipts() {
       setCurrentPage(totalPages);
     }
   }, [currentPage, totalPages]);
+
+  const onMoveReceiptToTrash = async (receipt: UiReceipt) => {
+    try {
+      if (receipt.type === 'sale') {
+        await moveSaleReceiptToTrashRequest(receipt.id);
+      } else {
+        await moveRentalReceiptToTrashRequest(receipt.id);
+      }
+      await queryClient.invalidateQueries({ queryKey: ['receipts', 'list'] });
+      await queryClient.invalidateQueries({ queryKey: trashItemsQueryKey });
+      toast.success('Reçu déplacé dans la corbeille.');
+      setPendingDeleteReceipt(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Impossible de supprimer le reçu.');
+    }
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -492,6 +525,14 @@ export default function Receipts() {
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
+                        onClick={() => setPendingDeleteReceipt(receipt)}
+                        className="inline-flex items-center gap-2 rounded-lg border border-destructive/40 px-3 py-2 text-xs font-medium text-destructive hover:bg-destructive/10"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Corbeille
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => printInvoice(receipt)}
                         className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs font-medium text-foreground hover:bg-secondary"
                       >
@@ -549,6 +590,23 @@ export default function Receipts() {
           <p className="text-sm text-muted-foreground mt-1">Les recus seront generes automatiquement lors des ventes et locations.</p>
         </div>
       )}
+
+      <AlertDialog open={Boolean(pendingDeleteReceipt)} onOpenChange={(open) => !open && setPendingDeleteReceipt(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Envoyer à la corbeille</AlertDialogTitle>
+            <AlertDialogDescription>
+              Voulez-vous envoyer le reçu {pendingDeleteReceipt?.receiptNumber ?? ''} dans la corbeille ?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={() => pendingDeleteReceipt && onMoveReceiptToTrash(pendingDeleteReceipt)}>
+              Confirmer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

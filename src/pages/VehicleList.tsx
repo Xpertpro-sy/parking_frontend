@@ -1,17 +1,31 @@
 import { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { Plus, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { VehicleStatus, STATUS_LABELS } from '@/types/vehicle';
 import VehicleCard from '@/components/VehicleCard';
 import { useVehiclesQuery } from '@/lib/vehicle-queries';
+import { moveVehicleToTrashRequest } from '@/lib/trash-api';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 const statusFilters: (VehicleStatus | 'all')[] = ['all', 'available', 'sold', 'rented', 'repair', 'reserved'];
 
 export default function VehicleList() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [filter, setFilter] = useState<VehicleStatus | 'all'>('all');
   const [search, setSearch] = useState('');
+  const [pendingDeleteVehicle, setPendingDeleteVehicle] = useState<{ id: string; label: string } | null>(null);
   const { data: vehicles = [], isLoading, isError, error } = useVehiclesQuery();
 
   useEffect(() => {
@@ -26,6 +40,19 @@ export default function VehicleList() {
       `${v.brand} ${v.model} ${v.plate}`.toLowerCase().includes(search.toLowerCase());
     return matchStatus && matchSearch;
   });
+
+  const handleConfirmVehicleDelete = async () => {
+    if (!pendingDeleteVehicle) return;
+    try {
+      await moveVehicleToTrashRequest(pendingDeleteVehicle.id);
+      await queryClient.invalidateQueries({ queryKey: ['vehicles'] });
+      await queryClient.invalidateQueries({ queryKey: ['trash', 'items', 'list'] });
+      toast.success(`${pendingDeleteVehicle.label} deplace dans la corbeille.`);
+      setPendingDeleteVehicle(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Echec de la suppression.');
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -88,7 +115,7 @@ export default function VehicleList() {
                 navigate(`/vehicles/${vehicle.id}/edit`);
               }}
               onDelete={(vehicle) => {
-                toast.warning(`Suppression de ${vehicle.brand} ${vehicle.model} bientot disponible.`);
+                setPendingDeleteVehicle({ id: vehicle.id, label: `${vehicle.brand} ${vehicle.model}` });
               }}
             />
           ))}
@@ -98,6 +125,21 @@ export default function VehicleList() {
           <p className="text-muted-foreground">Aucun véhicule trouvé.</p>
         </div>
       )}
+
+      <AlertDialog open={Boolean(pendingDeleteVehicle)} onOpenChange={(open) => !open && setPendingDeleteVehicle(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Envoyer à la corbeille</AlertDialogTitle>
+            <AlertDialogDescription>
+              Voulez-vous envoyer {pendingDeleteVehicle?.label ?? 'ce véhicule'} dans la corbeille ?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmVehicleDelete}>Confirmer</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

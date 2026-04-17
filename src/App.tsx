@@ -21,6 +21,8 @@ import HistoryPage from "./pages/HistoryPage";
 import RentedVehicles from "./pages/RentedVehicles";
 import ReservedVehicles from "./pages/ReservedVehicles";
 import ComptabilityPage from "./pages/ComptabilityPage";
+import SettingsPage from "./pages/SettingsPage";
+import CorbeillePage from "./pages/CorbeillePage";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import NotFound from "./pages/NotFound";
@@ -83,6 +85,8 @@ const App = () => (
                 <Route path="/voitures-reservees" element={<ReservedVehicles />} />
                 <Route path="/history" element={<HistoryPage />} />
                 <Route path="/comptability" element={<ComptabilityPage />} />
+                <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/corbeille" element={<CorbeillePage />} />
               </Route>
             </Route>
 
