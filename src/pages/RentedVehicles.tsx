@@ -223,45 +223,42 @@ export default function RentedVehicles() {
             ))}
           </div>
         ) : (
-          <div className="rounded-xl border border-border bg-card overflow-hidden">
-            <table className="w-full table-fixed text-sm">
-              <thead>
-                <tr className="border-b border-border text-left">
-                  <th className="px-3 py-2 text-muted-foreground font-medium w-[20%]">Vehicule</th>
-                  <th className="px-3 py-2 text-muted-foreground font-medium w-[18%]">Locataire</th>
-                  <th className="px-3 py-2 text-muted-foreground font-medium w-[28%]">Periode</th>
-                  <th className="hidden xl:table-cell px-3 py-2 text-muted-foreground font-medium w-[10%]">Duree</th>
-                  <th className="px-3 py-2 text-muted-foreground font-medium w-[14%]">Montant</th>
-                  <th className="hidden 2xl:table-cell px-3 py-2 text-muted-foreground font-medium w-[12%]">Prix/jour</th>
-                  <th className="hidden lg:table-cell px-3 py-2 text-muted-foreground font-medium w-[10%]">Statut</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedRentals.map((rental) => (
-                  <tr key={rental.id} className="border-b border-border/60">
-                    <td className="px-3 py-2">
-                      <Link to={`/vehicles/${rental.vehicleId}`} className="font-medium hover:underline block truncate">
-                        {rental.vehicleBrand} {rental.vehicleModel}
-                      </Link>
-                      <p className="text-xs text-muted-foreground truncate">{rental.vehiclePlate}</p>
-                    </td>
-                    <td className="px-3 py-2">
-                      <p className="font-medium truncate">{rental.tenantName}</p>
-                      <p className="text-xs text-muted-foreground truncate">{rental.tenantPhone}</p>
-                    </td>
-                    <td className="px-3 py-2 truncate">
-                      {formatDateTimeFr(rental.startDate)} - {formatDateTimeFr(rental.endDate)}
-                    </td>
-                    <td className="hidden xl:table-cell px-3 py-2">{rental.totalDays} jour(s)</td>
-                    <td className="px-3 py-2 font-semibold whitespace-nowrap">{rental.amount.toLocaleString()} CFA</td>
-                    <td className="hidden 2xl:table-cell px-3 py-2">{rental.dailyPrice.toLocaleString()} CFA</td>
-                    <td className="hidden lg:table-cell px-3 py-2">
-                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-info/10 text-info">Active</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="rounded-xl border border-border bg-card divide-y divide-border/60">
+            {paginatedRentals.map((rental) => (
+              <div
+                key={rental.id}
+                className="p-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[1.2fr_1.1fr_1.5fr_0.8fr_1fr_0.9fr] gap-3 items-start"
+              >
+                <div className="min-w-0">
+                  <p className="text-[11px] text-muted-foreground">Vehicule</p>
+                  <Link to={`/vehicles/${rental.vehicleId}`} className="font-medium hover:underline block truncate">
+                    {rental.vehicleBrand} {rental.vehicleModel}
+                  </Link>
+                  <p className="text-xs text-muted-foreground truncate">{rental.vehiclePlate}</p>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] text-muted-foreground">Locataire</p>
+                  <p className="font-medium truncate">{rental.tenantName}</p>
+                  <p className="text-xs text-muted-foreground truncate">{rental.tenantPhone}</p>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] text-muted-foreground">Periode</p>
+                  <p className="truncate">{formatDateTimeFr(rental.startDate)} - {formatDateTimeFr(rental.endDate)}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] text-muted-foreground">Duree</p>
+                  <p>{rental.totalDays} jour(s)</p>
+                </div>
+                <div>
+                  <p className="text-[11px] text-muted-foreground">Montant</p>
+                  <p className="font-semibold whitespace-nowrap">{rental.amount.toLocaleString()} CFA</p>
+                </div>
+                <div>
+                  <p className="text-[11px] text-muted-foreground">Statut</p>
+                  <span className="px-2 py-1 rounded-full text-xs font-medium bg-info/10 text-info">Active</span>
+                </div>
+              </div>
+            ))}
           </div>
         )
       ) : (

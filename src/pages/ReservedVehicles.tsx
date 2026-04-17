@@ -213,56 +213,54 @@ export default function ReservedVehicles() {
             ))}
           </div>
         ) : (
-          <div className="rounded-xl border border-border bg-card overflow-hidden">
-            <table className="w-full table-fixed text-sm">
-              <thead>
-                <tr className="border-b border-border text-left">
-                  <th className="px-3 py-2 text-muted-foreground font-medium w-[24%]">Vehicule</th>
-                  <th className="px-3 py-2 text-muted-foreground font-medium w-[20%]">Client</th>
-                  <th className="px-3 py-2 text-muted-foreground font-medium w-[12%]">Date</th>
-                  <th className="px-3 py-2 text-muted-foreground font-medium w-[14%]">Montant</th>
-                  <th className="px-3 py-2 text-muted-foreground font-medium w-[16%]">Notes</th>
-                  <th className="px-3 py-2 text-muted-foreground font-medium w-[14%]">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedReservations.map((reservation) => (
-                  <tr key={reservation.id} className="border-b border-border/60">
-                    <td className="px-3 py-2">
-                      <Link to={`/vehicles/${reservation.vehicleId}`} className="font-medium hover:underline block truncate">
-                        {reservation.vehicleBrand} {reservation.vehicleModel}
-                      </Link>
-                      <p className="text-xs text-muted-foreground truncate">{reservation.vehiclePlate}</p>
-                    </td>
-                    <td className="px-3 py-2">
-                      <p className="font-medium truncate">{reservation.customerName}</p>
-                      <p className="text-xs text-muted-foreground truncate">{reservation.customerPhone}</p>
-                    </td>
-                    <td className="px-3 py-2 whitespace-nowrap">{formatDateFr(reservation.reservationDate)}</td>
-                    <td className="px-3 py-2 font-semibold">{reservation.amountPaid.toLocaleString()} CFA</td>
-                    <td className="px-3 py-2 truncate">{reservation.notes || 'Aucune'}</td>
-                    <td className="px-3 py-2">
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() => goToFinalizeRental(reservation.vehicleId)}
-                          className="px-3 py-1.5 bg-info text-info-foreground rounded-md text-xs font-medium"
-                        >
-                          Louer
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onCancelReservation(reservation.vehicleId)}
-                          className="px-3 py-1.5 bg-destructive text-destructive-foreground rounded-md text-xs font-medium"
-                        >
-                          Annuler
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="rounded-xl border border-border bg-card divide-y divide-border/60">
+            {paginatedReservations.map((reservation) => (
+              <div
+                key={reservation.id}
+                className="p-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[1.4fr_1.2fr_0.9fr_1fr_1fr_auto] gap-3 items-start"
+              >
+                <div className="min-w-0">
+                  <p className="text-[11px] text-muted-foreground">Vehicule</p>
+                  <Link to={`/vehicles/${reservation.vehicleId}`} className="font-medium hover:underline block truncate">
+                    {reservation.vehicleBrand} {reservation.vehicleModel}
+                  </Link>
+                  <p className="text-xs text-muted-foreground truncate">{reservation.vehiclePlate}</p>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] text-muted-foreground">Client</p>
+                  <p className="font-medium truncate">{reservation.customerName}</p>
+                  <p className="text-xs text-muted-foreground truncate">{reservation.customerPhone}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] text-muted-foreground">Date</p>
+                  <p className="whitespace-nowrap">{formatDateFr(reservation.reservationDate)}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] text-muted-foreground">Montant</p>
+                  <p className="font-semibold">{reservation.amountPaid.toLocaleString()} CFA</p>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] text-muted-foreground">Notes</p>
+                  <p className="truncate">{reservation.notes || 'Aucune'}</p>
+                </div>
+                <div className="flex flex-wrap gap-2 xl:justify-end">
+                  <button
+                    type="button"
+                    onClick={() => goToFinalizeRental(reservation.vehicleId)}
+                    className="px-3 py-1.5 bg-info text-info-foreground rounded-md text-xs font-medium"
+                  >
+                    Louer
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onCancelReservation(reservation.vehicleId)}
+                    className="px-3 py-1.5 bg-destructive text-destructive-foreground rounded-md text-xs font-medium"
+                  >
+                    Annuler
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         )
       ) : (
