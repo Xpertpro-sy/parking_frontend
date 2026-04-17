@@ -5,6 +5,8 @@ import { ArrowLeft, Car, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react
 import { toast } from 'sonner';
 import StatusBadge from '@/components/StatusBadge';
 import { accountMovementsQueryKey } from '@/lib/accounting-api';
+import type { AppPermission } from '@/lib/access-control';
+import { getCurrentUserAccessProfile } from '@/lib/access-control';
 import { useVehicleDetailQuery, vehicleQueryKeys } from '@/lib/vehicle-queries';
 import { completeRentalRequest, listRentalsRequest } from '@/lib/rental-api';
 import {
@@ -37,6 +39,16 @@ export default function VehicleDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { data: accessProfile } = useQuery({
+    queryKey: ['access-profile'],
+    queryFn: getCurrentUserAccessProfile,
+  });
+  const can = (permission: AppPermission) => accessProfile?.permissions?.[permission] ?? true;
+  const canSell = can('receipts');
+  const canRent = can('rentals');
+  const canReserve = can('reservations');
+  const canUseVehiclesModule = can('vehicles');
+
   const { data: vehicle, isLoading, isError, error } = useVehicleDetailQuery(id);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const [completingRental, setCompletingRental] = useState(false);
@@ -300,45 +312,57 @@ export default function VehicleDetail() {
       <div className="flex flex-wrap gap-3">
         {vehicle.status === 'available' && (
           <>
-            <Link
-              to={`/sales/new?vehicleId=${vehicle.id}`}
-              className="px-4 py-2.5 bg-success text-success-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
-            >
-              Vendre
-            </Link>
-            <Link
-              to={`/rentals/new?vehicleId=${vehicle.id}`}
-              className="px-4 py-2.5 bg-info text-info-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
-            >
-              Louer
-            </Link>
-            <button
-              onClick={() => {
-                setReservationAmountPaid(String(vehicle.rentalPrice));
-                setShowReservationModal(true);
-              }}
-              className="px-4 py-2.5 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-500 transition-colors"
-            >
-              Réserver
-            </button>
-            <button
-              onClick={() => setShowRepairModal(true)}
-              className="px-4 py-2.5 bg-warning text-warning-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
-            >
-              En réparation
-            </button>
+            {canSell && (
+              <Link
+                to={`/sales/new?vehicleId=${vehicle.id}`}
+                className="px-4 py-2.5 bg-success text-success-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
+              >
+                Vendre
+              </Link>
+            )}
+            {canRent && (
+              <Link
+                to={`/rentals/new?vehicleId=${vehicle.id}`}
+                className="px-4 py-2.5 bg-info text-info-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
+              >
+                Louer
+              </Link>
+            )}
+            {canReserve && (
+              <button
+                type="button"
+                onClick={() => {
+                  setReservationAmountPaid(String(vehicle.rentalPrice));
+                  setShowReservationModal(true);
+                }}
+                className="px-4 py-2.5 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-500 transition-colors"
+              >
+                Réserver
+              </button>
+            )}
+            {canUseVehiclesModule && (
+              <button
+                type="button"
+                onClick={() => setShowRepairModal(true)}
+                className="px-4 py-2.5 bg-warning text-warning-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
+              >
+                En réparation
+              </button>
+            )}
           </>
         )}
-        {vehicle.status === 'repair' && (
+        {vehicle.status === 'repair' && canUseVehiclesModule && (
           <button
+            type="button"
             onClick={() => setShowCompleteRepairPopup(true)}
             className="px-4 py-2.5 bg-success text-success-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
           >
             Réparation terminée
           </button>
         )}
-        {vehicle.status === 'rented' && (
+        {vehicle.status === 'rented' && canRent && (
           <button
+            type="button"
             onClick={handleCompleteRentalClick}
             disabled={completingRental}
             className="px-4 py-2.5 bg-success text-success-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-60"
@@ -348,19 +372,25 @@ export default function VehicleDetail() {
         )}
         {vehicle.status === 'reserved' && (
           <>
-            <button
-              onClick={() => navigate(`/rentals/finalize-from-reservation?vehicleId=${vehicle.id}`)}
-              className="px-4 py-2.5 bg-info text-info-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-60"
-            >
-              Louer maintenant
-            </button>
-            <button
-              onClick={() => setShowCancelReservationPopup(true)}
-              disabled={submittingReservation}
-              className="px-4 py-2.5 bg-destructive text-destructive-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-60"
-            >
-              {submittingReservation ? "Annulation..." : "Annuler reservation"}
-            </button>
+            {canRent && canReserve && (
+              <button
+                type="button"
+                onClick={() => navigate(`/rentals/finalize-from-reservation?vehicleId=${vehicle.id}`)}
+                className="px-4 py-2.5 bg-info text-info-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-60"
+              >
+                Louer maintenant
+              </button>
+            )}
+            {canReserve && (
+              <button
+                type="button"
+                onClick={() => setShowCancelReservationPopup(true)}
+                disabled={submittingReservation}
+                className="px-4 py-2.5 bg-destructive text-destructive-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-60"
+              >
+                {submittingReservation ? "Annulation..." : "Annuler reservation"}
+              </button>
+            )}
           </>
         )}
       </div>

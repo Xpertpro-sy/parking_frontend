@@ -41,6 +41,17 @@ service cloud.firestore {
       return canAccessWorkspace(ownerUid, "receipts") || canAccessWorkspace(ownerUid, "rentals");
     }
 
+    // Mouvements comptables : saisie manuelle = comptabilité ; flux métier = permission du module concerné.
+    function canCreateAccountMovementForOperation() {
+      let ownerUid = request.resource.data.ownerUid;
+      let op = request.resource.data.operationType;
+      return canAccessWorkspace(ownerUid, "comptability")
+        || (op == "sale" && canAccessWorkspace(ownerUid, "receipts"))
+        || (op == "rental" && canAccessWorkspace(ownerUid, "rentals"))
+        || (op == "reservation" && canAccessWorkspace(ownerUid, "reservations"))
+        || (op == "repair" && canAccessWorkspace(ownerUid, "vehicles"));
+    }
+
     function usersDoc(uid) {
       return get(/databases/$(database)/documents/users/$(uid));
     }
@@ -172,7 +183,7 @@ service cloud.firestore {
 
     match /accountMovements/{movementId} {
       allow read: if canAccessWorkspace(resource.data.ownerUid, "comptability");
-      allow create: if canAccessWorkspace(request.resource.data.ownerUid, "comptability")
+      allow create: if canCreateAccountMovementForOperation()
         && request.resource.data.operationType is string
         && request.resource.data.direction is string
         && request.resource.data.category is string
