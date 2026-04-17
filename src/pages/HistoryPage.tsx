@@ -1,10 +1,23 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { History, Loader2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, History, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { listRentalsRequest } from '@/lib/rental-api';
 import { listReservationsRequest } from '@/lib/vehicle-action-api';
+import { listSalesRequest } from '@/lib/sale-api';
+
+type PeriodFilter = 'today' | 'yesterday' | 'week' | 'month' | 'year';
+
+const HISTORY_ITEMS_PER_PAGE = 10;
+
+const PERIOD_OPTIONS: { key: PeriodFilter; label: string }[] = [
+  { key: 'today', label: "Aujourd'hui" },
+  { key: 'yesterday', label: 'Hier' },
+  { key: 'week', label: 'Semaine' },
+  { key: 'month', label: 'Mois en cours' },
+  { key: 'year', label: 'Année' },
+];
 
 const formatDateTimeFr = (value: string) =>
   new Date(value).toLocaleString('fr-FR', {
@@ -13,10 +26,9 @@ const formatDateTimeFr = (value: string) =>
   });
 
 export default function HistoryPage() {
-  const [period, setPeriod] = useState<'today' | '7d' | '30d' | 'custom' | 'all'>('30d');
+  const [period, setPeriod] = useState<PeriodFilter>('week');
   const [typeFilter, setTypeFilter] = useState<'all' | 'reservation' | 'location'>('all');
-  const [customStart, setCustomStart] = useState('');
-  const [customEnd, setCustomEnd] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
 
   const { data: rentals = [], isLoading: loadingRentals, isError: rentalError, error: rentalErrorValue } = useQuery({
     queryKey: ['rentals', 'list'],
@@ -30,6 +42,12 @@ export default function HistoryPage() {
     staleTime: 3 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
+  const { data: sales = [], isLoading: loadingSales, isError: salesError, error: salesErrorValue } = useQuery({
+    queryKey: ['sales', 'list'],
+    queryFn: listSalesRequest,
+    staleTime: 3 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
 
   useEffect(() => {
     if (rentalError) {
@@ -38,42 +56,36 @@ export default function HistoryPage() {
     if (reservationError) {
       toast.error(reservationErrorValue instanceof Error ? reservationErrorValue.message : "Impossible de charger l'historique des reservations.");
     }
-  }, [rentalError, rentalErrorValue, reservationError, reservationErrorValue]);
-
-  const periodStart = useMemo(() => {
-    const now = new Date();
-    if (period === 'all') return null;
-    if (period === 'today') {
-      const start = new Date();
-      start.setHours(0, 0, 0, 0);
-      return start;
+    if (salesError) {
+      toast.error(salesErrorValue instanceof Error ? salesErrorValue.message : "Impossible de charger l'historique des ventes.");
     }
-    if (period === '7d') return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    if (period === '30d') return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    if (!customStart) return null;
-    const start = new Date(customStart);
-    return Number.isNaN(start.getTime()) ? null : start;
-  }, [period, customStart]);
-
-  const periodEnd = useMemo(() => {
-    if (period !== 'custom') return null;
-    if (!customEnd) return null;
-    const end = new Date(customEnd);
-    if (Number.isNaN(end.getTime())) return null;
-    end.setHours(23, 59, 59, 999);
-    return end;
-  }, [period, customEnd]);
+  }, [rentalError, rentalErrorValue, reservationError, reservationErrorValue, salesError, salesErrorValue]);
 
   const isInRange = (value: string) => {
-    const createdAt = new Date(value);
-    if (Number.isNaN(createdAt.getTime())) return false;
-    if (periodStart && createdAt < periodStart) return false;
-    if (periodEnd && createdAt > periodEnd) return false;
-    return true;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return false;
+
+    const now = new Date();
+    const isSameDay = (a: Date, b: Date) =>
+      a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const weekStart = new Date(now);
+    weekStart.setHours(0, 0, 0, 0);
+    weekStart.setDate(weekStart.getDate() - 6);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const yearStart = new Date(now.getFullYear(), 0, 1);
+
+    if (period === 'today') return isSameDay(date, now);
+    if (period === 'yesterday') return isSameDay(date, yesterday);
+    if (period === 'week') return date >= weekStart;
+    if (period === 'month') return date >= monthStart;
+    return date >= yearStart;
   };
 
   const filteredRentals = rentals.filter((item) => isInRange(item.createdAt));
   const filteredReservations = reservations.filter((item) => isInRange(item.createdAt));
+  const filteredSales = sales.filter((item) => isInRange(item.createdAt));
 
   const timelineItems = useMemo(() => {
     const reservationItems = filteredReservations.map((reservation) => ({
@@ -93,10 +105,33 @@ export default function HistoryPage() {
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [filteredReservations, filteredRentals, typeFilter]);
 
-  const isLoading = loadingRentals || loadingReservations;
+  const totalPages = Math.max(1, Math.ceil(timelineItems.length / HISTORY_ITEMS_PER_PAGE));
+
+  const paginatedTimelineItems = useMemo(() => {
+    const safePage = Math.min(currentPage, totalPages);
+    const startIndex = (safePage - 1) * HISTORY_ITEMS_PER_PAGE;
+    return timelineItems.slice(startIndex, startIndex + HISTORY_ITEMS_PER_PAGE);
+  }, [currentPage, timelineItems, totalPages]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [period, typeFilter]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  const isLoading = loadingRentals || loadingReservations || loadingSales;
   const activeReservationsCount = filteredReservations.filter((item) => item.status === 'ACTIVE').length;
   const completedRentalsCount = filteredRentals.filter((item) => item.status?.toLowerCase() === 'completed').length;
   const totalRevenue = filteredRentals.reduce((sum, item) => sum + (Number.isFinite(item.amount) ? item.amount : 0), 0);
+  const totalSalesAmount = filteredSales.reduce((sum, item) => sum + (Number.isFinite(item.amount) ? item.amount : 0), 0);
+  const totalReservationsAmount = filteredReservations.reduce(
+    (sum, item) => sum + (Number.isFinite(item.amountPaid) ? item.amountPaid : 0),
+    0,
+  );
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -107,7 +142,7 @@ export default function HistoryPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
         <div className="rounded-xl border border-cyan-200/40 bg-cyan-500/5 dark:border-cyan-800/40 dark:bg-cyan-900/20 p-4">
           <p className="text-xs font-medium text-white">Reservations actives</p>
           <p className="mt-1 text-2xl font-bold text-white">{activeReservationsCount}</p>
@@ -120,52 +155,30 @@ export default function HistoryPage() {
           <p className="text-xs font-medium text-success">Montant total locations</p>
           <p className="mt-1 text-2xl font-bold text-foreground">{totalRevenue.toLocaleString()} CFA</p>
         </div>
+        <div className="rounded-xl border border-emerald-300/30 bg-emerald-500/10 p-4">
+          <p className="text-xs font-medium text-emerald-700">Montant total ventes</p>
+          <p className="mt-1 text-2xl font-bold text-foreground">{totalSalesAmount.toLocaleString()} CFA</p>
+        </div>
+        <div className="rounded-xl border border-violet-300/30 bg-violet-500/10 p-4">
+          <p className="text-xs font-medium text-violet-700">Montant total reservations</p>
+          <p className="mt-1 text-2xl font-bold text-foreground">{totalReservationsAmount.toLocaleString()} CFA</p>
+        </div>
       </div>
 
       <div className="rounded-xl border border-border bg-card p-4 shadow-sm space-y-3">
         <div className="flex flex-wrap gap-2">
-          {[
-            { key: 'today', label: "Aujourd'hui" },
-            { key: '7d', label: '7 jours' },
-            { key: '30d', label: '30 jours' },
-            { key: 'custom', label: 'Personnalise' },
-            { key: 'all', label: 'Tout' },
-          ].map((option) => (
-            <button
-              key={option.key}
-              type="button"
-              onClick={() => setPeriod(option.key as typeof period)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                period === option.key ? 'bg-primary text-primary-foreground' : 'bg-secondary text-foreground hover:bg-secondary/80'
-              }`}
-            >
-              {option.label}
-            </button>
-          ))}
+          <select
+            value={period}
+            onChange={(event) => setPeriod(event.target.value as PeriodFilter)}
+            className="px-3 py-2 rounded-lg border border-border bg-secondary text-sm"
+          >
+            {PERIOD_OPTIONS.map((option) => (
+              <option key={option.key} value={option.key}>
+                {option.label}
+              </option>
+            ))}
+          </select>
         </div>
-
-        {period === 'custom' && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-muted-foreground mb-1">Date debut</label>
-              <input
-                type="date"
-                value={customStart}
-                onChange={(event) => setCustomStart(event.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-border bg-secondary text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-muted-foreground mb-1">Date fin</label>
-              <input
-                type="date"
-                value={customEnd}
-                onChange={(event) => setCustomEnd(event.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-border bg-secondary text-sm"
-              />
-            </div>
-          </div>
-        )}
 
         <div className="flex flex-wrap gap-2">
           {[
@@ -193,8 +206,9 @@ export default function HistoryPage() {
           <p className="text-muted-foreground">Chargement de l'historique...</p>
         </div>
       ) : timelineItems.length > 0 ? (
-        <div className="space-y-3">
-          {timelineItems.map((entry) => {
+        <>
+          <div className="space-y-3">
+          {paginatedTimelineItems.map((entry) => {
             if (entry.kind === 'reservation') {
               const reservation = entry.payload;
               const isActive = reservation.status === 'ACTIVE';
@@ -374,7 +388,37 @@ export default function HistoryPage() {
               </div>
             );
           })}
-        </div>
+          </div>
+          {timelineItems.length > HISTORY_ITEMS_PER_PAGE && (
+            <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-muted-foreground">
+                Affichage {(currentPage - 1) * HISTORY_ITEMS_PER_PAGE + 1}
+                {' - '}
+                {Math.min(currentPage * HISTORY_ITEMS_PER_PAGE, timelineItems.length)} sur {timelineItems.length}
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                  disabled={currentPage === 1}
+                  className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary disabled:opacity-50"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Precedent
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                  disabled={currentPage === totalPages}
+                  className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary disabled:opacity-50"
+                >
+                  Suivant
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       ) : (
         <div className="glass-card p-12 text-center">
           <History className="w-12 h-12 mx-auto text-muted-foreground/40 mb-3" />
