@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { Car, LayoutDashboard, Receipt, History, Menu, X, LogOut, Calculator, Settings, Trash2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { getBrandingEventName, readBranding, type BrandingConfig } from '@/lib/branding';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,7 +30,23 @@ export default function MobileNav() {
   const [open, setOpen] = useState(false);
   const [showLogoutPopup, setShowLogoutPopup] = useState(false);
   const location = useLocation();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
+  const [branding, setBranding] = useState<BrandingConfig>(() => readBranding(user?.email));
+
+  useEffect(() => {
+    setBranding(readBranding(user?.email));
+  }, [user?.email]);
+
+  useEffect(() => {
+    const eventName = getBrandingEventName();
+    const refresh = () => setBranding(readBranding(user?.email));
+    window.addEventListener(eventName, refresh as EventListener);
+    window.addEventListener('storage', refresh);
+    return () => {
+      window.removeEventListener(eventName, refresh as EventListener);
+      window.removeEventListener('storage', refresh);
+    };
+  }, [user?.email]);
 
   const handleLogout = () => {
     logout();
@@ -40,12 +57,23 @@ export default function MobileNav() {
   return (
     <>
       <header className="md:hidden flex items-center justify-between px-4 py-3 bg-sidebar border-b border-sidebar-border">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-            <Car className="w-4 h-4 text-primary-foreground" />
+        {branding.mode === 'image' && branding.imageDataUrl ? (
+          <div className="h-9 w-[170px] max-w-[65vw] rounded-lg border border-sidebar-border bg-card/60 overflow-hidden flex items-center justify-center">
+            <img
+              src={branding.imageDataUrl}
+              alt="Logo"
+              className="h-full w-full object-contain"
+              style={{ transform: `scale(${branding.imageScale / 100})` }}
+            />
           </div>
-          <span className="font-bold text-foreground">AutoParc</span>
-        </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-primary/20 border border-sidebar-border overflow-hidden flex items-center justify-center shrink-0">
+              <Car className="w-4 h-4 text-primary" />
+            </div>
+            <span className="font-bold text-foreground truncate">{branding.text}</span>
+          </div>
+        )}
         <button onClick={() => setOpen(!open)} className="text-foreground">
           {open ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
         </button>

@@ -54,12 +54,14 @@ export default function VehicleCard({ vehicle, showActions = false, onEdit, onDe
                     Modifier
                   </DropdownMenuItem>
                 )}
-                <DropdownMenuItem
-                  onClick={() => onDelete?.(vehicle)}
-                  className="text-destructive focus:text-destructive"
-                >
-                  Supprimer
-                </DropdownMenuItem>
+                {onDelete && (
+                  <DropdownMenuItem
+                    onClick={() => onDelete(vehicle)}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    Supprimer
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>

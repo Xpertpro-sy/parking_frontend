@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -11,6 +11,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { getBrandingEventName, readBranding, type BrandingConfig } from '@/lib/branding';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,6 +38,22 @@ export default function AppSidebar() {
   const location = useLocation();
   const { user, logout } = useAuth();
   const [showLogoutPopup, setShowLogoutPopup] = useState(false);
+  const [branding, setBranding] = useState<BrandingConfig>(() => readBranding(user?.email));
+
+  useEffect(() => {
+    setBranding(readBranding(user?.email));
+  }, [user?.email]);
+
+  useEffect(() => {
+    const eventName = getBrandingEventName();
+    const refresh = () => setBranding(readBranding(user?.email));
+    window.addEventListener(eventName, refresh as EventListener);
+    window.addEventListener('storage', refresh);
+    return () => {
+      window.removeEventListener(eventName, refresh as EventListener);
+      window.removeEventListener('storage', refresh);
+    };
+  }, [user?.email]);
 
   const handleLogout = () => {
     logout();
@@ -46,12 +63,25 @@ export default function AppSidebar() {
   return (
     <aside className="hidden md:flex flex-col w-64 h-screen bg-sidebar border-r border-sidebar-border sticky top-0">
       {/* Logo */}
-      <div className="flex items-center gap-3 px-6 py-5 border-b border-sidebar-border">
-        <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center">
-          <Car className="w-5 h-5 text-primary-foreground" />
+      {branding.mode === 'image' && branding.imageDataUrl ? (
+        <div className="px-4 py-4 border-b border-sidebar-border">
+          <div className="h-14 w-full rounded-lg border border-sidebar-border bg-card/60 overflow-hidden flex items-center justify-center">
+            <img
+              src={branding.imageDataUrl}
+              alt="Logo"
+              className="h-full w-full object-contain"
+              style={{ transform: `scale(${branding.imageScale / 100})` }}
+            />
+          </div>
         </div>
-        <span className="text-lg font-bold text-foreground tracking-tight">AutoParc</span>
-      </div>
+      ) : (
+        <div className="flex items-center gap-3 px-6 py-5 border-b border-sidebar-border">
+          <div className="w-9 h-9 rounded-lg bg-primary/20 border border-sidebar-border overflow-hidden flex items-center justify-center shrink-0">
+            <Car className="w-5 h-5 text-primary" />
+          </div>
+          <span className="text-lg font-bold text-foreground tracking-tight truncate">{branding.text}</span>
+        </div>
+      )}
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
