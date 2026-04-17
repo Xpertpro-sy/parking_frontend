@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Car, LayoutDashboard, Receipt, History, Menu, X, LogOut, Calculator, Settings, Trash2 } from 'lucide-react';
+import { Car, LayoutDashboard, Receipt, History, Menu, X, LogOut, Calculator, Settings, Trash2, User } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { brandingSettingsQueryKey, getBrandingSettingsRequest } from '@/lib/branding-api';
 import {
@@ -23,6 +23,7 @@ const navItems = [
   { to: '/voitures-louees', icon: Car, label: 'Voitures louées' },
   { to: '/voitures-reservees', icon: Car, label: 'Voitures réservées' },
   { to: '/history', icon: History, label: 'Historique' },
+  { to: '/comptes', icon: User, label: 'Comptes' },
   { to: '/settings', icon: Settings, label: 'Paramètres' },
   { to: '/corbeille', icon: Trash2, label: 'Corbeille' },
 ];

@@ -10,6 +10,7 @@ import {
   LogOut,
   Calculator,
   Trash2,
+  User,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { brandingSettingsQueryKey, getBrandingSettingsRequest } from '@/lib/branding-api';
@@ -33,6 +34,7 @@ const navItems = [
   { to: '/voitures-louees', icon: Car, label: 'Voitures louées' },
   { to: '/voitures-reservees', icon: Car, label: 'Voitures réservées' },
   { to: '/history', icon: History, label: 'Historique' },
+  { to: '/comptes', icon: User, label: 'Comptes' },
 ];
 
 export default function AppSidebar() {
