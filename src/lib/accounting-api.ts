@@ -1,12 +1,27 @@
 import { getFirebaseDb, waitForFirebaseUser } from "@/lib/firebase";
-import { collection, getDocs, query, where, Timestamp } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  getDocs,
+  query,
+  runTransaction,
+  serverTimestamp,
+  where,
+  Timestamp,
+} from "firebase/firestore";
 
 /** Clé React Query : invalider après vente, location, réservation, réparation. */
 export const accountMovementsQueryKey = ["account", "movements", "list"] as const;
 
 export type AccountMovementDirection = "entree" | "sortie";
 export type AccountMovementSource = "caisse" | "banque" | "mobile-money" | "credit";
-export type AccountMovementOperationType = "sale" | "rental" | "reservation" | "repair";
+export type AccountMovementOperationType =
+  | "sale"
+  | "rental"
+  | "reservation"
+  | "repair"
+  | "transfer"
+  | "expense";
 
 type AccountMovementFirestoreDoc = {
   ownerUid: string;
@@ -58,7 +73,25 @@ async function getAuthIdentity() {
   if (!user?.uid) {
     throw new Error("Session Firebase invalide. Veuillez vous reconnecter.");
   }
-  return { uid: user.uid };
+  return { uid: user.uid, email: user.email ?? null };
+}
+
+const MANUAL_MOVEMENT_VEHICLE = {
+  vehicleId: "",
+  vehicleBrand: "—",
+  vehicleModel: "Operation manuelle",
+  vehiclePlate: "—",
+} as const;
+
+function parseManualOperationDate(dateInput: string, fieldLabel: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
+    throw new Error(`${fieldLabel} invalide.`);
+  }
+  const parsed = new Date(`${dateInput}T12:00:00`);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error(`${fieldLabel} invalide.`);
+  }
+  return parsed.toISOString();
 }
 
 function mapMovementDoc(id: string, data: AccountMovementFirestoreDoc): AccountMovementApiResponse {
@@ -92,4 +125,114 @@ export async function listAccountMovementsRequest(): Promise<AccountMovementApiR
   return snapshot.docs
     .map((docSnap) => mapMovementDoc(docSnap.id, docSnap.data() as AccountMovementFirestoreDoc))
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
+
+export type CreateFundTransferPayload = {
+  fromSource: AccountMovementSource;
+  toSource: AccountMovementSource;
+  amount: number;
+  description: string;
+  operationDate: string;
+};
+
+export type CreateManualExpensePayload = {
+  source: AccountMovementSource;
+  amount: number;
+  description: string;
+  operationDate: string;
+};
+
+/** Transfert entre deux sources (une sortie + une entree, meme reference). */
+export async function createFundTransferRequest(payload: CreateFundTransferPayload): Promise<void> {
+  const db = getFirebaseDb();
+  const { uid, email } = await getAuthIdentity();
+
+  if (payload.fromSource === payload.toSource) {
+    throw new Error("La source et la destination doivent etre differentes.");
+  }
+  if (!Number.isFinite(payload.amount) || payload.amount <= 0) {
+    throw new Error("Montant invalide.");
+  }
+  const desc = payload.description.trim();
+  if (!desc) {
+    throw new Error("La description est obligatoire.");
+  }
+
+  const operationDateIso = parseManualOperationDate(payload.operationDate, "Date de l'operation");
+  const outRef = doc(collection(db, "accountMovements"));
+  const inRef = doc(collection(db, "accountMovements"));
+  const reference = `TRF-${outRef.id.slice(0, 8).toUpperCase()}`;
+  const amount = Number(payload.amount);
+
+  await runTransaction(db, async (transaction) => {
+    const base = {
+      ownerUid: uid,
+      ownerEmail: email,
+      operationType: "transfer" as const,
+      category: "Transfert de fonds",
+      reference,
+      amount,
+      unitPrice: amount,
+      quantity: 1,
+      operationDate: operationDateIso,
+      ...MANUAL_MOVEMENT_VEHICLE,
+      counterpartyName: "Transfert interne",
+      counterpartyPhone: null,
+      description: desc,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
+
+    transaction.set(outRef, {
+      ...base,
+      direction: "sortie",
+      source: payload.fromSource,
+    });
+    transaction.set(inRef, {
+      ...base,
+      direction: "entree",
+      source: payload.toSource,
+    });
+  });
+}
+
+/** Depense manuelle (sortie). */
+export async function createManualExpenseRequest(payload: CreateManualExpensePayload): Promise<void> {
+  const db = getFirebaseDb();
+  const { uid, email } = await getAuthIdentity();
+
+  if (!Number.isFinite(payload.amount) || payload.amount <= 0) {
+    throw new Error("Montant invalide.");
+  }
+  const desc = payload.description.trim();
+  if (!desc) {
+    throw new Error("Le motif est obligatoire.");
+  }
+
+  const operationDateIso = parseManualOperationDate(payload.operationDate, "Date de l'operation");
+  const movementRef = doc(collection(db, "accountMovements"));
+  const reference = `DEP-${movementRef.id.slice(0, 8).toUpperCase()}`;
+  const amount = Number(payload.amount);
+
+  await runTransaction(db, async (transaction) => {
+    transaction.set(movementRef, {
+      ownerUid: uid,
+      ownerEmail: email,
+      operationType: "expense",
+      direction: "sortie",
+      category: "Depense",
+      source: payload.source,
+      reference,
+      amount,
+      unitPrice: amount,
+      quantity: 1,
+      operationDate: operationDateIso,
+      ...MANUAL_MOVEMENT_VEHICLE,
+      counterpartyName: "Depense diverse",
+      counterpartyPhone: null,
+      description: desc,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  });
 }

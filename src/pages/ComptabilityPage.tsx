@@ -1,8 +1,27 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Landmark, Search, Smartphone, Wallet } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ChevronDown, Landmark, Search, Smartphone, Wallet } from "lucide-react";
 import { toast } from "sonner";
-import { accountMovementsQueryKey, listAccountMovementsRequest } from "@/lib/accounting-api";
+import {
+  accountMovementsQueryKey,
+  createFundTransferRequest,
+  createManualExpenseRequest,
+  listAccountMovementsRequest,
+} from "@/lib/accounting-api";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 type MovementType = "entree" | "sortie";
 type MovementSource = "caisse" | "banque" | "mobile-money" | "credit";
@@ -37,6 +56,13 @@ const directionLabel: Record<MovementType, string> = {
   sortie: "Sortie",
 };
 
+const sourceSelectOptions: { value: MovementSource; label: string }[] = [
+  { value: "caisse", label: sourceLabel.caisse },
+  { value: "banque", label: sourceLabel.banque },
+  { value: "mobile-money", label: sourceLabel["mobile-money"] },
+  { value: "credit", label: sourceLabel.credit },
+];
+
 const formatDateFr = (value: string) =>
   new Date(value).toLocaleDateString("fr-FR", {
     day: "2-digit",
@@ -45,10 +71,24 @@ const formatDateFr = (value: string) =>
   });
 
 export default function ComptabilityPage() {
+  const queryClient = useQueryClient();
   const [periodFilter, setPeriodFilter] = useState<"semaine" | "mois">("semaine");
   const [sourceFilter, setSourceFilter] = useState<"all" | MovementSource>("all");
   const [typeFilter, setTypeFilter] = useState<"all" | MovementType>("all");
   const [search, setSearch] = useState("");
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [expenseOpen, setExpenseOpen] = useState(false);
+  const [transferFrom, setTransferFrom] = useState<MovementSource>("caisse");
+  const [transferTo, setTransferTo] = useState<MovementSource>("banque");
+  const [transferAmount, setTransferAmount] = useState("");
+  const [transferDesc, setTransferDesc] = useState("");
+  const [transferDate, setTransferDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [expenseSource, setExpenseSource] = useState<MovementSource>("caisse");
+  const [expenseAmount, setExpenseAmount] = useState("");
+  const [expenseDesc, setExpenseDesc] = useState("");
+  const [expenseDate, setExpenseDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [submittingTransfer, setSubmittingTransfer] = useState(false);
+  const [submittingExpense, setSubmittingExpense] = useState(false);
   const {
     data: accountMovements = [],
     isLoading,
@@ -130,6 +170,108 @@ export default function ComptabilityPage() {
     };
   }, [filteredMovements]);
 
+  const sourceAvailableBalances = useMemo(() => {
+    const balances: Record<MovementSource, number> = {
+      caisse: 0,
+      banque: 0,
+      "mobile-money": 0,
+      credit: 0,
+    };
+    for (const item of movementData) {
+      const sign = item.type === "entree" ? 1 : -1;
+      balances[item.source] += sign * item.amount;
+    }
+    return balances;
+  }, [movementData]);
+
+  const openTransferDialog = () => {
+    setTimeout(() => setTransferOpen(true), 0);
+  };
+
+  const openExpenseDialog = () => {
+    setTimeout(() => setExpenseOpen(true), 0);
+  };
+
+  const handleTransferFromChange = (value: MovementSource) => {
+    setTransferFrom(value);
+    if (value === transferTo) {
+      const next = sourceSelectOptions.find((o) => o.value !== value)?.value ?? "banque";
+      setTransferTo(next);
+    }
+  };
+
+  const handleTransferToChange = (value: MovementSource) => {
+    setTransferTo(value);
+    if (value === transferFrom) {
+      const next = sourceSelectOptions.find((o) => o.value !== value)?.value ?? "caisse";
+      setTransferFrom(next);
+    }
+  };
+
+  const handleSubmitTransfer = async () => {
+    const amount = Number(transferAmount);
+    if (transferFrom === transferTo) {
+      toast.error("La source et la destination doivent etre differentes.");
+      return;
+    }
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast.error("Indiquez un montant valide.");
+      return;
+    }
+    const availableFromSource = sourceAvailableBalances[transferFrom];
+    if (amount > availableFromSource) {
+      toast.error(
+        `Solde insuffisant dans ${sourceLabel[transferFrom]}. Disponible: ${availableFromSource.toLocaleString()} CFA.`,
+      );
+      return;
+    }
+    setSubmittingTransfer(true);
+    try {
+      await createFundTransferRequest({
+        fromSource: transferFrom,
+        toSource: transferTo,
+        amount,
+        description: transferDesc,
+        operationDate: transferDate,
+      });
+      await queryClient.invalidateQueries({ queryKey: accountMovementsQueryKey });
+      toast.success("Transfert enregistre.");
+      setTransferOpen(false);
+      setTransferAmount("");
+      setTransferDesc("");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Echec de l'enregistrement.");
+    } finally {
+      setSubmittingTransfer(false);
+    }
+  };
+
+  const handleSubmitExpense = async () => {
+    const amount = Number(expenseAmount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast.error("Indiquez un montant valide.");
+      return;
+    }
+    setSubmittingExpense(true);
+    try {
+      await createManualExpenseRequest({
+        source: expenseSource,
+        amount,
+        description: expenseDesc,
+        operationDate: expenseDate,
+      });
+      await queryClient.invalidateQueries({ queryKey: accountMovementsQueryKey });
+      toast.success("Dépense enregistrée.");
+      setExpenseOpen(false);
+      setExpenseAmount("");
+      setExpenseDesc("");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Echec de l'enregistrement.");
+    } finally {
+      setSubmittingExpense(false);
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-3">
@@ -137,9 +279,25 @@ export default function ComptabilityPage() {
           <h1 className="text-2xl font-bold text-foreground">Entrees et sorties</h1>
           <p className="text-sm text-muted-foreground mt-1">Suivi comptable simplifie des flux financiers.</p>
         </div>
-        <div className="px-4 py-2.5 rounded-lg bg-primary/10 text-primary text-sm font-medium">
-          {filteredMovements.length} mouvement(s)
-        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium cursor-pointer border-0 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            >
+              Ajouter un mouvement
+              <ChevronDown className="w-4 h-4 opacity-90" aria-hidden />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-[14rem]">
+            <DropdownMenuItem className="cursor-pointer" onSelect={openTransferDialog}>
+              Transfert de fonds
+            </DropdownMenuItem>
+            <DropdownMenuItem className="cursor-pointer" onSelect={openExpenseDialog}>
+              Faire une dépense
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -315,7 +473,11 @@ export default function ComptabilityPage() {
                               ? "bg-violet-100 text-violet-700"
                               : movement.category.toLowerCase().includes("reparation")
                                 ? "bg-rose-100 text-rose-700"
-                                : "bg-secondary text-foreground"
+                                : movement.category.toLowerCase().includes("transfert")
+                                  ? "bg-amber-100 text-amber-800"
+                                  : movement.category.toLowerCase().includes("depense")
+                                    ? "bg-orange-100 text-orange-800"
+                                    : "bg-secondary text-foreground"
                       }`}
                     >
                       {movement.category}
@@ -355,6 +517,172 @@ export default function ComptabilityPage() {
           </div>
         )}
       </div>
+
+      <Dialog open={transferOpen} onOpenChange={setTransferOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Transfert de fonds</DialogTitle>
+            <DialogDescription>
+              Deplacez un montant d&apos;une source vers une autre (sortie + entree liees).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm text-foreground mb-1">Source</label>
+                <select
+                  value={transferFrom}
+                  onChange={(e) => handleTransferFromChange(e.target.value as MovementSource)}
+                  className="w-full px-3 py-2.5 rounded-lg bg-secondary border border-border text-sm"
+                >
+                  {sourceSelectOptions.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm text-foreground mb-1">Destination</label>
+                <select
+                  value={transferTo}
+                  onChange={(e) => handleTransferToChange(e.target.value as MovementSource)}
+                  className="w-full px-3 py-2.5 rounded-lg bg-secondary border border-border text-sm"
+                >
+                  {sourceSelectOptions.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Disponible dans {sourceLabel[transferFrom]} :{" "}
+              {sourceAvailableBalances[transferFrom].toLocaleString()} CFA
+            </p>
+            <div>
+              <label className="block text-sm text-foreground mb-1">Montant (CFA)</label>
+              <input
+                type="number"
+                min={1}
+                step={1}
+                value={transferAmount}
+                onChange={(e) => setTransferAmount(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-lg bg-secondary border border-border text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-foreground mb-1">Date de l&apos;operation</label>
+              <input
+                type="date"
+                value={transferDate}
+                onChange={(e) => setTransferDate(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-lg bg-secondary border border-border text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-foreground mb-1">Description</label>
+              <textarea
+                rows={2}
+                value={transferDesc}
+                onChange={(e) => setTransferDesc(e.target.value)}
+                placeholder="Motif de Transfert"
+                className="w-full px-3 py-2.5 rounded-lg bg-secondary border border-border text-sm resize-none"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <button
+              type="button"
+              onClick={() => setTransferOpen(false)}
+              className="px-4 py-2.5 rounded-lg border border-border text-sm"
+            >
+              Annuler
+            </button>
+            <button
+              type="button"
+              onClick={handleSubmitTransfer}
+              disabled={submittingTransfer}
+              className="px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-60"
+            >
+              {submittingTransfer ? "Enregistrement..." : "Enregistrer"}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={expenseOpen} onOpenChange={setExpenseOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Faire une dépense</DialogTitle>
+            <DialogDescription>Enregistrez une sortie de fonds (hors réparation véhicule).</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm text-foreground mb-1">Source</label>
+              <select
+                value={expenseSource}
+                onChange={(e) => setExpenseSource(e.target.value as MovementSource)}
+                className="w-full px-3 py-2.5 rounded-lg bg-secondary border border-border text-sm"
+              >
+                {sourceSelectOptions.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm text-foreground mb-1">Montant (CFA)</label>
+              <input
+                type="number"
+                min={1}
+                step={1}
+                value={expenseAmount}
+                onChange={(e) => setExpenseAmount(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-lg bg-secondary border border-border text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-foreground mb-1">Date de l&apos;operation</label>
+              <input
+                type="date"
+                value={expenseDate}
+                onChange={(e) => setExpenseDate(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-lg bg-secondary border border-border text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-foreground mb-1">Motif</label>
+              <textarea
+                rows={2}
+                value={expenseDesc}
+                onChange={(e) => setExpenseDesc(e.target.value)}
+                placeholder="Ex: Achat fournitures, frais administratifs..."
+                className="w-full px-3 py-2.5 rounded-lg bg-secondary border border-border text-sm resize-none"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <button
+              type="button"
+              onClick={() => setExpenseOpen(false)}
+              className="px-4 py-2.5 rounded-lg border border-border text-sm"
+            >
+              Annuler
+            </button>
+            <button
+              type="button"
+              onClick={handleSubmitExpense}
+              disabled={submittingExpense}
+              className="px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-60"
+            >
+              {submittingExpense ? "Enregistrement..." : "Enregistrer"}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
