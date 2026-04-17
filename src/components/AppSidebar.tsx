@@ -64,8 +64,8 @@ export default function AppSidebar() {
     <aside className="hidden md:flex flex-col w-64 h-screen bg-sidebar border-r border-sidebar-border sticky top-0">
       {/* Logo */}
       {branding.mode === 'image' && branding.imageDataUrl ? (
-        <div className="px-4 py-4 border-b border-sidebar-border">
-          <div className="h-14 w-full rounded-lg border border-sidebar-border bg-card/60 overflow-hidden flex items-center justify-center">
+        <div className="px-4 py-[5px] border-b border-sidebar-border">
+          <div className="h-16 w-full rounded-lg bg-card/60 overflow-hidden flex items-center justify-center">
             <img
               src={branding.imageDataUrl}
               alt="Logo"
