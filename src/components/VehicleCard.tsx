@@ -100,6 +100,7 @@ export default function VehicleCard({ vehicle, showActions = false, onEdit, onDe
             <p className="text-sm font-semibold text-foreground">{vehicle.rentalPrice} CFA</p>
           </div>
         </div>
+        <p className="text-[11px] text-muted-foreground">Ajoute par: {vehicle.createdByName || "Utilisateur"}</p>
       </Link>
     </div>
   );

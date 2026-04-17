@@ -58,6 +58,7 @@ export type ReservationApiResponse = {
   status: "ACTIVE" | "CANCELLED" | "COMPLETED";
   cancelledAt: string | null;
   createdAt: string;
+  createdByName: string;
 };
 
 type ReservationFirestoreDoc = {
@@ -74,6 +75,9 @@ type ReservationFirestoreDoc = {
   amountPaid: number;
   status: "ACTIVE" | "CANCELLED" | "COMPLETED";
   cancelledAt: string | null;
+  createdByUid?: string;
+  createdByName?: string;
+  createdByEmail?: string | null;
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
 };
@@ -100,6 +104,9 @@ type RentalFirestoreDoc = {
   status: "active" | "completed";
   completedAt: string | null;
   receiptId: string | null;
+  createdByUid?: string;
+  createdByName?: string;
+  createdByEmail?: string | null;
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
 };
@@ -122,6 +129,9 @@ type RentalReceiptFirestoreDoc = {
   totalDays: number;
   dailyPrice: number;
   rentalAmount: number;
+  createdByUid?: string;
+  createdByName?: string;
+  createdByEmail?: string | null;
   issuedAt?: Timestamp;
   createdAt?: Timestamp;
 };
@@ -145,7 +155,12 @@ type RepairFirestoreDoc = {
 
 async function getAuthIdentity() {
   const identity = await getWorkspaceIdentity();
-  return { uid: identity.uid, email: identity.email };
+  return {
+    uid: identity.uid,
+    email: identity.email,
+    actorUid: identity.actorUid,
+    actorName: identity.actorName,
+  };
 }
 
 function parseReservationDate(value: string) {
@@ -193,12 +208,13 @@ function mapReservationDoc(id: string, data: ReservationFirestoreDoc): Reservati
     status: data.status,
     cancelledAt: data.cancelledAt,
     createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
+    createdByName: data.createdByName && data.createdByName.trim().toLowerCase() !== "utilisateur" ? data.createdByName : "Utilisateur",
   };
 }
 
 export async function createReservationRequest(vehicleId: string, payload: CreateReservationPayload): Promise<void> {
   const db = getFirebaseDb();
-  const { uid, email } = await getAuthIdentity();
+  const { uid, email, actorUid, actorName } = await getAuthIdentity();
 
   if (!payload.customerName.trim() || !payload.customerPhone.trim()) {
     throw new Error("Nom et telephone du client sont obligatoires.");
@@ -243,6 +259,9 @@ export async function createReservationRequest(vehicleId: string, payload: Creat
       amountPaid: Number(payload.amountPaid),
       status: "ACTIVE",
       cancelledAt: null,
+      createdByUid: actorUid,
+      createdByName: actorName,
+      createdByEmail: email,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
@@ -266,6 +285,9 @@ export async function createReservationRequest(vehicleId: string, payload: Creat
       counterpartyName: payload.customerName.trim(),
       counterpartyPhone: payload.customerPhone.trim(),
       description: `Reservation vehicule ${vehicle.brand} ${vehicle.model}`,
+      createdByUid: actorUid,
+      createdByName: actorName,
+      createdByEmail: email,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
@@ -280,7 +302,7 @@ export async function createReservationRequest(vehicleId: string, payload: Creat
 
 export async function createRepairRequest(vehicleId: string, payload: CreateRepairPayload): Promise<void> {
   const db = getFirebaseDb();
-  const { uid, email } = await getAuthIdentity();
+  const { uid, email, actorUid, actorName } = await getAuthIdentity();
   const vehicleRef = doc(db, "vehicles", vehicleId);
   const repairRef = doc(collection(db, "repairs"));
   const movementRef = doc(collection(db, "accountMovements"));
@@ -349,6 +371,9 @@ export async function createRepairRequest(vehicleId: string, payload: CreateRepa
       counterpartyName: payload.garageName?.trim() || "Garage externe",
       counterpartyPhone: null,
       description: payload.reason.trim(),
+      createdByUid: actorUid,
+      createdByName: actorName,
+      createdByEmail: email,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
@@ -365,7 +390,7 @@ export async function finalizeReservationToRentalRequest(
   payload: FinalizeReservationToRentalPayload,
 ): Promise<void> {
   const db = getFirebaseDb();
-  const { uid, email } = await getAuthIdentity();
+  const { uid, email, actorUid, actorName } = await getAuthIdentity();
 
   if (!payload.tenantIdCardNumber.trim()) {
     throw new Error("Le numero de piece du locataire est obligatoire.");
@@ -439,6 +464,9 @@ export async function finalizeReservationToRentalRequest(
       status: "active",
       completedAt: null,
       receiptId: receiptRef.id,
+      createdByUid: actorUid,
+      createdByName: actorName,
+      createdByEmail: email,
       createdAt: serverTimestamp() as unknown as Timestamp,
       updatedAt: serverTimestamp() as unknown as Timestamp,
     };
@@ -461,6 +489,9 @@ export async function finalizeReservationToRentalRequest(
       totalDays,
       dailyPrice,
       rentalAmount: amount,
+      createdByUid: actorUid,
+      createdByName: actorName,
+      createdByEmail: email,
       issuedAt: serverTimestamp() as unknown as Timestamp,
       createdAt: serverTimestamp() as unknown as Timestamp,
     };
@@ -491,6 +522,9 @@ export async function finalizeReservationToRentalRequest(
         description: prepaidFromReservation
           ? `Solde location ${vehicleData.brand} ${vehicleData.model} (apres acompte reservation)`
           : `Location depuis reservation ${vehicleData.brand} ${vehicleData.model}`,
+        createdByUid: actorUid,
+        createdByName: actorName,
+        createdByEmail: email,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
@@ -557,10 +591,16 @@ export async function completeRepairRequest(vehicleId: string): Promise<void> {
 
 export async function listReservationsRequest(): Promise<ReservationApiResponse[]> {
   const db = getFirebaseDb();
-  const { uid } = await getAuthIdentity();
+  const { uid, actorName } = await getAuthIdentity();
   const snapshot = await getDocs(query(collection(db, "reservations"), where("ownerUid", "==", uid)));
   return snapshot.docs
-    .map((docSnap) => mapReservationDoc(docSnap.id, docSnap.data() as ReservationFirestoreDoc))
+    .map((docSnap) => {
+      const item = mapReservationDoc(docSnap.id, docSnap.data() as ReservationFirestoreDoc);
+      if (!item.createdByName || item.createdByName.toLowerCase() === "utilisateur") {
+        item.createdByName = actorName;
+      }
+      return item;
+    })
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 

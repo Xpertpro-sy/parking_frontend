@@ -152,7 +152,7 @@ export default function ComptabilityPage() {
         origin: `${movement.vehicleBrand} ${movement.vehicleModel} · ${movement.vehiclePlate}`,
         label: movement.description,
         category: movement.category,
-        manager: movement.counterpartyName,
+        manager: movement.createdByName,
         unitPrice: movement.unitPrice,
         quantity: movement.quantity,
         amount: movement.amount,

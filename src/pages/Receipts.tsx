@@ -40,6 +40,7 @@ type UiReceipt =
       paymentMethod: CreateSalePayload['paymentMethod'];
       notes: string | null;
       issuedAt: string;
+      createdByName: string;
     }
   | {
       type: 'rental';
@@ -58,6 +59,7 @@ type UiReceipt =
       totalDays: number;
       dailyPrice: number;
       issuedAt: string;
+      createdByName: string;
     };
 
 type PeriodFilter = 'today' | 'yesterday' | 'week' | 'month' | 'year';
@@ -219,6 +221,7 @@ export default function Receipts() {
         paymentMethod: receipt.paymentMethod,
         notes: receipt.notes,
         issuedAt: receipt.issuedAt,
+        createdByName: receipt.createdByName,
       }));
 
       const normalizedRentals: UiReceipt[] = rentalReceipts.map((receipt) => ({
@@ -238,6 +241,7 @@ export default function Receipts() {
         totalDays: receipt.totalDays,
         dailyPrice: receipt.dailyPrice,
         issuedAt: receipt.issuedAt,
+        createdByName: receipt.createdByName,
       }));
 
       return [...normalizedSales, ...normalizedRentals].sort(
@@ -485,6 +489,7 @@ export default function Receipts() {
                     </p>
                     <p className="truncate text-sm font-semibold text-foreground">{receipt.personName}</p>
                     <p className="text-xs text-muted-foreground">{receipt.personPhone}</p>
+                    <p className="text-[11px] text-muted-foreground">Ajouté par: {receipt.createdByName}</p>
                   </div>
 
                   <div className="rounded-xl border border-border bg-secondary/20 p-3">

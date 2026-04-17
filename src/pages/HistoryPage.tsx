@@ -326,6 +326,10 @@ export default function HistoryPage() {
                       <p className="text-xs text-muted-foreground">Notes</p>
                       <p className="text-foreground">{reservation.notes || 'Aucune'}</p>
                     </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Ajoute par</p>
+                      <p className="text-foreground">{reservation.createdByName}</p>
+                    </div>
                   </div>
                 </div>
               );
@@ -434,6 +438,10 @@ export default function HistoryPage() {
                     <p className="text-foreground">
                       {rental.completedAt ? formatDateTimeFr(rental.completedAt) : 'Pas encore terminee'}
                     </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Ajoute par</p>
+                    <p className="text-foreground">{rental.createdByName}</p>
                   </div>
                 </div>
 

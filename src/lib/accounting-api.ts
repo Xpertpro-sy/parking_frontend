@@ -43,6 +43,9 @@ type AccountMovementFirestoreDoc = {
   counterpartyName: string;
   counterpartyPhone: string | null;
   description: string;
+  createdByUid?: string;
+  createdByName?: string;
+  createdByEmail?: string | null;
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
 };
@@ -66,12 +69,18 @@ export type AccountMovementApiResponse = {
   counterpartyName: string;
   counterpartyPhone: string | null;
   description: string;
+  createdByName: string;
   createdAt: string;
 };
 
 async function getAuthIdentity() {
   const identity = await getWorkspaceIdentity();
-  return { uid: identity.uid, email: identity.email };
+  return {
+    uid: identity.uid,
+    email: identity.email,
+    actorUid: identity.actorUid,
+    actorName: identity.actorName,
+  };
 }
 
 const MANUAL_MOVEMENT_VEHICLE = {
@@ -112,16 +121,23 @@ function mapMovementDoc(id: string, data: AccountMovementFirestoreDoc): AccountM
     counterpartyName: data.counterpartyName,
     counterpartyPhone: data.counterpartyPhone,
     description: data.description,
+    createdByName: data.createdByName && data.createdByName.trim().toLowerCase() !== "utilisateur" ? data.createdByName : "Utilisateur",
     createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
   };
 }
 
 export async function listAccountMovementsRequest(): Promise<AccountMovementApiResponse[]> {
   const db = getFirebaseDb();
-  const { uid } = await getAuthIdentity();
+  const { uid, actorName } = await getAuthIdentity();
   const snapshot = await getDocs(query(collection(db, "accountMovements"), where("ownerUid", "==", uid)));
   return snapshot.docs
-    .map((docSnap) => mapMovementDoc(docSnap.id, docSnap.data() as AccountMovementFirestoreDoc))
+    .map((docSnap) => {
+      const item = mapMovementDoc(docSnap.id, docSnap.data() as AccountMovementFirestoreDoc);
+      if (!item.createdByName || item.createdByName.toLowerCase() === "utilisateur") {
+        item.createdByName = actorName;
+      }
+      return item;
+    })
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
@@ -143,7 +159,7 @@ export type CreateManualExpensePayload = {
 /** Transfert entre deux sources (une sortie + une entree, meme reference). */
 export async function createFundTransferRequest(payload: CreateFundTransferPayload): Promise<void> {
   const db = getFirebaseDb();
-  const { uid, email } = await getAuthIdentity();
+  const { uid, email, actorUid, actorName } = await getAuthIdentity();
 
   if (payload.fromSource === payload.toSource) {
     throw new Error("La source et la destination doivent etre differentes.");
@@ -177,6 +193,9 @@ export async function createFundTransferRequest(payload: CreateFundTransferPaylo
       counterpartyName: "Transfert interne",
       counterpartyPhone: null,
       description: desc,
+      createdByUid: actorUid,
+      createdByName: actorName,
+      createdByEmail: email,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     };
@@ -197,7 +216,7 @@ export async function createFundTransferRequest(payload: CreateFundTransferPaylo
 /** Depense manuelle (sortie). */
 export async function createManualExpenseRequest(payload: CreateManualExpensePayload): Promise<void> {
   const db = getFirebaseDb();
-  const { uid, email } = await getAuthIdentity();
+  const { uid, email, actorUid, actorName } = await getAuthIdentity();
 
   if (!Number.isFinite(payload.amount) || payload.amount <= 0) {
     throw new Error("Montant invalide.");
@@ -232,6 +251,9 @@ export async function createManualExpenseRequest(payload: CreateManualExpensePay
       counterpartyName: "Depense diverse",
       counterpartyPhone: null,
       description: desc,
+      createdByUid: actorUid,
+      createdByName: actorName,
+      createdByEmail: email,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });

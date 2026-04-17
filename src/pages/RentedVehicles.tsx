@@ -218,6 +218,7 @@ export default function RentedVehicles() {
                   <p className="text-xs text-muted-foreground">
                     Cree le {formatDateTimeFr(rental.createdAt)}
                   </p>
+                  <p className="text-xs text-muted-foreground">Ajoute par: {rental.createdByName}</p>
                 </div>
               </div>
             ))}
@@ -256,6 +257,10 @@ export default function RentedVehicles() {
                 <div>
                   <p className="text-[11px] text-muted-foreground">Statut</p>
                   <span className="px-2 py-1 rounded-full text-xs font-medium bg-info/10 text-info">Active</span>
+                </div>
+                <div>
+                  <p className="text-[11px] text-muted-foreground">Ajoute par</p>
+                  <p className="truncate">{rental.createdByName}</p>
                 </div>
               </div>
             ))}

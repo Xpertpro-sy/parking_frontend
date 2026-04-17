@@ -62,6 +62,7 @@ export type VehicleApiResponse = {
   status: string;
   photos: string[];
   createdAt: string;
+  createdByName: string;
   ownerUserId: number;
 };
 
@@ -82,6 +83,9 @@ export type VehicleFirestoreDoc = {
   photos: string[];
   ownerUid: string;
   ownerEmail: string | null;
+  createdByUid?: string;
+  createdByName?: string;
+  createdByEmail?: string | null;
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
 };
@@ -121,12 +125,13 @@ export function mapVehicleApiResponseToVehicle(apiVehicle: VehicleApiResponse): 
     status: mapStatus(apiVehicle.status),
     photos: apiVehicle.photos ?? [],
     createdAt: apiVehicle.createdAt,
+    createdByName: apiVehicle.createdByName,
   };
 }
 
 async function getAuthIdentity() {
   const identity = await getWorkspaceIdentity();
-  return { uid: identity.uid, email: identity.email };
+  return { uid: identity.uid, email: identity.email, actorUid: identity.actorUid, actorName: identity.actorName };
 }
 
 function normalizePlate(plate: string): string {
@@ -134,6 +139,10 @@ function normalizePlate(plate: string): string {
 }
 
 function vehicleFromFirestore(id: string, data: VehicleFirestoreDoc): Vehicle {
+  const name =
+    data.createdByName && data.createdByName.trim() && data.createdByName.trim().toLowerCase() !== "utilisateur"
+      ? data.createdByName.trim()
+      : "";
   return mapVehicleApiResponseToVehicle({
     id,
     brand: data.brand,
@@ -150,6 +159,7 @@ function vehicleFromFirestore(id: string, data: VehicleFirestoreDoc): Vehicle {
     status: data.status,
     photos: data.photos ?? [],
     createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
+    createdByName: name || "Utilisateur",
     ownerUserId: 0,
   });
 }
@@ -171,7 +181,7 @@ async function assertPlateUnique(ownerUid: string, plate: string, excludeVehicle
 
 export async function createVehicleRequest(payload: CreateVehiclePayload): Promise<VehicleApiResponse> {
   const db = getFirebaseDb();
-  const { uid, email } = await getAuthIdentity();
+  const { uid, email, actorUid, actorName } = await getAuthIdentity();
   await assertPlateUnique(uid, payload.plate);
 
   const docPayload: VehicleFirestoreCreateDoc = {
@@ -191,6 +201,9 @@ export async function createVehicleRequest(payload: CreateVehiclePayload): Promi
     photos: payload.photos ?? [],
     ownerUid: uid,
     ownerEmail: email,
+    createdByUid: actorUid,
+    createdByName: actorName,
+    createdByEmail: email,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   };
@@ -215,6 +228,7 @@ export async function createVehicleRequest(payload: CreateVehiclePayload): Promi
     status: createdData.status,
     photos: createdData.photos ?? [],
     createdAt: createdData.createdAt ? createdData.createdAt.toDate().toISOString() : new Date().toISOString(),
+    createdByName: (createdData.createdByName && createdData.createdByName.trim().toLowerCase() !== "utilisateur" ? createdData.createdByName : "Utilisateur"),
     ownerUserId: 0,
   };
 }
@@ -274,23 +288,30 @@ export async function updateVehicleRequest(vehicleId: string, payload: UpdateVeh
     status: updatedData.status,
     photos: updatedData.photos ?? [],
     createdAt: updatedData.createdAt ? updatedData.createdAt.toDate().toISOString() : new Date().toISOString(),
+    createdByName: (updatedData.createdByName && updatedData.createdByName.trim().toLowerCase() !== "utilisateur" ? updatedData.createdByName : "Utilisateur"),
     ownerUserId: 0,
   };
 }
 
 export async function listVehiclesRequest(): Promise<Vehicle[]> {
   const db = getFirebaseDb();
-  const { uid } = await getAuthIdentity();
+  const { uid, actorName } = await getAuthIdentity();
   const q = query(collection(db, "vehicles"), where("ownerUid", "==", uid));
   const snapshot = await getDocs(q);
   return snapshot.docs
-    .map((d) => vehicleFromFirestore(d.id, d.data() as VehicleFirestoreDoc))
+    .map((d) => {
+      const item = vehicleFromFirestore(d.id, d.data() as VehicleFirestoreDoc);
+      if (!item.createdByName || item.createdByName.toLowerCase() === "utilisateur") {
+        item.createdByName = actorName;
+      }
+      return item;
+    })
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
 export async function getVehicleByIdRequest(vehicleId: string): Promise<Vehicle | null> {
   const db = getFirebaseDb();
-  const { uid } = await getAuthIdentity();
+  const { uid, actorName } = await getAuthIdentity();
   const snap = await getDoc(doc(db, "vehicles", vehicleId));
   if (!snap.exists()) {
     return null;
@@ -299,5 +320,9 @@ export async function getVehicleByIdRequest(vehicleId: string): Promise<Vehicle 
   if (data.ownerUid !== uid) {
     return null;
   }
-  return vehicleFromFirestore(snap.id, data);
+  const item = vehicleFromFirestore(snap.id, data);
+  if (!item.createdByName || item.createdByName.toLowerCase() === "utilisateur") {
+    item.createdByName = actorName;
+  }
+  return item;
 }

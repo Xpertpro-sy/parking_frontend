@@ -191,6 +191,10 @@ export default function ReservedVehicles() {
                     <p className="text-xs text-muted-foreground">Notes</p>
                     <p className="text-foreground">{reservation.notes || 'Aucune'}</p>
                   </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Ajoute par</p>
+                    <p className="text-foreground">{reservation.createdByName}</p>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -217,7 +221,7 @@ export default function ReservedVehicles() {
             {paginatedReservations.map((reservation) => (
               <div
                 key={reservation.id}
-                className="p-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[1.4fr_1.2fr_0.9fr_1fr_1fr_auto] gap-3 items-start"
+                className="p-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[1.3fr_1.1fr_0.9fr_1fr_1fr_1fr_auto] gap-3 items-start"
               >
                 <div className="min-w-0">
                   <p className="text-[11px] text-muted-foreground">Vehicule</p>
@@ -242,6 +246,10 @@ export default function ReservedVehicles() {
                 <div className="min-w-0">
                   <p className="text-[11px] text-muted-foreground">Notes</p>
                   <p className="truncate">{reservation.notes || 'Aucune'}</p>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] text-muted-foreground">Ajoute par</p>
+                  <p className="truncate">{reservation.createdByName}</p>
                 </div>
                 <div className="flex flex-wrap gap-2 xl:justify-end">
                   <button

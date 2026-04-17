@@ -68,6 +68,7 @@ export type ReceiptApiResponse = {
   saleDate: string;
   notes: string | null;
   issuedAt: string;
+  createdByName: string;
 };
 
 type SaleFirestoreDoc = {
@@ -88,6 +89,9 @@ type SaleFirestoreDoc = {
   notes: string;
   receiptId: string;
   receiptNumber: string;
+  createdByUid?: string;
+  createdByName?: string;
+  createdByEmail?: string | null;
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
 };
@@ -110,6 +114,9 @@ type ReceiptFirestoreDoc = {
   amount: number;
   saleDate: string;
   notes: string;
+  createdByUid?: string;
+  createdByName?: string;
+  createdByEmail?: string | null;
   issuedAt?: Timestamp;
   createdAt?: Timestamp;
 };
@@ -122,7 +129,12 @@ function requirePositiveAmount(amount: number) {
 
 async function getAuthIdentity() {
   const identity = await getWorkspaceIdentity();
-  return { uid: identity.uid, email: identity.email };
+  return {
+    uid: identity.uid,
+    email: identity.email,
+    actorUid: identity.actorUid,
+    actorName: identity.actorName,
+  };
 }
 
 function formatDateValue(value?: string) {
@@ -189,6 +201,7 @@ function mapReceiptDoc(id: string, data: ReceiptFirestoreDoc): ReceiptApiRespons
     saleDate: data.saleDate,
     notes: data.notes || null,
     issuedAt: data.issuedAt ? data.issuedAt.toDate().toISOString() : new Date().toISOString(),
+    createdByName: data.createdByName && data.createdByName.trim().toLowerCase() !== "utilisateur" ? data.createdByName : "Utilisateur",
   };
 }
 
@@ -213,7 +226,7 @@ export function getPaymentMethodLabel(method: CreateSalePayload["paymentMethod"]
 
 export async function createSaleRequest(payload: CreateSalePayload): Promise<SaleApiResponse> {
   const db = getFirebaseDb();
-  const { uid, email } = await getAuthIdentity();
+  const { uid, email, actorUid, actorName } = await getAuthIdentity();
 
   if (!payload.buyerName.trim()) throw new Error("Le nom de l'acheteur est obligatoire.");
   if (!payload.buyerPhone.trim()) throw new Error("Le telephone de l'acheteur est obligatoire.");
@@ -262,6 +275,9 @@ export async function createSaleRequest(payload: CreateSalePayload): Promise<Sal
       notes: payload.notes?.trim() ?? "",
       receiptId: receiptRef.id,
       receiptNumber,
+      createdByUid: actorUid,
+      createdByName: actorName,
+      createdByEmail: email,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     };
@@ -287,6 +303,9 @@ export async function createSaleRequest(payload: CreateSalePayload): Promise<Sal
       amount: Number(payload.amount),
       saleDate: saleDateIso,
       notes: payload.notes?.trim() ?? "",
+      createdByUid: actorUid,
+      createdByName: actorName,
+      createdByEmail: email,
       issuedAt: serverTimestamp(),
       createdAt: serverTimestamp(),
     };
@@ -319,6 +338,9 @@ export async function createSaleRequest(payload: CreateSalePayload): Promise<Sal
       counterpartyName: payload.buyerName.trim(),
       counterpartyPhone: payload.buyerPhone.trim(),
       description: `Vente vehicule ${vehicle.brand} ${vehicle.model}`,
+      createdByUid: actorUid,
+      createdByName: actorName,
+      createdByEmail: email,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
@@ -379,9 +401,15 @@ export async function getReceiptByIdRequest(receiptId: string): Promise<ReceiptA
 
 export async function listReceiptsRequest(): Promise<ReceiptApiResponse[]> {
   const db = getFirebaseDb();
-  const { uid } = await getAuthIdentity();
+  const { uid, actorName } = await getAuthIdentity();
   const snapshot = await getDocs(query(collection(db, "saleReceipts"), where("ownerUid", "==", uid)));
   return snapshot.docs
-    .map((docSnap) => mapReceiptDoc(docSnap.id, docSnap.data() as ReceiptFirestoreDoc))
+    .map((docSnap) => {
+      const item = mapReceiptDoc(docSnap.id, docSnap.data() as ReceiptFirestoreDoc);
+      if (!item.createdByName || item.createdByName.toLowerCase() === "utilisateur") {
+        item.createdByName = actorName;
+      }
+      return item;
+    })
     .sort((a, b) => new Date(b.issuedAt).getTime() - new Date(a.issuedAt).getTime());
 }

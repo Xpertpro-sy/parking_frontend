@@ -28,6 +28,9 @@ type TrashItemFirestoreDoc = {
   subtitle: string | null;
   amount: number | null;
   payload: Record<string, unknown>;
+  deletedByUid?: string;
+  deletedByName?: string;
+  deletedByEmail?: string | null;
   deletedAt?: Timestamp;
   createdAt?: Timestamp;
 };
@@ -41,13 +44,19 @@ export type TrashItemApiResponse = {
   subtitle: string | null;
   amount: number | null;
   deletedAt: string;
+  deletedByName: string;
 };
 
 export const trashItemsQueryKey = ['trash', 'items', 'list'] as const;
 
 async function getAuthIdentity() {
   const identity = await getWorkspaceIdentity();
-  return { uid: identity.uid, email: identity.email };
+  return {
+    uid: identity.uid,
+    email: identity.email,
+    actorUid: identity.actorUid,
+    actorName: identity.actorName,
+  };
 }
 
 async function moveDocumentToTrash(params: {
@@ -59,7 +68,7 @@ async function moveDocumentToTrash(params: {
   amount?: number | null;
 }): Promise<void> {
   const db = getFirebaseDb();
-  const { uid, email } = await getAuthIdentity();
+  const { uid, email, actorUid, actorName } = await getAuthIdentity();
   const sourceRef = doc(db, params.sourceCollection, params.sourceId);
   const sourceSnap = await getDoc(sourceRef);
   if (!sourceSnap.exists()) throw new Error("Element introuvable.");
@@ -78,6 +87,9 @@ async function moveDocumentToTrash(params: {
     subtitle: params.subtitle ?? null,
     amount: params.amount ?? null,
     payload: sourceSnap.data(),
+    deletedByUid: actorUid,
+    deletedByName: actorName,
+    deletedByEmail: email,
     deletedAt: serverTimestamp(),
     createdAt: serverTimestamp(),
   });
@@ -161,7 +173,7 @@ export async function moveRentalHistoryToTrashRequest(rentalId: string): Promise
 
 export async function listTrashItemsRequest(): Promise<TrashItemApiResponse[]> {
   const db = getFirebaseDb();
-  const { uid } = await getAuthIdentity();
+  const { uid, actorName } = await getAuthIdentity();
   const snap = await getDocs(query(collection(db, 'trashItems'), where('ownerUid', '==', uid)));
   return snap.docs
     .map((docSnap) => {
@@ -175,6 +187,10 @@ export async function listTrashItemsRequest(): Promise<TrashItemApiResponse[]> {
         subtitle: data.subtitle ?? null,
         amount: data.amount ?? null,
         deletedAt: data.deletedAt ? data.deletedAt.toDate().toISOString() : new Date().toISOString(),
+        deletedByName:
+          data.deletedByName && data.deletedByName.trim().toLowerCase() !== "utilisateur"
+            ? data.deletedByName
+            : actorName,
       };
     })
     .sort((a, b) => new Date(b.deletedAt).getTime() - new Date(a.deletedAt).getTime());

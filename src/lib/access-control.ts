@@ -46,15 +46,52 @@ type UserAccessDoc = {
   role?: string;
   enterpriseOwnerUid?: string;
   permissions?: Partial<PermissionMap>;
+  displayName?: string;
+  prenom?: string;
+  nom?: string;
+};
+
+type SessionUser = {
+  name?: string;
+  firstName?: string;
+  lastName?: string;
 };
 
 export type WorkspaceIdentity = {
   uid: string;
   email: string | null;
   actorUid: string;
+  actorName: string;
   role: "ADMIN" | "GESTIONNAIRE";
   permissions: PermissionMap;
 };
+
+function formatActorName(userDoc: UserAccessDoc, authDisplayName?: string | null): string {
+  const displayName = (userDoc.displayName ?? "").trim();
+  if (displayName) return displayName;
+  const authName = (authDisplayName ?? "").trim();
+  if (authName) return authName;
+  const prenom = (userDoc.prenom ?? "").trim();
+  const nom = (userDoc.nom ?? "").trim();
+  const full = `${prenom} ${nom}`.trim();
+  if (full) return full;
+  return "Utilisateur";
+}
+
+function getSessionUserName(): string {
+  if (typeof window === "undefined") return "";
+  try {
+    const raw = sessionStorage.getItem("gestion-parking-current-user");
+    if (!raw) return "";
+    const parsed = JSON.parse(raw) as SessionUser;
+    const name = (parsed.name ?? "").trim();
+    if (name) return name;
+    const full = `${(parsed.firstName ?? "").trim()} ${(parsed.lastName ?? "").trim()}`.trim();
+    return full;
+  } catch {
+    return "";
+  }
+}
 
 function normalizeRole(value?: string): "ADMIN" | "GESTIONNAIRE" {
   return value?.toUpperCase() === "GESTIONNAIRE" ? "GESTIONNAIRE" : "ADMIN";
@@ -83,6 +120,7 @@ export async function getWorkspaceIdentity(): Promise<WorkspaceIdentity> {
   const userDoc = (snap.exists() ? (snap.data() as UserAccessDoc) : undefined) ?? {};
 
   const role = normalizeRole(userDoc.role);
+  const resolvedActorName = formatActorName(userDoc, authUser.displayName);
   const ownerUid =
     role === "GESTIONNAIRE" && typeof userDoc.enterpriseOwnerUid === "string" && userDoc.enterpriseOwnerUid.trim()
       ? userDoc.enterpriseOwnerUid.trim()
@@ -92,6 +130,7 @@ export async function getWorkspaceIdentity(): Promise<WorkspaceIdentity> {
     uid: ownerUid,
     actorUid: authUser.uid,
     email: authUser.email ?? null,
+    actorName: resolvedActorName === "Utilisateur" ? getSessionUserName() || "Utilisateur" : resolvedActorName,
     role,
     permissions: normalizePermissions(role, userDoc.permissions),
   };

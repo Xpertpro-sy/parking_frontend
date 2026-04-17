@@ -223,6 +223,7 @@ export default function CorbeillePage() {
                   <p className="text-xs text-muted-foreground truncate">
                     {item.subtitle || item.sourceCollection} · supprimé le {formatDateFr(item.deletedAt)}
                   </p>
+                  <p className="text-xs text-muted-foreground truncate">Supprimé par: {item.deletedByName}</p>
                   {item.amount != null && (
                     <p className="text-xs text-muted-foreground">{item.amount.toLocaleString()} CFA</p>
                   )}

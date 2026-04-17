@@ -49,6 +49,7 @@ export type RentalApiResponse = {
   status: string;
   completedAt: string | null;
   createdAt: string;
+  createdByName: string;
   receipt: RentalReceiptApiResponse | null;
 };
 
@@ -71,6 +72,7 @@ export type RentalReceiptApiResponse = {
   dailyPrice: number;
   rentalAmount: number;
   issuedAt: string;
+  createdByName: string;
 };
 
 type RentalFirestoreDoc = {
@@ -95,6 +97,9 @@ type RentalFirestoreDoc = {
   status: "active" | "completed";
   completedAt: string | null;
   receiptId: string | null;
+  createdByUid?: string;
+  createdByName?: string;
+  createdByEmail?: string | null;
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
 };
@@ -117,13 +122,21 @@ type RentalReceiptFirestoreDoc = {
   totalDays: number;
   dailyPrice: number;
   rentalAmount: number;
+  createdByUid?: string;
+  createdByName?: string;
+  createdByEmail?: string | null;
   issuedAt?: Timestamp;
   createdAt?: Timestamp;
 };
 
 async function getAuthIdentity() {
   const identity = await getWorkspaceIdentity();
-  return { uid: identity.uid, email: identity.email };
+  return {
+    uid: identity.uid,
+    email: identity.email,
+    actorUid: identity.actorUid,
+    actorName: identity.actorName,
+  };
 }
 
 function parseDateTime(value: string, fieldLabel: string): Date {
@@ -170,6 +183,7 @@ function mapRentalDoc(id: string, data: RentalFirestoreDoc): RentalApiResponse {
     status: data.status,
     completedAt: data.completedAt,
     createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
+    createdByName: data.createdByName && data.createdByName.trim().toLowerCase() !== "utilisateur" ? data.createdByName : "Utilisateur",
     receipt: null,
   };
 }
@@ -194,12 +208,13 @@ function mapRentalReceiptDoc(id: string, data: RentalReceiptFirestoreDoc): Renta
     dailyPrice: data.dailyPrice,
     rentalAmount: data.rentalAmount,
     issuedAt: data.issuedAt ? data.issuedAt.toDate().toISOString() : new Date().toISOString(),
+    createdByName: data.createdByName && data.createdByName.trim().toLowerCase() !== "utilisateur" ? data.createdByName : "Utilisateur",
   };
 }
 
 export async function createRentalRequest(payload: CreateRentalPayload): Promise<RentalApiResponse> {
   const db = getFirebaseDb();
-  const { uid, email } = await getAuthIdentity();
+  const { uid, email, actorUid, actorName } = await getAuthIdentity();
 
   if (!payload.tenantName.trim()) throw new Error("Le nom du locataire est obligatoire.");
   if (!payload.tenantPhone.trim()) throw new Error("Le telephone du locataire est obligatoire.");
@@ -258,6 +273,9 @@ export async function createRentalRequest(payload: CreateRentalPayload): Promise
       status: "active",
       completedAt: null,
       receiptId: receiptRef.id,
+      createdByUid: actorUid,
+      createdByName: actorName,
+      createdByEmail: email,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
@@ -280,6 +298,9 @@ export async function createRentalRequest(payload: CreateRentalPayload): Promise
       totalDays,
       dailyPrice: Number(vehicle.rentalPrice),
       rentalAmount: expectedAmount,
+      createdByUid: actorUid,
+      createdByName: actorName,
+      createdByEmail: email,
       issuedAt: serverTimestamp(),
       createdAt: serverTimestamp(),
     });
@@ -303,6 +324,9 @@ export async function createRentalRequest(payload: CreateRentalPayload): Promise
       counterpartyName: payload.tenantName.trim(),
       counterpartyPhone: payload.tenantPhone.trim(),
       description: `Location vehicule ${vehicle.brand} ${vehicle.model}`,
+      createdByUid: actorUid,
+      createdByName: actorName,
+      createdByEmail: email,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
@@ -324,7 +348,7 @@ export async function createRentalRequest(payload: CreateRentalPayload): Promise
 
 export async function listRentalsRequest(): Promise<RentalApiResponse[]> {
   const db = getFirebaseDb();
-  const { uid } = await getAuthIdentity();
+  const { uid, actorName } = await getAuthIdentity();
 
   const rentalsSnap = await getDocs(query(collection(db, "rentals"), where("ownerUid", "==", uid)));
   const receiptsSnap = await getDocs(query(collection(db, "rentalReceipts"), where("ownerUid", "==", uid)));
@@ -342,6 +366,15 @@ export async function listRentalsRequest(): Promise<RentalApiResponse[]> {
         ...mapRentalDoc(docSnap.id, data),
         receipt: receiptByRentalId.get(docSnap.id) ?? null,
       };
+    })
+    .map((item) => {
+      if (!item.createdByName || item.createdByName.toLowerCase() === "utilisateur") {
+        item.createdByName = actorName;
+      }
+      if (item.receipt && (!item.receipt.createdByName || item.receipt.createdByName.toLowerCase() === "utilisateur")) {
+        item.receipt.createdByName = actorName;
+      }
+      return item;
     })
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
@@ -415,9 +448,15 @@ export async function getReceiptByRentalIdRequest(rentalId: string): Promise<Ren
 
 export async function listRentalReceiptsRequest(): Promise<RentalReceiptApiResponse[]> {
   const db = getFirebaseDb();
-  const { uid } = await getAuthIdentity();
+  const { uid, actorName } = await getAuthIdentity();
   const receiptSnap = await getDocs(query(collection(db, "rentalReceipts"), where("ownerUid", "==", uid)));
   return receiptSnap.docs
-    .map((docSnap) => mapRentalReceiptDoc(docSnap.id, docSnap.data() as RentalReceiptFirestoreDoc))
+    .map((docSnap) => {
+      const item = mapRentalReceiptDoc(docSnap.id, docSnap.data() as RentalReceiptFirestoreDoc);
+      if (!item.createdByName || item.createdByName.toLowerCase() === "utilisateur") {
+        item.createdByName = actorName;
+      }
+      return item;
+    })
     .sort((a, b) => new Date(b.issuedAt).getTime() - new Date(a.issuedAt).getTime());
 }

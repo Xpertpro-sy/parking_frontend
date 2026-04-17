@@ -16,6 +16,7 @@ export interface Vehicle {
   status: VehicleStatus;
   photos: string[];
   createdAt: string;
+  createdByName?: string;
 }
 
 export interface Sale {
