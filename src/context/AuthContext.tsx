@@ -1,4 +1,5 @@
 import { createContext, ReactNode, useContext, useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { loginRequest, logoutRequest, registerRequest } from "@/lib/auth-api";
 
 type AuthUser = {
@@ -34,6 +35,7 @@ type AuthContextType = {
 
 const STORAGE_AUTH_TOKEN_KEY = "gestion-parking-auth-token";
 const STORAGE_CURRENT_USER_KEY = "gestion-parking-current-user";
+const REACT_QUERY_PERSIST_KEY = "gestion-parking-react-query-cache-v1";
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -49,6 +51,7 @@ function readStoredUser(): AuthUser | null {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -120,6 +123,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = () => {
     void logoutRequest();
+    queryClient.clear();
+    localStorage.removeItem(REACT_QUERY_PERSIST_KEY);
     sessionStorage.removeItem(STORAGE_AUTH_TOKEN_KEY);
     sessionStorage.removeItem(STORAGE_CURRENT_USER_KEY);
     setUser(null);

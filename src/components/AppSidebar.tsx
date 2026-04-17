@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -35,15 +34,11 @@ const navItems = [
 ];
 
 export default function AppSidebar() {
-  const queryClient = useQueryClient();
   const location = useLocation();
   const { user, logout } = useAuth();
   const [showLogoutPopup, setShowLogoutPopup] = useState(false);
 
   const handleLogout = () => {
-    // Vide le cache en mémoire + cache persisté pour éviter la fuite de données entre comptes.
-    queryClient.clear();
-    localStorage.removeItem('gestion-parking-react-query-cache-v1');
     logout();
     setShowLogoutPopup(false);
   };
