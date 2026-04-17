@@ -1,5 +1,5 @@
-import { getAccessToken } from "@/context/AuthContext";
-import { getFirebaseDb, waitForFirebaseUser } from "@/lib/firebase";
+import { getWorkspaceIdentity } from "@/lib/access-control";
+import { getFirebaseDb } from "@/lib/firebase";
 import { Vehicle, VehicleStatus } from "@/types/vehicle";
 import {
   addDoc,
@@ -125,15 +125,8 @@ export function mapVehicleApiResponseToVehicle(apiVehicle: VehicleApiResponse): 
 }
 
 async function getAuthIdentity() {
-  const token = getAccessToken();
-  if (!token) {
-    throw new Error("Session expiree. Veuillez vous reconnecter.");
-  }
-  const user = await waitForFirebaseUser();
-  if (!user?.uid) {
-    throw new Error("Session Firebase invalide. Veuillez vous reconnecter.");
-  }
-  return { uid: user.uid, email: user.email ?? null };
+  const identity = await getWorkspaceIdentity();
+  return { uid: identity.uid, email: identity.email };
 }
 
 function normalizePlate(plate: string): string {

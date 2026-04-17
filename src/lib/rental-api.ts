@@ -1,4 +1,5 @@
-import { getFirebaseDb, waitForFirebaseUser } from "@/lib/firebase";
+import { getWorkspaceIdentity } from "@/lib/access-control";
+import { getFirebaseDb } from "@/lib/firebase";
 import type { VehicleFirestoreDoc } from "@/lib/vehicle-api";
 import {
   collection,
@@ -121,11 +122,8 @@ type RentalReceiptFirestoreDoc = {
 };
 
 async function getAuthIdentity() {
-  const user = await waitForFirebaseUser();
-  if (!user?.uid) {
-    throw new Error("Session Firebase invalide. Veuillez vous reconnecter.");
-  }
-  return { uid: user.uid, email: user.email ?? null };
+  const identity = await getWorkspaceIdentity();
+  return { uid: identity.uid, email: identity.email };
 }
 
 function parseDateTime(value: string, fieldLabel: string): Date {

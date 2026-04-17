@@ -13,6 +13,7 @@ import {
   User,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { AppPermission, getCurrentUserAccessProfile } from '@/lib/access-control';
 import { brandingSettingsQueryKey, getBrandingSettingsRequest } from '@/lib/branding-api';
 import {
   AlertDialog,
@@ -26,21 +27,27 @@ import {
 } from '@/components/ui/alert-dialog';
 
 const navItems = [
-  { to: '/', icon: LayoutDashboard, label: 'Tableau de bord' },
-  { to: '/vehicles', icon: Car, label: 'Véhicules' },
+  { to: '/', icon: LayoutDashboard, label: 'Tableau de bord', permission: 'dashboard' as AppPermission },
+  { to: '/vehicles', icon: Car, label: 'Véhicules', permission: 'vehicles' as AppPermission },
   // { to: '/vehicles/new', icon: Plus, label: 'Ajouter véhicule' },
-  { to: '/receipts', icon: Receipt, label: 'Reçus' },
-  { to: '/comptability', icon: Calculator, label: 'Comptabilité' },
-  { to: '/voitures-louees', icon: Car, label: 'Voitures louées' },
-  { to: '/voitures-reservees', icon: Car, label: 'Voitures réservées' },
-  { to: '/history', icon: History, label: 'Historique' },
-  { to: '/comptes', icon: User, label: 'Comptes' },
+  { to: '/receipts', icon: Receipt, label: 'Reçus', permission: 'receipts' as AppPermission },
+  { to: '/comptability', icon: Calculator, label: 'Comptabilité', permission: 'comptability' as AppPermission },
+  { to: '/voitures-louees', icon: Car, label: 'Voitures louées', permission: 'rentals' as AppPermission },
+  { to: '/voitures-reservees', icon: Car, label: 'Voitures réservées', permission: 'reservations' as AppPermission },
+  { to: '/history', icon: History, label: 'Historique', permission: 'history' as AppPermission },
+  { to: '/comptes', icon: User, label: 'Comptes', permission: 'accounts' as AppPermission },
 ];
 
 export default function AppSidebar() {
   const location = useLocation();
   const { user, logout } = useAuth();
   const [showLogoutPopup, setShowLogoutPopup] = useState(false);
+  const { data: accessProfile } = useQuery({
+    queryKey: ['access-profile'],
+    queryFn: getCurrentUserAccessProfile,
+    enabled: Boolean(user?.email),
+    staleTime: 60 * 1000,
+  });
   const { data: branding } = useQuery({
     queryKey: [...brandingSettingsQueryKey, user?.email ?? 'anonymous'],
     queryFn: getBrandingSettingsRequest,
@@ -79,6 +86,7 @@ export default function AppSidebar() {
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
         {navItems.map((item) => {
+          if (accessProfile && !accessProfile.permissions[item.permission]) return null;
           const isActive = location.pathname === item.to || 
             (item.to !== '/' && location.pathname.startsWith(item.to));
           return (
@@ -104,20 +112,24 @@ export default function AppSidebar() {
           <p className="text-xs uppercase tracking-wide text-sidebar-foreground/70">Connecte</p>
           <p className="text-sm font-medium text-sidebar-accent-foreground truncate">{user?.name}</p>
         </div>
-        <NavLink
-          to="/settings"
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
-        >
-          <Settings className="w-5 h-5" />
-          Paramètres
-        </NavLink>
-        <NavLink
-          to="/corbeille"
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
-        >
-          <Trash2 className="w-5 h-5" />
-          Corbeille
-        </NavLink>
+        {(!accessProfile || accessProfile.permissions.settings) && (
+          <NavLink
+            to="/settings"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+          >
+            <Settings className="w-5 h-5" />
+            Paramètres
+          </NavLink>
+        )}
+        {(!accessProfile || accessProfile.permissions.trash) && (
+          <NavLink
+            to="/corbeille"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+          >
+            <Trash2 className="w-5 h-5" />
+            Corbeille
+          </NavLink>
+        )}
         <button
           onClick={() => setShowLogoutPopup(true)}
           className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-destructive transition-colors w-full"

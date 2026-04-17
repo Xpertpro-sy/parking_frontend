@@ -5,9 +5,10 @@ import {
   signOut,
   updateProfile,
 } from "firebase/auth";
-import { doc, serverTimestamp, setDoc } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, where } from "firebase/firestore";
 import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase";
 import type { AuthApiResponse, LoginPayload, RegisterPayload } from "@/lib/auth-api";
+import { DEFAULT_ADMIN_PERMISSIONS, DEFAULT_MANAGER_PERMISSIONS, PermissionMap } from "@/lib/access-control";
 
 function parseFirebaseAuthError(error: unknown): string {
   if (!(error instanceof Error)) return "Erreur Firebase. Veuillez reessayer.";
@@ -43,6 +44,9 @@ async function upsertUserFirestore(params: {
   includeCreatedAt?: boolean;
 }) {
   const db = getFirebaseDb();
+  const existingSnap = await getDoc(doc(db, "users", params.uid));
+  const existingData = existingSnap.exists() ? (existingSnap.data() as { role?: string; permissions?: Partial<PermissionMap>; enterpriseOwnerUid?: string }) : null;
+  const role = existingData?.role?.toUpperCase() === "GESTIONNAIRE" ? "GESTIONNAIRE" : "ADMIN";
   const payload: Record<string, unknown> = {
     uid: params.uid,
     email: params.email,
@@ -50,7 +54,9 @@ async function upsertUserFirestore(params: {
     nom: params.nom,
     displayName: `${params.prenom} ${params.nom}`.trim(),
     telephone: params.telephone ?? null,
-    role: "ADMIN",
+    role,
+    permissions: role === "GESTIONNAIRE" ? { ...DEFAULT_MANAGER_PERMISSIONS, ...(existingData?.permissions ?? {}) } : DEFAULT_ADMIN_PERMISSIONS,
+    enterpriseOwnerUid: role === "GESTIONNAIRE" ? existingData?.enterpriseOwnerUid ?? params.uid : params.uid,
     updatedAt: serverTimestamp(),
   };
   if (params.includeCreatedAt) {
@@ -63,11 +69,51 @@ async function upsertUserFirestore(params: {
   );
 }
 
+async function applyManagerAccessForUser(params: { uid: string; email: string; prenom: string; nom: string }) {
+  const db = getFirebaseDb();
+  const emailNormalized = params.email.trim().toLowerCase();
+  const accessSnapshot = await getDocs(
+    query(
+      collection(db, "managerAccess"),
+      where("managerEmailNormalized", "==", emailNormalized),
+      where("status", "==", "active"),
+    ),
+  );
+  if (accessSnapshot.empty) return "ADMIN" as const;
+
+  const accessDoc = accessSnapshot.docs[0];
+  const accessData = accessDoc.data() as {
+    ownerUid: string;
+    permissions?: Partial<PermissionMap>;
+  };
+
+  await setDoc(
+    doc(db, "users", params.uid),
+    {
+      uid: params.uid,
+      email: params.email,
+      prenom: params.prenom,
+      nom: params.nom,
+      displayName: `${params.prenom} ${params.nom}`.trim(),
+      role: "GESTIONNAIRE",
+      enterpriseOwnerUid: accessData.ownerUid,
+      permissions: { ...DEFAULT_MANAGER_PERMISSIONS, ...(accessData.permissions ?? {}) },
+      managerAccessId: accessDoc.id,
+      updatedAt: serverTimestamp(),
+      createdAt: serverTimestamp(),
+    },
+    { merge: true },
+  );
+
+  return "GESTIONNAIRE" as const;
+}
+
 export async function registerWithFirebase(payload: RegisterPayload): Promise<AuthApiResponse> {
   try {
     const auth = getFirebaseAuth();
     const credential = await createUserWithEmailAndPassword(auth, payload.email, payload.password);
     await updateProfile(credential.user, { displayName: `${payload.prenom} ${payload.nom}`.trim() });
+    let role: "ADMIN" | "GESTIONNAIRE" = "ADMIN";
     try {
       await upsertUserFirestore({
         uid: credential.user.uid,
@@ -76,6 +122,12 @@ export async function registerWithFirebase(payload: RegisterPayload): Promise<Au
         nom: payload.nom,
         telephone: payload.telephone,
         includeCreatedAt: true,
+      });
+      role = await applyManagerAccessForUser({
+        uid: credential.user.uid,
+        email: credential.user.email ?? payload.email,
+        prenom: payload.prenom,
+        nom: payload.nom,
       });
     } catch (firestoreError) {
       console.error("Firestore sync failed after register:", firestoreError);
@@ -88,7 +140,7 @@ export async function registerWithFirebase(payload: RegisterPayload): Promise<Au
       nom: payload.nom,
       prenom: payload.prenom,
       email: credential.user.email ?? payload.email,
-      role: "ADMIN",
+      role,
     };
   } catch (error) {
     throw new Error(parseFirebaseAuthError(error));
@@ -101,8 +153,15 @@ export async function loginWithFirebase(payload: LoginPayload): Promise<AuthApiR
     const credential = await signInWithEmailAndPassword(auth, payload.email, payload.password);
     const token = await getIdToken(credential.user, true);
     const parsedName = splitDisplayName(credential.user.displayName, credential.user.email ?? payload.email);
+    let role: "ADMIN" | "GESTIONNAIRE" = "ADMIN";
     try {
       await upsertUserFirestore({
+        uid: credential.user.uid,
+        email: credential.user.email ?? payload.email,
+        prenom: parsedName.prenom,
+        nom: parsedName.nom,
+      });
+      role = await applyManagerAccessForUser({
         uid: credential.user.uid,
         email: credential.user.email ?? payload.email,
         prenom: parsedName.prenom,
@@ -118,7 +177,7 @@ export async function loginWithFirebase(payload: LoginPayload): Promise<AuthApiR
       nom: parsedName.nom,
       prenom: parsedName.prenom,
       email: credential.user.email ?? payload.email,
-      role: "ADMIN",
+      role,
     };
   } catch (error) {
     throw new Error(parseFirebaseAuthError(error));

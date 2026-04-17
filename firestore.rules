@@ -10,35 +10,89 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    match /users/{userId} {
-      // Chaque utilisateur lit/edite uniquement son propre document.
-      allow read, update, delete: if isOwner(userId);
+    function currentUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
 
-      // Creation autorisee uniquement pour son propre uid
-      // + garde-fou: le champ uid du document doit correspondre au path.
-      allow create: if isOwner(userId) && request.resource.data.uid == userId;
+    function isManager() {
+      return isSignedIn() && currentUserData().role == "GESTIONNAIRE";
+    }
+
+    function managerActiveFor(ownerUid) {
+      return isManager()
+        && currentUserData().enterpriseOwnerUid == ownerUid
+        && currentUserData().managerStatus != "inactive";
+    }
+
+    function hasManagerPermission(permission) {
+      return !isManager() || currentUserData().permissions[permission] == true;
+    }
+
+    function canAccessWorkspace(ownerUid, permission) {
+      return isSignedIn()
+        && (
+          request.auth.uid == ownerUid
+          || (managerActiveFor(ownerUid) && hasManagerPermission(permission))
+        );
+    }
+
+    // Reçus de location : même périmètre que les locations (listRentals charge rentals + rentalReceipts).
+    function canAccessRentalReceiptWorkspace(ownerUid) {
+      return canAccessWorkspace(ownerUid, "receipts") || canAccessWorkspace(ownerUid, "rentals");
+    }
+
+    function usersDoc(uid) {
+      return get(/databases/$(database)/documents/users/$(uid));
+    }
+
+    // Admin entreprise (pas gestionnaire) : document users requis.
+    function isEnterpriseAdmin() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && usersDoc(request.auth.uid).data.role != "GESTIONNAIRE";
+    }
+
+    match /users/{userId} {
+      allow read, delete: if isOwner(userId);
+
+      // Mise a jour : soi-meme, ou admin qui gere un gestionnaire de son entreprise.
+      allow update: if isOwner(userId)
+        || (
+          isEnterpriseAdmin()
+          && resource.data.role == "GESTIONNAIRE"
+          && resource.data.enterpriseOwnerUid == request.auth.uid
+          && request.resource.data.uid == userId
+          && request.resource.data.role == "GESTIONNAIRE"
+          && request.resource.data.enterpriseOwnerUid == resource.data.enterpriseOwnerUid
+        );
+
+      // Creation : son propre profil, ou admin qui provisionne un gestionnaire rattache a son entreprise.
+      allow create: if (isOwner(userId) && request.resource.data.uid == userId)
+        || (
+          isEnterpriseAdmin()
+          && request.resource.data.uid == userId
+          && request.resource.data.role == "GESTIONNAIRE"
+          && request.resource.data.enterpriseOwnerUid == request.auth.uid
+        );
     }
 
     match /vehicles/{vehicleId} {
       // Lecture autorisee uniquement pour le proprietaire
-      allow read: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      allow read: if canAccessWorkspace(resource.data.ownerUid, "vehicles");
 
       // Creation: le document doit appartenir a l'utilisateur connecte
-      allow create: if isSignedIn()
-        && request.resource.data.ownerUid == request.auth.uid;
+      allow create: if canAccessWorkspace(request.resource.data.ownerUid, "vehicles");
 
       // Update/Delete: uniquement le proprietaire du document existant
       // + interdiction de changer le ownerUid
-      allow update: if isSignedIn()
-        && resource.data.ownerUid == request.auth.uid
+      allow update: if canAccessWorkspace(resource.data.ownerUid, "vehicles")
         && request.resource.data.ownerUid == resource.data.ownerUid;
-      allow delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      allow delete: if canAccessWorkspace(resource.data.ownerUid, "vehicles");
     }
 
     match /sales/{saleId} {
-      allow read: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
-      allow create: if isSignedIn()
-        && request.resource.data.ownerUid == request.auth.uid
+      allow read: if canAccessWorkspace(resource.data.ownerUid, "receipts");
+      allow create: if canAccessWorkspace(request.resource.data.ownerUid, "receipts")
         && request.resource.data.vehicleId is string
         && request.resource.data.buyerName is string
         && request.resource.data.buyerPhone is string
@@ -50,21 +104,19 @@ service cloud.firestore {
     }
 
     match /saleReceipts/{receiptId} {
-      allow read: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
-      allow create: if isSignedIn()
-        && request.resource.data.ownerUid == request.auth.uid
+      allow read: if canAccessWorkspace(resource.data.ownerUid, "receipts");
+      allow create: if canAccessWorkspace(request.resource.data.ownerUid, "receipts")
         && request.resource.data.saleId is string
         && request.resource.data.vehicleId is string
         && request.resource.data.receiptNumber is string
         && request.resource.data.amount is number;
       allow update: if false;
-      allow delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      allow delete: if canAccessWorkspace(resource.data.ownerUid, "receipts");
     }
 
     match /rentals/{rentalId} {
-      allow read: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
-      allow create: if isSignedIn()
-        && request.resource.data.ownerUid == request.auth.uid
+      allow read: if canAccessWorkspace(resource.data.ownerUid, "rentals");
+      allow create: if canAccessWorkspace(request.resource.data.ownerUid, "rentals")
         && request.resource.data.vehicleId is string
         && request.resource.data.tenantName is string
         && request.resource.data.tenantPhone is string
@@ -75,59 +127,52 @@ service cloud.firestore {
         && request.resource.data.dailyPrice is number
         && request.resource.data.totalDays is number
         && request.resource.data.status is string;
-      allow update: if isSignedIn()
-        && resource.data.ownerUid == request.auth.uid
+      allow update: if canAccessWorkspace(resource.data.ownerUid, "rentals")
         && request.resource.data.ownerUid == resource.data.ownerUid;
-      allow delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      allow delete: if canAccessWorkspace(resource.data.ownerUid, "rentals");
     }
 
     match /rentalReceipts/{receiptId} {
-      allow read: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
-      allow create: if isSignedIn()
-        && request.resource.data.ownerUid == request.auth.uid
+      allow read: if canAccessRentalReceiptWorkspace(resource.data.ownerUid);
+      allow create: if canAccessRentalReceiptWorkspace(request.resource.data.ownerUid)
         && request.resource.data.rentalId is string
         && request.resource.data.vehicleId is string
         && request.resource.data.receiptNumber is string
         && request.resource.data.rentalAmount is number;
       allow update: if false;
-      allow delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      allow delete: if canAccessRentalReceiptWorkspace(resource.data.ownerUid);
     }
 
     match /reservations/{reservationId} {
-      allow read: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
-      allow create: if isSignedIn()
-        && request.resource.data.ownerUid == request.auth.uid
+      allow read: if canAccessWorkspace(resource.data.ownerUid, "reservations");
+      allow create: if canAccessWorkspace(request.resource.data.ownerUid, "reservations")
         && request.resource.data.vehicleId is string
         && request.resource.data.customerName is string
         && request.resource.data.customerPhone is string
         && request.resource.data.reservationDate is string
         && request.resource.data.amountPaid is number
         && request.resource.data.status is string;
-      allow update: if isSignedIn()
-        && resource.data.ownerUid == request.auth.uid
+      allow update: if canAccessWorkspace(resource.data.ownerUid, "reservations")
         && request.resource.data.ownerUid == resource.data.ownerUid;
-      allow delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      allow delete: if canAccessWorkspace(resource.data.ownerUid, "reservations");
     }
 
     match /repairs/{repairId} {
-      allow read: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
-      allow create: if isSignedIn()
-        && request.resource.data.ownerUid == request.auth.uid
+      allow read: if canAccessWorkspace(resource.data.ownerUid, "vehicles");
+      allow create: if canAccessWorkspace(request.resource.data.ownerUid, "vehicles")
         && request.resource.data.vehicleId is string
         && request.resource.data.reason is string
         && request.resource.data.cost is number
         && request.resource.data.startDate is string
         && request.resource.data.status is string;
-      allow update: if isSignedIn()
-        && resource.data.ownerUid == request.auth.uid
+      allow update: if canAccessWorkspace(resource.data.ownerUid, "vehicles")
         && request.resource.data.ownerUid == resource.data.ownerUid;
       allow delete: if false;
     }
 
     match /accountMovements/{movementId} {
-      allow read: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
-      allow create: if isSignedIn()
-        && request.resource.data.ownerUid == request.auth.uid
+      allow read: if canAccessWorkspace(resource.data.ownerUid, "comptability");
+      allow create: if canAccessWorkspace(request.resource.data.ownerUid, "comptability")
         && request.resource.data.operationType is string
         && request.resource.data.direction is string
         && request.resource.data.category is string
@@ -140,19 +185,22 @@ service cloud.firestore {
     }
 
     match /trashItems/{trashId} {
-      allow read: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
-      allow create: if isSignedIn()
-        && request.resource.data.ownerUid == request.auth.uid
+      allow read: if canAccessWorkspace(resource.data.ownerUid, "trash");
+      allow create: if canAccessWorkspace(request.resource.data.ownerUid, "trash")
         && request.resource.data.itemType is string
         && request.resource.data.sourceCollection is string
         && request.resource.data.sourceId is string
         && request.resource.data.title is string;
       allow update: if false;
-      allow delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      allow delete: if canAccessWorkspace(resource.data.ownerUid, "trash");
     }
 
     match /brandingSettings/{brandingId} {
-      allow read: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      allow read: if isSignedIn()
+        && (
+          resource.data.ownerUid == request.auth.uid
+          || managerActiveFor(resource.data.ownerUid)
+        );
       allow create: if isSignedIn()
         && brandingId == request.auth.uid
         && request.resource.data.ownerUid == request.auth.uid
@@ -167,6 +215,27 @@ service cloud.firestore {
         && request.resource.data.text is string
         && request.resource.data.imageScale is number;
       allow delete: if isSignedIn() && brandingId == request.auth.uid && resource.data.ownerUid == request.auth.uid;
+    }
+
+    match /managerAccess/{accessId} {
+      allow read: if isSignedIn()
+        && (
+          resource.data.ownerUid == request.auth.uid
+          || (
+            request.auth.token.email is string
+            && resource.data.managerEmailNormalized == request.auth.token.email
+            && resource.data.status == "active"
+          )
+        );
+      allow create: if isSignedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.managerEmail is string
+        && request.resource.data.managerEmailNormalized is string
+        && request.resource.data.permissions is map;
+      allow update: if isSignedIn()
+        && resource.data.ownerUid == request.auth.uid
+        && request.resource.data.ownerUid == resource.data.ownerUid;
+      allow delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
     }
 
     // Tout le reste est refuse par defaut.

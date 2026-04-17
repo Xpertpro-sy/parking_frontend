@@ -1,4 +1,4 @@
-import { initializeApp } from "firebase/app";
+import { initializeApp, getApps } from "firebase/app";
 import { getAuth, onAuthStateChanged, type User } from "firebase/auth";
 import {
   getFirestore,
@@ -22,6 +22,8 @@ function ensureFirebaseConfig() {
   }
 }
 
+const SECONDARY_AUTH_APP_NAME = "gp-manager-provisioning";
+
 let firebaseAuthInstance: ReturnType<typeof getAuth> | null = null;
 let firebaseDbInstance: ReturnType<typeof getFirestore> | null = null;
 let firebaseAppInstance: ReturnType<typeof initializeApp> | null = null;
@@ -38,6 +40,16 @@ export function getFirebaseAuth() {
   const app = getFirebaseApp();
   firebaseAuthInstance = getAuth(app);
   return firebaseAuthInstance;
+}
+
+/**
+ * Auth Firebase isolée pour créer des comptes gestionnaire sans déconnecter l'administrateur courant.
+ */
+export function getSecondaryFirebaseAuth() {
+  ensureFirebaseConfig();
+  const existing = getApps().find((a) => a.name === SECONDARY_AUTH_APP_NAME);
+  const app = existing ?? initializeApp(firebaseConfig, SECONDARY_AUTH_APP_NAME);
+  return getAuth(app);
 }
 
 export function getFirebaseDb() {

@@ -1,4 +1,5 @@
-import { getFirebaseDb, waitForFirebaseUser } from "@/lib/firebase";
+import { getWorkspaceIdentity } from "@/lib/access-control";
+import { getFirebaseDb } from "@/lib/firebase";
 import {
   collection,
   doc,
@@ -69,11 +70,8 @@ export type AccountMovementApiResponse = {
 };
 
 async function getAuthIdentity() {
-  const user = await waitForFirebaseUser();
-  if (!user?.uid) {
-    throw new Error("Session Firebase invalide. Veuillez vous reconnecter.");
-  }
-  return { uid: user.uid, email: user.email ?? null };
+  const identity = await getWorkspaceIdentity();
+  return { uid: identity.uid, email: identity.email };
 }
 
 const MANUAL_MOVEMENT_VEHICLE = {

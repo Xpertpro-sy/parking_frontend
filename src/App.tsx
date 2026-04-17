@@ -23,6 +23,7 @@ import ReservedVehicles from "./pages/ReservedVehicles";
 import ComptabilityPage from "./pages/ComptabilityPage";
 import SettingsPage from "./pages/SettingsPage";
 import CorbeillePage from "./pages/CorbeillePage";
+import AccountsPage from "./pages/AccountsPage";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import NotFound from "./pages/NotFound";
@@ -87,6 +88,7 @@ const App = () => (
                 <Route path="/comptability" element={<ComptabilityPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/corbeille" element={<CorbeillePage />} />
+                <Route path="/comptes" element={<AccountsPage />} />
               </Route>
             </Route>
 

@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { NavLink, useLocation } from 'react-router-dom';
 import { Car, LayoutDashboard, Receipt, History, Menu, X, LogOut, Calculator, Settings, Trash2, User } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { AppPermission, getCurrentUserAccessProfile } from '@/lib/access-control';
 import { brandingSettingsQueryKey, getBrandingSettingsRequest } from '@/lib/branding-api';
 import {
   AlertDialog,
@@ -16,16 +17,16 @@ import {
 } from '@/components/ui/alert-dialog';
 
 const navItems = [
-  { to: '/', icon: LayoutDashboard, label: 'Tableau de bord' },
-  { to: '/vehicles', icon: Car, label: 'Véhicules' },
-  { to: '/receipts', icon: Receipt, label: 'Reçus' },
-  { to: '/comptability', icon: Calculator, label: 'Comptabilité' },
-  { to: '/voitures-louees', icon: Car, label: 'Voitures louées' },
-  { to: '/voitures-reservees', icon: Car, label: 'Voitures réservées' },
-  { to: '/history', icon: History, label: 'Historique' },
-  { to: '/comptes', icon: User, label: 'Comptes' },
-  { to: '/settings', icon: Settings, label: 'Paramètres' },
-  { to: '/corbeille', icon: Trash2, label: 'Corbeille' },
+  { to: '/', icon: LayoutDashboard, label: 'Tableau de bord', permission: 'dashboard' as AppPermission },
+  { to: '/vehicles', icon: Car, label: 'Véhicules', permission: 'vehicles' as AppPermission },
+  { to: '/receipts', icon: Receipt, label: 'Reçus', permission: 'receipts' as AppPermission },
+  { to: '/comptability', icon: Calculator, label: 'Comptabilité', permission: 'comptability' as AppPermission },
+  { to: '/voitures-louees', icon: Car, label: 'Voitures louées', permission: 'rentals' as AppPermission },
+  { to: '/voitures-reservees', icon: Car, label: 'Voitures réservées', permission: 'reservations' as AppPermission },
+  { to: '/history', icon: History, label: 'Historique', permission: 'history' as AppPermission },
+  { to: '/comptes', icon: User, label: 'Comptes', permission: 'accounts' as AppPermission },
+  { to: '/settings', icon: Settings, label: 'Paramètres', permission: 'settings' as AppPermission },
+  { to: '/corbeille', icon: Trash2, label: 'Corbeille', permission: 'trash' as AppPermission },
 ];
 
 export default function MobileNav() {
@@ -33,6 +34,12 @@ export default function MobileNav() {
   const [showLogoutPopup, setShowLogoutPopup] = useState(false);
   const location = useLocation();
   const { logout, user } = useAuth();
+  const { data: accessProfile } = useQuery({
+    queryKey: ['access-profile'],
+    queryFn: getCurrentUserAccessProfile,
+    enabled: Boolean(user?.email),
+    staleTime: 60 * 1000,
+  });
   const { data: branding } = useQuery({
     queryKey: [...brandingSettingsQueryKey, user?.email ?? 'anonymous'],
     queryFn: getBrandingSettingsRequest,
@@ -75,6 +82,7 @@ export default function MobileNav() {
         <div className="md:hidden fixed inset-0 top-14 z-50 bg-background/95 backdrop-blur-sm">
           <nav className="flex flex-col p-4 gap-1">
             {navItems.map((item) => {
+              if (accessProfile && !accessProfile.permissions[item.permission]) return null;
               const isActive = location.pathname === item.to;
               return (
                 <NavLink
