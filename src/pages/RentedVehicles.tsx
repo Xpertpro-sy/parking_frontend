@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Car, Loader2 } from 'lucide-react';
+import { Car, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { listRentalsRequest } from '@/lib/rental-api';
@@ -11,12 +11,26 @@ const formatDateTimeFr = (value: string) =>
     timeStyle: 'short',
   });
 
+type PeriodFilter = 'today' | 'yesterday' | 'week' | 'month' | 'year';
+
+const PERIOD_OPTIONS: { value: PeriodFilter; label: string }[] = [
+  { value: 'today', label: "Aujourd'hui" },
+  { value: 'yesterday', label: 'Hier' },
+  { value: 'week', label: 'Semaine' },
+  { value: 'month', label: 'Mois en cours' },
+  { value: 'year', label: 'Année' },
+];
+
+const ITEMS_PER_PAGE = 8;
+
 export default function RentedVehicles() {
   const [viewMode, setViewMode] = useState<'cards' | 'list'>(() => {
     if (typeof window === 'undefined') return 'cards';
     const saved = window.localStorage.getItem('rented-vehicles-view');
     return saved === 'list' ? 'list' : 'cards';
   });
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('week');
+  const [currentPage, setCurrentPage] = useState(1);
   const { data: rentals = [], isLoading, isError, error } = useQuery({
     queryKey: ['rentals', 'list'],
     queryFn: listRentalsRequest,
@@ -37,6 +51,36 @@ export default function RentedVehicles() {
   const activeRentals = rentals
     .filter((rental) => rental.status?.toLowerCase() === 'active')
     .sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
+  const filteredRentals = activeRentals.filter((rental) => {
+    const date = new Date(rental.startDate);
+    if (Number.isNaN(date.getTime())) return false;
+    const now = new Date();
+    const isSameDay = (a: Date, b: Date) =>
+      a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const weekStart = new Date(now);
+    weekStart.setHours(0, 0, 0, 0);
+    weekStart.setDate(weekStart.getDate() - 6);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const yearStart = new Date(now.getFullYear(), 0, 1);
+
+    if (periodFilter === 'today') return isSameDay(date, now);
+    if (periodFilter === 'yesterday') return isSameDay(date, yesterday);
+    if (periodFilter === 'week') return date >= weekStart;
+    if (periodFilter === 'month') return date >= monthStart;
+    return date >= yearStart;
+  });
+  const totalPages = Math.max(1, Math.ceil(filteredRentals.length / ITEMS_PER_PAGE));
+  const paginatedRentals = filteredRentals.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [periodFilter]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -45,7 +89,18 @@ export default function RentedVehicles() {
           <h1 className="text-2xl font-bold text-foreground">Voitures louees</h1>
           <p className="text-muted-foreground mt-1">Locations actives en cours</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={periodFilter}
+            onChange={(event) => setPeriodFilter(event.target.value as PeriodFilter)}
+            className="w-full sm:w-auto px-3 py-2 rounded-lg border border-border bg-secondary text-sm"
+          >
+            {PERIOD_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
           <button
             type="button"
             onClick={() => setViewMode('cards')}
@@ -64,6 +119,9 @@ export default function RentedVehicles() {
           >
             Liste
           </button>
+          <p className="text-xs text-muted-foreground whitespace-nowrap ml-1">
+            {filteredRentals.length} resultat(s)
+          </p>
         </div>
       </div>
 
@@ -72,10 +130,10 @@ export default function RentedVehicles() {
           <Loader2 className="w-6 h-6 mx-auto animate-spin text-primary mb-3" />
           <p className="text-muted-foreground">Chargement des locations...</p>
         </div>
-      ) : activeRentals.length > 0 ? (
+      ) : filteredRentals.length > 0 ? (
         viewMode === 'cards' ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {activeRentals.map((rental) => (
+            {paginatedRentals.map((rental) => (
               <div key={rental.id} className="glass-card p-5 space-y-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -169,7 +227,7 @@ export default function RentedVehicles() {
                 </tr>
               </thead>
               <tbody>
-                {activeRentals.map((rental) => (
+                {paginatedRentals.map((rental) => (
                   <tr key={rental.id} className="border-b border-border/60">
                     <td className="px-3 py-2">
                       <Link to={`/vehicles/${rental.vehicleId}`} className="font-medium hover:underline">
@@ -200,6 +258,36 @@ export default function RentedVehicles() {
         <div className="glass-card p-12 text-center">
           <Car className="w-12 h-12 mx-auto text-muted-foreground/40 mb-3" />
           <p className="text-muted-foreground">Aucune voiture louee actuellement.</p>
+        </div>
+      )}
+
+      {filteredRentals.length > ITEMS_PER_PAGE && (
+        <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-muted-foreground">
+            Affichage {(currentPage - 1) * ITEMS_PER_PAGE + 1}
+            {' - '}
+            {Math.min(currentPage * ITEMS_PER_PAGE, filteredRentals.length)} sur {filteredRentals.length}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+              disabled={currentPage === 1}
+              className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary disabled:opacity-50"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Precedent
+            </button>
+            <button
+              type="button"
+              onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+              disabled={currentPage === totalPages}
+              className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary disabled:opacity-50"
+            >
+              Suivant
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       )}
     </div>
