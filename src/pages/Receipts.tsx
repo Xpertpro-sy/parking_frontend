@@ -44,6 +44,8 @@ type UiReceipt =
       issuedAt: string;
     };
 
+type PeriodFilter = 'today' | 'yesterday' | 'week' | 'month' | 'year';
+
 function formatCurrency(amount: number) {
   return `${amount.toLocaleString('fr-FR')} CFA`;
 }
@@ -53,6 +55,14 @@ function formatDateTime(value: string) {
 }
 
 const RECEIPTS_PER_PAGE = 12;
+
+const PERIOD_OPTIONS: { value: PeriodFilter; label: string }[] = [
+  { value: 'today', label: "Aujourd'hui" },
+  { value: 'yesterday', label: 'Hier' },
+  { value: 'week', label: 'Semaine' },
+  { value: 'month', label: 'Mois en cours' },
+  { value: 'year', label: 'Année' },
+];
 
 function printInvoice(receipt: UiReceipt) {
   const popup = window.open('', '_blank', 'width=960,height=720');
@@ -158,6 +168,7 @@ export default function Receipts() {
   const [searchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedType, setSelectedType] = useState<'all' | 'sale' | 'rental'>('all');
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('week');
   const [currentPage, setCurrentPage] = useState(1);
   const { data: receipts = [], isLoading, isError, error } = useQuery({
     queryKey: ['receipts', 'list'],
@@ -232,10 +243,33 @@ export default function Receipts() {
 
   const filteredReceipts = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
+    const now = new Date();
+    const isSameDay = (a: Date, b: Date) =>
+      a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const weekStart = new Date(now);
+    weekStart.setHours(0, 0, 0, 0);
+    weekStart.setDate(weekStart.getDate() - 6);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const yearStart = new Date(now.getFullYear(), 0, 1);
 
     return receipts.filter((receipt) => {
       const matchesType = selectedType === 'all' || receipt.type === selectedType;
       if (!matchesType) return false;
+
+      const receiptDate = new Date(receipt.type === 'sale' ? receipt.date : receipt.issuedAt);
+      const matchesPeriod =
+        periodFilter === 'today'
+          ? isSameDay(receiptDate, now)
+          : periodFilter === 'yesterday'
+            ? isSameDay(receiptDate, yesterday)
+            : periodFilter === 'week'
+              ? receiptDate >= weekStart
+              : periodFilter === 'month'
+                ? receiptDate >= monthStart
+                : receiptDate >= yearStart;
+      if (!matchesPeriod) return false;
 
       if (!normalizedSearch) return true;
 
@@ -252,7 +286,7 @@ export default function Receipts() {
 
       return haystack.includes(normalizedSearch);
     });
-  }, [receipts, searchTerm, selectedType]);
+  }, [periodFilter, receipts, searchTerm, selectedType]);
 
   const totalPages = Math.max(1, Math.ceil(filteredReceipts.length / RECEIPTS_PER_PAGE));
 
@@ -264,7 +298,7 @@ export default function Receipts() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, selectedType]);
+  }, [periodFilter, searchTerm, selectedType]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -316,6 +350,17 @@ export default function Receipts() {
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={periodFilter}
+                  onChange={(event) => setPeriodFilter(event.target.value as PeriodFilter)}
+                  className="rounded-lg border border-border bg-secondary px-3 py-2 text-sm text-foreground"
+                >
+                  {PERIOD_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
                 <button
                   type="button"
                   onClick={() => setSelectedType('all')}
