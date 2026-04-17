@@ -22,6 +22,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import FullscreenLoader from '@/components/ui/fullscreen-loader';
+import { getCurrentUserAccessProfile } from '@/lib/access-control';
 
 const formatDateFr = (value: string) =>
   new Date(value).toLocaleString('fr-FR', {
@@ -31,6 +32,12 @@ const formatDateFr = (value: string) =>
 
 export default function CorbeillePage() {
   const queryClient = useQueryClient();
+  const { data: accessProfile } = useQuery({
+    queryKey: ['access-profile'],
+    queryFn: getCurrentUserAccessProfile,
+  });
+  const canPermanentlyDelete = accessProfile?.permissions?.accounts === true;
+  const isManager = accessProfile?.role === 'GESTIONNAIRE' || !canPermanentlyDelete;
   const [pendingPermanentDeleteId, setPendingPermanentDeleteId] = useState<string | null>(null);
   const [pendingBulkDelete, setPendingBulkDelete] = useState(false);
   const [pendingEmptyTrash, setPendingEmptyTrash] = useState(false);
@@ -60,6 +67,10 @@ export default function CorbeillePage() {
   }, [trashItems]);
 
   const onDeletePermanently = async (trashId: string) => {
+    if (isManager) {
+      toast.error("Seul l'administrateur peut supprimer définitivement.");
+      return;
+    }
     if (isDeletingSingle) return;
     setIsDeletingSingle(true);
     try {
@@ -107,6 +118,10 @@ export default function CorbeillePage() {
   };
 
   const onDeleteSelected = async () => {
+    if (isManager) {
+      toast.error("Seul l'administrateur peut supprimer définitivement.");
+      return;
+    }
     if (selectedIds.length === 0 || isDeletingSelection) return;
     setIsDeletingSelection(true);
     try {
@@ -123,6 +138,10 @@ export default function CorbeillePage() {
   };
 
   const onEmptyTrash = async () => {
+    if (isManager) {
+      toast.error("Seul l'administrateur peut vider la corbeille.");
+      return;
+    }
     if (isEmptyingTrash) return;
     setIsEmptyingTrash(true);
     try {
@@ -176,24 +195,28 @@ export default function CorbeillePage() {
             <RotateCcw className="w-4 h-4" />
             {isRestoringSelection ? 'Restauration...' : 'Restaurer la sélection'}
           </button>
-          <button
-            type="button"
-            disabled={selectedIds.length === 0 || isDeletingSelection}
-            onClick={() => setPendingBulkDelete(true)}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-destructive/40 text-destructive text-xs font-medium disabled:opacity-50 hover:bg-destructive/10"
-          >
-            <Trash2 className="w-4 h-4" />
-            {isDeletingSelection ? 'Suppression...' : 'Supprimer la sélection'}
-          </button>
-          <button
-            type="button"
-            disabled={trashItems.length === 0 || isEmptyingTrash}
-            onClick={() => setPendingEmptyTrash(true)}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-destructive text-destructive-foreground text-xs font-medium disabled:opacity-50"
-          >
-            <Trash2 className="w-4 h-4" />
-            {isEmptyingTrash ? 'Vidage...' : 'Vider la corbeille'}
-          </button>
+          {canPermanentlyDelete && (
+            <button
+              type="button"
+              disabled={selectedIds.length === 0 || isDeletingSelection}
+              onClick={() => setPendingBulkDelete(true)}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-destructive/40 text-destructive text-xs font-medium disabled:opacity-50 hover:bg-destructive/10"
+            >
+              <Trash2 className="w-4 h-4" />
+              {isDeletingSelection ? 'Suppression...' : 'Supprimer la sélection'}
+            </button>
+          )}
+          {canPermanentlyDelete && (
+            <button
+              type="button"
+              disabled={trashItems.length === 0 || isEmptyingTrash}
+              onClick={() => setPendingEmptyTrash(true)}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-destructive text-destructive-foreground text-xs font-medium disabled:opacity-50"
+            >
+              <Trash2 className="w-4 h-4" />
+              {isEmptyingTrash ? 'Vidage...' : 'Vider la corbeille'}
+            </button>
+          )}
         </div>
 
         {isLoading ? (
@@ -239,14 +262,16 @@ export default function CorbeillePage() {
                     <RotateCcw className="w-4 h-4" />
                     {isRestoringSingle && pendingRestoreId === item.id ? 'Restauration...' : 'Restaurer'}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setPendingPermanentDeleteId(item.id)}
-                    disabled={isDeletingSingle || isRestoringSingle}
-                    className="inline-flex items-center justify-center rounded-lg bg-destructive p-2 text-destructive-foreground"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  {canPermanentlyDelete && (
+                    <button
+                      type="button"
+                      onClick={() => setPendingPermanentDeleteId(item.id)}
+                      disabled={isDeletingSingle || isRestoringSingle}
+                      className="inline-flex items-center justify-center rounded-lg bg-destructive p-2 text-destructive-foreground"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
@@ -256,28 +281,30 @@ export default function CorbeillePage() {
         )}
       </div>
 
-      <AlertDialog
-        open={Boolean(pendingPermanentDeleteId)}
-        onOpenChange={(open) => !open && !isActionLoading && setPendingPermanentDeleteId(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Suppression définitive</AlertDialogTitle>
-            <AlertDialogDescription>
-              Cet élément sera supprimé définitivement de la corbeille. Continuer ?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isActionLoading}>Annuler</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => pendingPermanentDeleteId && onDeletePermanently(pendingPermanentDeleteId)}
-              disabled={isActionLoading}
-            >
-              {isDeletingSingle ? 'Suppression...' : 'Supprimer définitivement'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {canPermanentlyDelete && (
+        <AlertDialog
+          open={Boolean(pendingPermanentDeleteId)}
+          onOpenChange={(open) => !open && !isActionLoading && setPendingPermanentDeleteId(null)}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Suppression définitive</AlertDialogTitle>
+              <AlertDialogDescription>
+                Cet élément sera supprimé définitivement de la corbeille. Continuer ?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isActionLoading}>Annuler</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => pendingPermanentDeleteId && onDeletePermanently(pendingPermanentDeleteId)}
+                disabled={isActionLoading}
+              >
+                {isDeletingSingle ? 'Suppression...' : 'Supprimer définitivement'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
 
       <AlertDialog
         open={Boolean(pendingRestoreId)}
@@ -299,22 +326,24 @@ export default function CorbeillePage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={pendingBulkDelete} onOpenChange={(open) => !isActionLoading && setPendingBulkDelete(open)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Suppression de la sélection</AlertDialogTitle>
-            <AlertDialogDescription>
-              Supprimer définitivement {selectedIds.length} élément(s) sélectionné(s) ?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isActionLoading}>Annuler</AlertDialogCancel>
-            <AlertDialogAction onClick={onDeleteSelected} disabled={isActionLoading}>
-              {isDeletingSelection ? 'Suppression...' : 'Confirmer'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {canPermanentlyDelete && (
+        <AlertDialog open={pendingBulkDelete} onOpenChange={(open) => !isActionLoading && setPendingBulkDelete(open)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Suppression de la sélection</AlertDialogTitle>
+              <AlertDialogDescription>
+                Supprimer définitivement {selectedIds.length} élément(s) sélectionné(s) ?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isActionLoading}>Annuler</AlertDialogCancel>
+              <AlertDialogAction onClick={onDeleteSelected} disabled={isActionLoading}>
+                {isDeletingSelection ? 'Suppression...' : 'Confirmer'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
 
       <AlertDialog open={pendingRestoreSelection} onOpenChange={(open) => !isActionLoading && setPendingRestoreSelection(open)}>
         <AlertDialogContent>
@@ -333,22 +362,24 @@ export default function CorbeillePage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={pendingEmptyTrash} onOpenChange={(open) => !isActionLoading && setPendingEmptyTrash(open)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Vider la corbeille</AlertDialogTitle>
-            <AlertDialogDescription>
-              Cette action supprimera définitivement tous les éléments de la corbeille.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isActionLoading}>Annuler</AlertDialogCancel>
-            <AlertDialogAction onClick={onEmptyTrash} disabled={isActionLoading}>
-              {isEmptyingTrash ? 'Vidage...' : 'Vider'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {canPermanentlyDelete && (
+        <AlertDialog open={pendingEmptyTrash} onOpenChange={(open) => !isActionLoading && setPendingEmptyTrash(open)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Vider la corbeille</AlertDialogTitle>
+              <AlertDialogDescription>
+                Cette action supprimera définitivement tous les éléments de la corbeille.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isActionLoading}>Annuler</AlertDialogCancel>
+              <AlertDialogAction onClick={onEmptyTrash} disabled={isActionLoading}>
+                {isEmptyingTrash ? 'Vidage...' : 'Vider'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
 
       {isActionLoading && (
         <FullscreenLoader message="Traitement de la corbeille..." />

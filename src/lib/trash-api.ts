@@ -56,7 +56,14 @@ async function getAuthIdentity() {
     email: identity.email,
     actorUid: identity.actorUid,
     actorName: identity.actorName,
+    role: identity.role,
   };
+}
+
+function assertAdminCanPermanentlyDelete(role: "ADMIN" | "GESTIONNAIRE") {
+  if (role !== "ADMIN") {
+    throw new Error("Seul l'administrateur peut supprimer définitivement dans la corbeille.");
+  }
 }
 
 async function moveDocumentToTrash(params: {
@@ -198,7 +205,8 @@ export async function listTrashItemsRequest(): Promise<TrashItemApiResponse[]> {
 
 export async function deleteTrashItemPermanentlyRequest(trashItemId: string): Promise<void> {
   const db = getFirebaseDb();
-  const { uid } = await getAuthIdentity();
+  const { uid, role } = await getAuthIdentity();
+  assertAdminCanPermanentlyDelete(role);
   const trashRef = doc(db, 'trashItems', trashItemId);
   const trashSnap = await getDoc(trashRef);
   if (!trashSnap.exists()) throw new Error('Element de corbeille introuvable.');
@@ -224,7 +232,8 @@ export async function restoreTrashItemRequest(trashItemId: string): Promise<void
 export async function deleteSelectedTrashItemsPermanentlyRequest(trashItemIds: string[]): Promise<void> {
   if (trashItemIds.length === 0) return;
   const db = getFirebaseDb();
-  const { uid } = await getAuthIdentity();
+  const { uid, role } = await getAuthIdentity();
+  assertAdminCanPermanentlyDelete(role);
   const batch = writeBatch(db);
   for (const id of trashItemIds) {
     const ref = doc(db, 'trashItems', id);
@@ -245,6 +254,8 @@ export async function restoreSelectedTrashItemsRequest(trashItemIds: string[]): 
 }
 
 export async function emptyTrashRequest(): Promise<void> {
+  const { role } = await getAuthIdentity();
+  assertAdminCanPermanentlyDelete(role);
   const items = await listTrashItemsRequest();
   await deleteSelectedTrashItemsPermanentlyRequest(items.map((item) => item.id));
 }
