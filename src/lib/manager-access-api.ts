@@ -3,6 +3,7 @@ import { getFirebaseDb, getSecondaryFirebaseAuth } from "@/lib/firebase";
 import { createUserWithEmailAndPassword, signOut, updateProfile } from "firebase/auth";
 import {
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -81,7 +82,21 @@ function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
 }
 
-function normalizePermissions(input?: Partial<PermissionMap>): PermissionMap {
+/** Profil Firestore après suppression du lien managerAccess (bloque la connexion côté appli). */
+export const REVOKED_MANAGER_PROFILE_PERMISSIONS: PermissionMap = {
+  dashboard: false,
+  vehicles: false,
+  receipts: false,
+  comptability: false,
+  rentals: false,
+  reservations: false,
+  history: false,
+  trash: false,
+  settings: false,
+  accounts: false,
+};
+
+export function normalizePermissions(input?: Partial<PermissionMap>): PermissionMap {
   return {
     ...DEFAULT_MANAGER_PERMISSIONS,
     ...(input ?? {}),
@@ -263,6 +278,41 @@ export async function updateManagerAccessStatusRequest(managerAccessId: string, 
     permissions: normalizePermissions(data.permissions),
     status,
   });
+}
+
+/**
+ * Supprime l’accès Firestore du gestionnaire et le document managerAccess.
+ * Le compte Firebase Authentication peut rester : la connexion est bloquée via users.managerStatus.
+ * Pour libérer l’e-mail, supprimez aussi l’utilisateur dans la console Firebase Authentication si besoin.
+ */
+export async function deleteManagerAccessRequest(managerAccessId: string): Promise<void> {
+  const db = getFirebaseDb();
+  const identity = await ensureAdminWorkspace();
+  const ref = doc(db, "managerAccess", managerAccessId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) throw new Error("Gestionnaire introuvable.");
+
+  const data = snap.data() as ManagerAccessDoc;
+  if (data.ownerUid !== identity.uid) throw new Error("Acces refuse.");
+
+  if (data.managerUid) {
+    await setDoc(
+      doc(db, "users", data.managerUid),
+      {
+        uid: data.managerUid,
+        email: data.managerEmailNormalized,
+        role: "GESTIONNAIRE",
+        enterpriseOwnerUid: identity.uid,
+        managerStatus: "removed",
+        managerAccessId: null,
+        permissions: REVOKED_MANAGER_PROFILE_PERMISSIONS,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true },
+    );
+  }
+
+  await deleteDoc(ref);
 }
 
 export const MANAGER_PERMISSION_LABELS: Record<AppPermission, string> = {

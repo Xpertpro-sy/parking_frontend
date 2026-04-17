@@ -4,13 +4,36 @@ import {
   signInWithEmailAndPassword,
   signOut,
   updateProfile,
+  type Auth,
+  type User,
 } from "firebase/auth";
 import { collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, where } from "firebase/firestore";
 import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase";
 import type { AuthApiResponse, LoginPayload, RegisterPayload } from "@/lib/auth-api";
 import { DEFAULT_ADMIN_PERMISSIONS, DEFAULT_MANAGER_PERMISSIONS, PermissionMap } from "@/lib/access-control";
 
+/** Même logique que dans manager-access-api (évite une dépendance circulaire auth-firebase → manager-access-api). */
+function normalizeManagerPermissionsFromAccess(input?: Partial<PermissionMap>): PermissionMap {
+  return {
+    ...DEFAULT_MANAGER_PERMISSIONS,
+    ...(input ?? {}),
+    accounts: false,
+    settings: false,
+    trash: Boolean((input ?? {}).trash),
+  };
+}
+
 function parseFirebaseAuthError(error: unknown): string {
+  if (error instanceof Error) {
+    const m = error.message;
+    if (
+      m.startsWith("Votre compte a été désactivé") ||
+      m.startsWith("Votre compte a été supprimé") ||
+      m.startsWith("Compte sans adresse")
+    ) {
+      return m;
+    }
+  }
   if (!(error instanceof Error)) return "Erreur Firebase. Veuillez reessayer.";
   const message = error.message.toLowerCase();
   if (message.includes("auth/email-already-in-use")) return "Cet email est deja utilise.";
@@ -19,7 +42,9 @@ function parseFirebaseAuthError(error: unknown): string {
   if (message.includes("auth/invalid-credential") || message.includes("auth/wrong-password") || message.includes("auth/user-not-found")) {
     return "Email ou mot de passe incorrect.";
   }
-  if (message.includes("permission-denied")) return "Acces Firestore refuse. Verifiez vos regles Firestore.";
+  if (message.includes("permission-denied") || message.includes("insufficient permissions")) {
+    return "Acces Firestore refuse. Verifiez vos regles Firestore.";
+  }
   if (message.includes("unavailable")) return "Service Firebase indisponible temporairement.";
   if (message.includes("configuration firebase incomplete")) return error.message;
   return "Erreur Firebase. Veuillez reessayer.";
@@ -69,43 +94,95 @@ async function upsertUserFirestore(params: {
   );
 }
 
-async function applyManagerAccessForUser(params: { uid: string; email: string; prenom: string; nom: string }) {
+type ManagerAccessRow = {
+  status: string;
+  ownerUid: string;
+  managerUid?: string | null;
+  permissions?: Partial<PermissionMap>;
+};
+
+/**
+ * Après Authentication : aligne Firestore, refuse les gestionnaires désactivés / révoqués.
+ */
+async function postAuthFirestoreSync(
+  auth: Auth,
+  user: User,
+  prenom: string,
+  nom: string,
+  options?: { includeCreatedAtForNewUser?: boolean },
+): Promise<"ADMIN" | "GESTIONNAIRE"> {
   const db = getFirebaseDb();
-  const emailNormalized = params.email.trim().toLowerCase();
+  const emailNormalized = (user.email ?? "").trim().toLowerCase();
+  if (!emailNormalized) {
+    await signOut(auth);
+    throw new Error("Compte sans adresse e-mail : connexion impossible.");
+  }
+
+  const uid = user.uid;
+  const userSnap = await getDoc(doc(db, "users", uid));
+  const userData = userSnap.exists() ? (userSnap.data() as { role?: string; managerStatus?: string }) : null;
+
+  if (userData?.role?.toUpperCase() === "GESTIONNAIRE" && userData?.managerStatus === "inactive") {
+    await signOut(auth);
+    throw new Error(
+      "Votre compte a été désactivé par un administrateur. Contactez-le si vous avez besoin d'y accéder à nouveau.",
+    );
+  }
+
   const accessSnapshot = await getDocs(
-    query(
-      collection(db, "managerAccess"),
-      where("managerEmailNormalized", "==", emailNormalized),
-      where("status", "==", "active"),
-    ),
+    query(collection(db, "managerAccess"), where("managerEmailNormalized", "==", emailNormalized)),
   );
-  if (accessSnapshot.empty) return "ADMIN" as const;
 
-  const accessDoc = accessSnapshot.docs[0];
-  const accessData = accessDoc.data() as {
-    ownerUid: string;
-    permissions?: Partial<PermissionMap>;
-  };
+  const matchedDoc = accessSnapshot.docs.find((d) => {
+    const row = d.data() as ManagerAccessRow;
+    return row.managerUid === uid;
+  });
 
-  await setDoc(
-    doc(db, "users", params.uid),
-    {
-      uid: params.uid,
-      email: params.email,
-      prenom: params.prenom,
-      nom: params.nom,
-      displayName: `${params.prenom} ${params.nom}`.trim(),
+  if (matchedDoc) {
+    const access = matchedDoc.data() as ManagerAccessRow;
+    if (access.status === "inactive") {
+      await signOut(auth);
+      throw new Error(
+        "Votre compte a été désactivé par un administrateur. Contactez-le si vous avez besoin d'y accéder à nouveau.",
+      );
+    }
+
+    const displayName = `${prenom} ${nom}`.trim();
+    const payload: Record<string, unknown> = {
+      uid,
+      email: user.email ?? emailNormalized,
+      prenom,
+      nom,
+      displayName,
       role: "GESTIONNAIRE",
-      enterpriseOwnerUid: accessData.ownerUid,
-      permissions: { ...DEFAULT_MANAGER_PERMISSIONS, ...(accessData.permissions ?? {}) },
-      managerAccessId: accessDoc.id,
+      enterpriseOwnerUid: access.ownerUid,
+      permissions: normalizeManagerPermissionsFromAccess(access.permissions),
+      managerAccessId: matchedDoc.id,
+      managerStatus: "active",
       updatedAt: serverTimestamp(),
-      createdAt: serverTimestamp(),
-    },
-    { merge: true },
-  );
+    };
+    if (options?.includeCreatedAtForNewUser && !userSnap.exists()) {
+      payload.createdAt = serverTimestamp();
+    }
+    await setDoc(doc(db, "users", uid), payload, { merge: true });
+    return "GESTIONNAIRE";
+  }
 
-  return "GESTIONNAIRE" as const;
+  if (userData?.role?.toUpperCase() === "GESTIONNAIRE" || userData?.managerStatus === "removed") {
+    await signOut(auth);
+    throw new Error(
+      "Votre compte a été supprimé par un administrateur. Contactez-le si vous pensez qu'il s'agit d'une erreur.",
+    );
+  }
+
+  await upsertUserFirestore({
+    uid,
+    email: user.email ?? emailNormalized,
+    prenom,
+    nom,
+    includeCreatedAt: Boolean(options?.includeCreatedAtForNewUser && !userSnap.exists()),
+  });
+  return "ADMIN";
 }
 
 export async function registerWithFirebase(payload: RegisterPayload): Promise<AuthApiResponse> {
@@ -113,25 +190,9 @@ export async function registerWithFirebase(payload: RegisterPayload): Promise<Au
     const auth = getFirebaseAuth();
     const credential = await createUserWithEmailAndPassword(auth, payload.email, payload.password);
     await updateProfile(credential.user, { displayName: `${payload.prenom} ${payload.nom}`.trim() });
-    let role: "ADMIN" | "GESTIONNAIRE" = "ADMIN";
-    try {
-      await upsertUserFirestore({
-        uid: credential.user.uid,
-        email: credential.user.email ?? payload.email,
-        prenom: payload.prenom,
-        nom: payload.nom,
-        telephone: payload.telephone,
-        includeCreatedAt: true,
-      });
-      role = await applyManagerAccessForUser({
-        uid: credential.user.uid,
-        email: credential.user.email ?? payload.email,
-        prenom: payload.prenom,
-        nom: payload.nom,
-      });
-    } catch (firestoreError) {
-      console.error("Firestore sync failed after register:", firestoreError);
-    }
+    const role = await postAuthFirestoreSync(auth, credential.user, payload.prenom, payload.nom, {
+      includeCreatedAtForNewUser: true,
+    });
     const token = await getIdToken(credential.user, true);
     return {
       message: "Compte cree avec succes.",
@@ -151,25 +212,9 @@ export async function loginWithFirebase(payload: LoginPayload): Promise<AuthApiR
   try {
     const auth = getFirebaseAuth();
     const credential = await signInWithEmailAndPassword(auth, payload.email, payload.password);
-    const token = await getIdToken(credential.user, true);
     const parsedName = splitDisplayName(credential.user.displayName, credential.user.email ?? payload.email);
-    let role: "ADMIN" | "GESTIONNAIRE" = "ADMIN";
-    try {
-      await upsertUserFirestore({
-        uid: credential.user.uid,
-        email: credential.user.email ?? payload.email,
-        prenom: parsedName.prenom,
-        nom: parsedName.nom,
-      });
-      role = await applyManagerAccessForUser({
-        uid: credential.user.uid,
-        email: credential.user.email ?? payload.email,
-        prenom: parsedName.prenom,
-        nom: parsedName.nom,
-      });
-    } catch (firestoreError) {
-      console.error("Firestore sync failed after login:", firestoreError);
-    }
+    const role = await postAuthFirestoreSync(auth, credential.user, parsedName.prenom, parsedName.nom);
+    const token = await getIdToken(credential.user, true);
     return {
       message: "Connexion reussie.",
       accessToken: token,

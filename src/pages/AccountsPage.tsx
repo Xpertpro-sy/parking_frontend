@@ -1,7 +1,17 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Plus, ShieldCheck, UserPlus } from "lucide-react";
+import { Loader2, Plus, ShieldCheck, Trash2, UserPlus } from "lucide-react";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Dialog,
   DialogContent,
@@ -15,6 +25,7 @@ import {
   MANAGER_DEFAULT_INITIAL_PASSWORD,
   MANAGER_PERMISSION_LABELS,
   createManagerAccessRequest,
+  deleteManagerAccessRequest,
   listManagerAccessRequest,
   managerAccessQueryKey,
   updateManagerAccessPermissionsRequest,
@@ -40,6 +51,8 @@ export default function AccountsPage() {
   const [creating, setCreating] = useState(false);
   const [addManagerOpen, setAddManagerOpen] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [deleteManagerId, setDeleteManagerId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const { data: accessProfile, isLoading: profileLoading } = useQuery({
     queryKey: ["access-profile"],
@@ -123,6 +136,23 @@ export default function AccountsPage() {
       toast.error(error instanceof Error ? error.message : "Mise à jour du statut impossible.");
     } finally {
       setUpdatingId(null);
+    }
+  };
+
+  const confirmDeleteManager = async () => {
+    if (!deleteManagerId || deleting) return;
+    setDeleting(true);
+    try {
+      await deleteManagerAccessRequest(deleteManagerId);
+      await queryClient.invalidateQueries({ queryKey: managerAccessQueryKey });
+      toast.success(
+        "Gestionnaire supprimé. La connexion est bloquée. Pour réutiliser l’e-mail, supprimez aussi le compte dans Firebase Authentication (console).",
+      );
+      setDeleteManagerId(null);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Suppression impossible.");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -236,6 +266,30 @@ export default function AccountsPage() {
         </DialogContent>
       </Dialog>
 
+      <AlertDialog open={deleteManagerId !== null} onOpenChange={(open) => !open && !deleting && setDeleteManagerId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer ce gestionnaire ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              L&apos;accès à l&apos;application sera retiré immédiatement. Supprimez le compte dans la base de données Authentication si vous souhaitez libérer l&apos;adresse e-mail.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:opacity-90"
+              disabled={deleting}
+              onClick={(e) => {
+                e.preventDefault();
+                void confirmDeleteManager();
+              }}
+            >
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Supprimer"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <section className="rounded-xl border border-border bg-card p-4 space-y-4">
         <h2 className="text-base font-semibold text-foreground">Gestionnaires de l&apos;entreprise</h2>
         {isLoading ? (
@@ -254,18 +308,29 @@ export default function AccountsPage() {
                     <p className="text-sm font-medium text-foreground">{manager.managerName}</p>
                     <p className="text-xs text-muted-foreground">{manager.managerEmail}</p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => toggleManagerStatus(manager.id, manager.status)}
-                    disabled={updatingId === manager.id}
-                    className={`rounded-lg px-3 py-2 text-xs font-medium ${
-                      manager.status === "active"
-                        ? "border border-destructive/40 text-destructive hover:bg-destructive/10"
-                        : "border border-success/40 text-success hover:bg-success/10"
-                    } disabled:opacity-60`}
-                  >
-                    {manager.status === "active" ? "Désactiver" : "Réactiver"}
-                  </button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => toggleManagerStatus(manager.id, manager.status)}
+                      disabled={updatingId === manager.id}
+                      className={`rounded-lg px-3 py-2 text-xs font-medium ${
+                        manager.status === "active"
+                          ? "border border-destructive/40 text-destructive hover:bg-destructive/10"
+                          : "border border-success/40 text-success hover:bg-success/10"
+                      } disabled:opacity-60`}
+                    >
+                      {manager.status === "active" ? "Désactiver" : "Réactiver"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDeleteManagerId(manager.id)}
+                      disabled={updatingId === manager.id || deleting}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-destructive/40 px-3 py-2 text-xs font-medium text-destructive hover:bg-destructive/10 disabled:opacity-60"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Supprimer
+                    </button>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">

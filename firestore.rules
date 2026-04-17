@@ -18,10 +18,15 @@ service cloud.firestore {
       return isSignedIn() && currentUserData().role == "GESTIONNAIRE";
     }
 
+    function managerWorkspaceAllowed() {
+      let s = currentUserData().get("managerStatus", "");
+      return s != "inactive" && s != "removed";
+    }
+
     function managerActiveFor(ownerUid) {
       return isManager()
         && currentUserData().enterpriseOwnerUid == ownerUid
-        && currentUserData().managerStatus != "inactive";
+        && managerWorkspaceAllowed();
     }
 
     function hasManagerPermission(permission) {
@@ -229,13 +234,13 @@ service cloud.firestore {
     }
 
     match /managerAccess/{accessId} {
+      // Le gestionnaire doit pouvoir lire sa fiche même si inactive (pour afficher un message clair à la connexion).
       allow read: if isSignedIn()
         && (
           resource.data.ownerUid == request.auth.uid
           || (
             request.auth.token.email is string
-            && resource.data.managerEmailNormalized == request.auth.token.email
-            && resource.data.status == "active"
+            && resource.data.managerEmailNormalized == request.auth.token.email.lower()
           )
         );
       allow create: if isSignedIn()
