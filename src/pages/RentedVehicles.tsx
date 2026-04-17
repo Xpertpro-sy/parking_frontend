@@ -24,6 +24,9 @@ const PERIOD_OPTIONS: { value: PeriodFilter; label: string }[] = [
 const ITEMS_PER_PAGE = 8;
 
 export default function RentedVehicles() {
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth < 640 : false,
+  );
   const [viewMode, setViewMode] = useState<'cards' | 'list'>(() => {
     if (typeof window === 'undefined') return 'cards';
     const saved = window.localStorage.getItem('rented-vehicles-view');
@@ -47,6 +50,13 @@ export default function RentedVehicles() {
   useEffect(() => {
     window.localStorage.setItem('rented-vehicles-view', viewMode);
   }, [viewMode]);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 640);
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const activeRentals = rentals
     .filter((rental) => rental.status?.toLowerCase() === 'active')
@@ -89,7 +99,7 @@ export default function RentedVehicles() {
           <h1 className="text-2xl font-bold text-foreground">Voitures louees</h1>
           <p className="text-muted-foreground mt-1">Locations actives en cours</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex w-full sm:w-auto flex-wrap items-center gap-2 sm:justify-end">
           <select
             value={periodFilter}
             onChange={(event) => setPeriodFilter(event.target.value as PeriodFilter)}
@@ -113,7 +123,7 @@ export default function RentedVehicles() {
           <button
             type="button"
             onClick={() => setViewMode('list')}
-            className={`px-3 py-2 rounded-lg text-sm font-medium ${
+            className={`hidden sm:inline-flex px-3 py-2 rounded-lg text-sm font-medium ${
               viewMode === 'list' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-foreground'
             }`}
           >
@@ -131,7 +141,7 @@ export default function RentedVehicles() {
           <p className="text-muted-foreground">Chargement des locations...</p>
         </div>
       ) : filteredRentals.length > 0 ? (
-        viewMode === 'cards' ? (
+        viewMode === 'cards' || isMobile ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {paginatedRentals.map((rental) => (
               <div key={rental.id} className="glass-card p-5 space-y-3">
@@ -148,7 +158,7 @@ export default function RentedVehicles() {
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-3 text-sm">
                   <div>
                     <p className="text-xs text-muted-foreground">Locataire</p>
                     <p className="text-foreground font-medium">{rental.tenantName}</p>
@@ -213,39 +223,39 @@ export default function RentedVehicles() {
             ))}
           </div>
         ) : (
-          <div className="rounded-xl border border-border bg-card overflow-x-auto">
-            <table className="w-full min-w-[980px] text-sm">
+          <div className="rounded-xl border border-border bg-card overflow-hidden">
+            <table className="w-full table-fixed text-sm">
               <thead>
                 <tr className="border-b border-border text-left">
-                  <th className="px-3 py-2 text-muted-foreground font-medium">Vehicule</th>
-                  <th className="px-3 py-2 text-muted-foreground font-medium">Locataire</th>
-                  <th className="px-3 py-2 text-muted-foreground font-medium">Periode</th>
-                  <th className="px-3 py-2 text-muted-foreground font-medium">Duree</th>
-                  <th className="px-3 py-2 text-muted-foreground font-medium">Montant</th>
-                  <th className="px-3 py-2 text-muted-foreground font-medium">Prix/jour</th>
-                  <th className="px-3 py-2 text-muted-foreground font-medium">Statut</th>
+                  <th className="px-3 py-2 text-muted-foreground font-medium w-[20%]">Vehicule</th>
+                  <th className="px-3 py-2 text-muted-foreground font-medium w-[18%]">Locataire</th>
+                  <th className="px-3 py-2 text-muted-foreground font-medium w-[28%]">Periode</th>
+                  <th className="hidden xl:table-cell px-3 py-2 text-muted-foreground font-medium w-[10%]">Duree</th>
+                  <th className="px-3 py-2 text-muted-foreground font-medium w-[14%]">Montant</th>
+                  <th className="hidden 2xl:table-cell px-3 py-2 text-muted-foreground font-medium w-[12%]">Prix/jour</th>
+                  <th className="hidden lg:table-cell px-3 py-2 text-muted-foreground font-medium w-[10%]">Statut</th>
                 </tr>
               </thead>
               <tbody>
                 {paginatedRentals.map((rental) => (
                   <tr key={rental.id} className="border-b border-border/60">
                     <td className="px-3 py-2">
-                      <Link to={`/vehicles/${rental.vehicleId}`} className="font-medium hover:underline">
+                      <Link to={`/vehicles/${rental.vehicleId}`} className="font-medium hover:underline block truncate">
                         {rental.vehicleBrand} {rental.vehicleModel}
                       </Link>
-                      <p className="text-xs text-muted-foreground">{rental.vehiclePlate}</p>
+                      <p className="text-xs text-muted-foreground truncate">{rental.vehiclePlate}</p>
                     </td>
                     <td className="px-3 py-2">
-                      <p className="font-medium">{rental.tenantName}</p>
-                      <p className="text-xs text-muted-foreground">{rental.tenantPhone}</p>
+                      <p className="font-medium truncate">{rental.tenantName}</p>
+                      <p className="text-xs text-muted-foreground truncate">{rental.tenantPhone}</p>
                     </td>
-                    <td className="px-3 py-2">
+                    <td className="px-3 py-2 truncate">
                       {formatDateTimeFr(rental.startDate)} - {formatDateTimeFr(rental.endDate)}
                     </td>
-                    <td className="px-3 py-2">{rental.totalDays} jour(s)</td>
-                    <td className="px-3 py-2 font-semibold">{rental.amount.toLocaleString()} CFA</td>
-                    <td className="px-3 py-2">{rental.dailyPrice.toLocaleString()} CFA</td>
-                    <td className="px-3 py-2">
+                    <td className="hidden xl:table-cell px-3 py-2">{rental.totalDays} jour(s)</td>
+                    <td className="px-3 py-2 font-semibold whitespace-nowrap">{rental.amount.toLocaleString()} CFA</td>
+                    <td className="hidden 2xl:table-cell px-3 py-2">{rental.dailyPrice.toLocaleString()} CFA</td>
+                    <td className="hidden lg:table-cell px-3 py-2">
                       <span className="px-2 py-1 rounded-full text-xs font-medium bg-info/10 text-info">Active</span>
                     </td>
                   </tr>
@@ -268,12 +278,12 @@ export default function RentedVehicles() {
             {' - '}
             {Math.min(currentPage * ITEMS_PER_PAGE, filteredRentals.length)} sur {filteredRentals.length}
           </p>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
               disabled={currentPage === 1}
-              className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary disabled:opacity-50 w-full sm:w-auto justify-center"
             >
               <ChevronLeft className="h-4 w-4" />
               Precedent
@@ -282,7 +292,7 @@ export default function RentedVehicles() {
               type="button"
               onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
               disabled={currentPage === totalPages}
-              className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary disabled:opacity-50 w-full sm:w-auto justify-center"
             >
               Suivant
               <ChevronRight className="h-4 w-4" />

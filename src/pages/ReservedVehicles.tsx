@@ -26,6 +26,9 @@ const ITEMS_PER_PAGE = 8;
 export default function ReservedVehicles() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth < 640 : false,
+  );
   const [viewMode, setViewMode] = useState<'cards' | 'list'>(() => {
     if (typeof window === 'undefined') return 'cards';
     const saved = window.localStorage.getItem('reserved-vehicles-view');
@@ -49,6 +52,13 @@ export default function ReservedVehicles() {
   useEffect(() => {
     window.localStorage.setItem('reserved-vehicles-view', viewMode);
   }, [viewMode]);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 640);
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const activeReservations = reservations.filter((reservation) => reservation.status === 'ACTIVE');
   const filteredReservations = activeReservations.filter((reservation) => {
@@ -104,7 +114,7 @@ export default function ReservedVehicles() {
           <h1 className="text-2xl font-bold text-foreground">Voitures reservees</h1>
           <p className="text-muted-foreground mt-1">Reservations actives des clients</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex w-full sm:w-auto flex-wrap items-center gap-2 sm:justify-end">
           <select
             value={periodFilter}
             onChange={(event) => setPeriodFilter(event.target.value as PeriodFilter)}
@@ -128,7 +138,7 @@ export default function ReservedVehicles() {
           <button
             type="button"
             onClick={() => setViewMode('list')}
-            className={`px-3 py-2 rounded-lg text-sm font-medium ${
+            className={`hidden sm:inline-flex px-3 py-2 rounded-lg text-sm font-medium ${
               viewMode === 'list' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-foreground'
             }`}
           >
@@ -146,7 +156,7 @@ export default function ReservedVehicles() {
           <p className="text-muted-foreground">Chargement des reservations...</p>
         </div>
       ) : filteredReservations.length > 0 ? (
-        viewMode === 'cards' ? (
+        viewMode === 'cards' || isMobile ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {paginatedReservations.map((reservation) => (
               <div key={reservation.id} className="glass-card p-5 space-y-3">
@@ -163,7 +173,7 @@ export default function ReservedVehicles() {
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                   <div>
                     <p className="text-xs text-muted-foreground">Client</p>
                     <p className="text-foreground font-medium">{reservation.customerName}</p>
@@ -203,36 +213,36 @@ export default function ReservedVehicles() {
             ))}
           </div>
         ) : (
-          <div className="rounded-xl border border-border bg-card overflow-x-auto">
-            <table className="w-full min-w-[860px] text-sm">
+          <div className="rounded-xl border border-border bg-card overflow-hidden">
+            <table className="w-full table-fixed text-sm">
               <thead>
                 <tr className="border-b border-border text-left">
-                  <th className="px-3 py-2 text-muted-foreground font-medium">Vehicule</th>
-                  <th className="px-3 py-2 text-muted-foreground font-medium">Client</th>
-                  <th className="px-3 py-2 text-muted-foreground font-medium">Date</th>
-                  <th className="px-3 py-2 text-muted-foreground font-medium">Montant</th>
-                  <th className="px-3 py-2 text-muted-foreground font-medium">Notes</th>
-                  <th className="px-3 py-2 text-muted-foreground font-medium">Actions</th>
+                  <th className="px-3 py-2 text-muted-foreground font-medium w-[24%]">Vehicule</th>
+                  <th className="px-3 py-2 text-muted-foreground font-medium w-[20%]">Client</th>
+                  <th className="px-3 py-2 text-muted-foreground font-medium w-[12%]">Date</th>
+                  <th className="px-3 py-2 text-muted-foreground font-medium w-[14%]">Montant</th>
+                  <th className="px-3 py-2 text-muted-foreground font-medium w-[16%]">Notes</th>
+                  <th className="px-3 py-2 text-muted-foreground font-medium w-[14%]">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {paginatedReservations.map((reservation) => (
                   <tr key={reservation.id} className="border-b border-border/60">
                     <td className="px-3 py-2">
-                      <Link to={`/vehicles/${reservation.vehicleId}`} className="font-medium hover:underline">
+                      <Link to={`/vehicles/${reservation.vehicleId}`} className="font-medium hover:underline block truncate">
                         {reservation.vehicleBrand} {reservation.vehicleModel}
                       </Link>
-                      <p className="text-xs text-muted-foreground">{reservation.vehiclePlate}</p>
+                      <p className="text-xs text-muted-foreground truncate">{reservation.vehiclePlate}</p>
                     </td>
                     <td className="px-3 py-2">
-                      <p className="font-medium">{reservation.customerName}</p>
-                      <p className="text-xs text-muted-foreground">{reservation.customerPhone}</p>
+                      <p className="font-medium truncate">{reservation.customerName}</p>
+                      <p className="text-xs text-muted-foreground truncate">{reservation.customerPhone}</p>
                     </td>
-                    <td className="px-3 py-2">{formatDateFr(reservation.reservationDate)}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">{formatDateFr(reservation.reservationDate)}</td>
                     <td className="px-3 py-2 font-semibold">{reservation.amountPaid.toLocaleString()} CFA</td>
-                    <td className="px-3 py-2">{reservation.notes || 'Aucune'}</td>
+                    <td className="px-3 py-2 truncate">{reservation.notes || 'Aucune'}</td>
                     <td className="px-3 py-2">
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2">
                         <button
                           type="button"
                           onClick={() => goToFinalizeRental(reservation.vehicleId)}
@@ -269,12 +279,12 @@ export default function ReservedVehicles() {
             {' - '}
             {Math.min(currentPage * ITEMS_PER_PAGE, filteredReservations.length)} sur {filteredReservations.length}
           </p>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
               disabled={currentPage === 1}
-              className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary disabled:opacity-50 w-full sm:w-auto justify-center"
             >
               <ChevronLeft className="h-4 w-4" />
               Precedent
@@ -283,7 +293,7 @@ export default function ReservedVehicles() {
               type="button"
               onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
               disabled={currentPage === totalPages}
-              className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary disabled:opacity-50 w-full sm:w-auto justify-center"
             >
               Suivant
               <ChevronRight className="h-4 w-4" />
