@@ -84,6 +84,7 @@ const periodOptions: { value: PeriodFilter; label: string }[] = [
 ];
 
 const MOVEMENTS_PER_PAGE = 12;
+const MOVEMENTS_PER_PAGE_MOBILE = 6;
 
 const formatDateFr = (value: string) =>
   new Date(value).toLocaleDateString("fr-FR", {
@@ -94,6 +95,9 @@ const formatDateFr = (value: string) =>
 
 export default function ComptabilityPage() {
   const queryClient = useQueryClient();
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth < 640 : false,
+  );
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("week");
   const [sourceFilter, setSourceFilter] = useState<"all" | MovementSource>("all");
   const [typeFilter, setTypeFilter] = useState<"all" | MovementType>("all");
@@ -130,6 +134,13 @@ export default function ComptabilityPage() {
       toast.error(error instanceof Error ? error.message : "Impossible de charger les mouvements comptables.");
     }
   }, [isError, error]);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 640);
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   const movementData = useMemo<Movement[]>(() => {
     return accountMovements
@@ -208,13 +219,14 @@ export default function ComptabilityPage() {
     };
   }, [filteredMovements]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredMovements.length / MOVEMENTS_PER_PAGE));
+  const movementsPerPage = isMobile ? MOVEMENTS_PER_PAGE_MOBILE : MOVEMENTS_PER_PAGE;
+  const totalPages = Math.max(1, Math.ceil(filteredMovements.length / movementsPerPage));
 
   const paginatedMovements = useMemo(() => {
     const safePage = Math.min(currentPage, totalPages);
-    const startIndex = (safePage - 1) * MOVEMENTS_PER_PAGE;
-    return filteredMovements.slice(startIndex, startIndex + MOVEMENTS_PER_PAGE);
-  }, [currentPage, filteredMovements, totalPages]);
+    const startIndex = (safePage - 1) * movementsPerPage;
+    return filteredMovements.slice(startIndex, startIndex + movementsPerPage);
+  }, [currentPage, filteredMovements, movementsPerPage, totalPages]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -329,7 +341,7 @@ export default function ComptabilityPage() {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6 animate-fade-in min-w-0 overflow-x-hidden">
       <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Entrees et sorties</h1>
@@ -339,7 +351,7 @@ export default function ComptabilityPage() {
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium cursor-pointer border-0 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              className="inline-flex w-full sm:w-auto items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium cursor-pointer border-0 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             >
               Ajouter un mouvement
               <ChevronDown className="w-4 h-4 opacity-90" aria-hidden />
@@ -357,13 +369,13 @@ export default function ComptabilityPage() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <div className="rounded-xl border border-emerald-200/40 bg-emerald-500/10 p-4">
+        <div className="rounded-xl border border-emerald-200/40 bg-emerald-500/10 p-4 min-w-0">
           <div className="flex items-center justify-between">
             <p className="text-xs font-medium text-emerald-600">Caisse</p>
             <Wallet className="w-4 h-4 text-emerald-500" />
           </div>
           <p
-            className={`mt-2 text-3xl font-bold ${
+            className={`mt-2 text-2xl sm:text-3xl font-bold break-words ${
               metrics.caisse.net < 0 ? "text-rose-600" : "text-foreground"
             }`}
           >
@@ -373,33 +385,33 @@ export default function ComptabilityPage() {
             Déductions : {metrics.caisse.sortie.toLocaleString()} CFA
           </p>
         </div>
-        <div className="rounded-xl border border-sky-200/40 bg-sky-500/10 p-4">
+        <div className="rounded-xl border border-sky-200/40 bg-sky-500/10 p-4 min-w-0">
           <div className="flex items-center justify-between">
             <p className="text-xs font-medium text-sky-600">Banque</p>
             <Landmark className="w-4 h-4 text-sky-500" />
           </div>
-          <p className="mt-2 text-3xl font-bold text-foreground">{metrics.banque.net.toLocaleString()} CFA</p>
+          <p className="mt-2 text-2xl sm:text-3xl font-bold text-foreground break-words">{metrics.banque.net.toLocaleString()} CFA</p>
           <p className="text-xs text-muted-foreground mt-1">Période: {periodOptions.find((o) => o.value === periodFilter)?.label}</p>
         </div>
-        <div className="rounded-xl border border-violet-200/40 bg-violet-500/10 p-4">
+        <div className="rounded-xl border border-violet-200/40 bg-violet-500/10 p-4 min-w-0">
           <div className="flex items-center justify-between">
             <p className="text-xs font-medium text-violet-600">Mobile Money</p>
             <Smartphone className="w-4 h-4 text-violet-500" />
           </div>
-          <p className="mt-2 text-3xl font-bold text-foreground">{metrics.mobileMoney.net.toLocaleString()} CFA</p>
+          <p className="mt-2 text-2xl sm:text-3xl font-bold text-foreground break-words">{metrics.mobileMoney.net.toLocaleString()} CFA</p>
           <p className="text-xs text-muted-foreground mt-1">Période: {periodOptions.find((o) => o.value === periodFilter)?.label}</p>
         </div>
-        <div className="rounded-xl border border-amber-200/40 bg-amber-500/10 p-4">
+        <div className="rounded-xl border border-amber-200/40 bg-amber-500/10 p-4 min-w-0">
           <div className="flex items-center justify-between">
             <p className="text-xs font-medium text-amber-600">Credit</p>
             <Wallet className="w-4 h-4 text-amber-500" />
           </div>
-          <p className="mt-2 text-3xl font-bold text-foreground">{metrics.credit.net.toLocaleString()} CFA</p>
+          <p className="mt-2 text-2xl sm:text-3xl font-bold text-foreground break-words">{metrics.credit.net.toLocaleString()} CFA</p>
           <p className="text-xs text-muted-foreground mt-1">Période: {periodOptions.find((o) => o.value === periodFilter)?.label}</p>
         </div>
       </div>
 
-      <div className="rounded-xl border border-border bg-card p-4 space-y-4 shadow-sm">
+      <div className="rounded-xl border border-border bg-card p-4 space-y-4 shadow-sm min-w-0">
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_auto] gap-3">
           <div className="relative min-w-0">
             <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
@@ -455,18 +467,18 @@ export default function ComptabilityPage() {
 
         <div className="space-y-3 lg:hidden">
           {paginatedMovements.map((movement) => (
-            <div key={`mobile-${movement.id}`} className="rounded-lg border border-border bg-secondary/20 p-3 space-y-2">
+            <div key={`mobile-${movement.id}`} className="rounded-lg border border-border bg-secondary/20 p-3 space-y-2 min-w-0">
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <p className="text-sm font-semibold text-foreground">{movement.reference}</p>
+                  <p className="text-sm font-semibold text-foreground break-words">{movement.reference}</p>
                   <p className="text-xs text-muted-foreground">{formatDateFr(movement.createdAt)}</p>
                 </div>
                 <span className="inline-flex rounded-full bg-secondary px-2.5 py-1 text-[11px] font-medium text-foreground">
                   {sourceLabel[movement.source]} - {directionLabel[movement.type]}
                 </span>
               </div>
-              <p className="text-sm text-foreground">{movement.label}</p>
-              <p className="text-xs text-muted-foreground">{movement.origin}</p>
+              <p className="text-sm text-foreground break-words">{movement.label}</p>
+              <p className="text-xs text-muted-foreground break-words">{movement.origin}</p>
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div>
                   <p className="text-muted-foreground">Categorie</p>
@@ -498,30 +510,30 @@ export default function ComptabilityPage() {
           ))}
         </div>
 
-        <div className="hidden lg:block overflow-x-auto">
-          <table className="w-full min-w-[980px] text-sm">
+        <div className="hidden lg:block w-full max-w-full overflow-x-auto overflow-y-hidden">
+          <table className="w-full min-w-[1200px] text-sm">
             <thead>
               <tr className="text-left border-b border-border">
-                <th className="py-3 px-2 text-muted-foreground font-medium">N°</th>
-                <th className="py-3 px-2 text-muted-foreground font-medium">Date creation</th>
-                <th className="py-3 px-2 text-muted-foreground font-medium">Origine</th>
-                <th className="py-3 px-2 text-muted-foreground font-medium">Designation</th>
-                <th className="py-3 px-2 text-muted-foreground font-medium">Categorie</th>
-                <th className="py-3 px-2 text-muted-foreground font-medium">Resp</th>
-                <th className="py-3 px-2 text-muted-foreground font-medium">Prix U</th>
-                <th className="py-3 px-2 text-muted-foreground font-medium">Qte</th>
-                <th className="py-3 px-2 text-muted-foreground font-medium">Montant</th>
-                <th className="py-3 px-2 text-muted-foreground font-medium">Source</th>
+                <th className="py-3 px-2 text-muted-foreground font-medium whitespace-nowrap">N°</th>
+                <th className="py-3 px-2 text-muted-foreground font-medium whitespace-nowrap">Date creation</th>
+                <th className="py-3 px-2 text-muted-foreground font-medium whitespace-nowrap">Origine</th>
+                <th className="py-3 px-2 text-muted-foreground font-medium whitespace-nowrap">Designation</th>
+                <th className="py-3 px-2 text-muted-foreground font-medium whitespace-nowrap">Categorie</th>
+                <th className="py-3 px-2 text-muted-foreground font-medium whitespace-nowrap">Resp</th>
+                <th className="py-3 px-2 text-muted-foreground font-medium whitespace-nowrap">Prix U</th>
+                <th className="py-3 px-2 text-muted-foreground font-medium whitespace-nowrap">Qte</th>
+                <th className="py-3 px-2 text-muted-foreground font-medium whitespace-nowrap">Montant</th>
+                <th className="py-3 px-2 text-muted-foreground font-medium whitespace-nowrap">Source</th>
               </tr>
             </thead>
             <tbody>
               {paginatedMovements.map((movement) => (
                 <tr key={movement.id} className="border-b border-border/60 hover:bg-secondary/35 transition-colors">
-                  <td className="py-3 px-2">{movement.reference}</td>
-                  <td className="py-3 px-2">{formatDateFr(movement.createdAt)}</td>
-                  <td className="py-3 px-2">{movement.origin}</td>
-                  <td className="py-3 px-2">{movement.label}</td>
-                  <td className="py-3 px-2">
+                  <td className="py-3 px-2 whitespace-nowrap">{movement.reference}</td>
+                  <td className="py-3 px-2 whitespace-nowrap">{formatDateFr(movement.createdAt)}</td>
+                  <td className="py-3 px-2 whitespace-nowrap">{movement.origin}</td>
+                  <td className="py-3 px-2 whitespace-nowrap">{movement.label}</td>
+                  <td className="py-3 px-2 whitespace-nowrap">
                     <span
                       className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
                         movement.category.toLowerCase().includes("vente")
@@ -542,18 +554,18 @@ export default function ComptabilityPage() {
                       {movement.category}
                     </span>
                   </td>
-                  <td className="py-3 px-2">{movement.manager}</td>
-                  <td className="py-3 px-2">{movement.unitPrice.toLocaleString()} CFA</td>
-                  <td className="py-3 px-2">{movement.quantity}</td>
+                  <td className="py-3 px-2 whitespace-nowrap">{movement.manager}</td>
+                  <td className="py-3 px-2 whitespace-nowrap">{movement.unitPrice.toLocaleString()} CFA</td>
+                  <td className="py-3 px-2 whitespace-nowrap">{movement.quantity}</td>
                   <td
-                    className={`py-3 px-2 font-semibold ${
+                    className={`py-3 px-2 whitespace-nowrap font-semibold ${
                       movement.type === "sortie" ? "text-rose-600" : "text-emerald-600"
                     }`}
                   >
                     {movement.type === "sortie" ? "-" : "+"}
                     {movement.amount.toLocaleString()} CFA
                   </td>
-                  <td className="py-3 px-2">
+                  <td className="py-3 px-2 whitespace-nowrap">
                     <span className="inline-flex rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-foreground">
                       {sourceLabel[movement.source]} - {directionLabel[movement.type]}
                     </span>
@@ -576,12 +588,12 @@ export default function ComptabilityPage() {
           </div>
         )}
 
-        {filteredMovements.length > MOVEMENTS_PER_PAGE && (
+        {filteredMovements.length > movementsPerPage && (
           <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-muted-foreground">
-              Affichage {(currentPage - 1) * MOVEMENTS_PER_PAGE + 1}
+              Affichage {(currentPage - 1) * movementsPerPage + 1}
               {" - "}
-              {Math.min(currentPage * MOVEMENTS_PER_PAGE, filteredMovements.length)} sur {filteredMovements.length}
+              {Math.min(currentPage * movementsPerPage, filteredMovements.length)} sur {filteredMovements.length}
             </p>
             <div className="flex items-center gap-2">
               <button
