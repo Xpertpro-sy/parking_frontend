@@ -132,13 +132,13 @@ export default function Register() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="phone">Telephone</Label>
+                    <Label htmlFor="phone">Téléphone</Label>
                     <Input
                       id="phone"
                       type="tel"
                       value={phone}
                       onChange={(event) => setPhone(event.target.value)}
-                      placeholder="Ex: 06 12 34 56 78"
+                      placeholder="+223 00 00 00 00"
                       autoComplete="tel"
                       disabled={submitting}
                       required

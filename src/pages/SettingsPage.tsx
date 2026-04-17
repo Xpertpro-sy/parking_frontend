@@ -1,6 +1,6 @@
 import { ChangeEvent, useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ImagePlus, Type } from "lucide-react";
+import { ImagePlus, Loader2, Type } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { uploadImageToR2 } from "@/lib/cloudflare-upload";
@@ -31,6 +31,7 @@ export default function SettingsPage() {
   const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
   const [pendingImageScale, setPendingImageScale] = useState(100);
   const [savingImage, setSavingImage] = useState(false);
+  const [resettingBranding, setResettingBranding] = useState(false);
 
   const { data: brandingData = DEFAULT_BRANDING } = useQuery({
     queryKey: [...brandingSettingsQueryKey, user?.email ?? "anonymous"],
@@ -54,6 +55,14 @@ export default function SettingsPage() {
     }
     void (async () => {
       try {
+        if (user?.email) {
+          queryClient.setQueryData([...brandingSettingsQueryKey, user.email], {
+            mode: "text",
+            text,
+            imageDataUrl: null,
+            imageScale: branding.imageScale || 100,
+          } as BrandingConfig);
+        }
         await saveBrandingTextRequest({ text });
         await queryClient.invalidateQueries({ queryKey: brandingSettingsQueryKey });
         toast.success("Logo texte enregistré.");
@@ -92,6 +101,14 @@ export default function SettingsPage() {
       setSavingImage(true);
       try {
         const uploadedUrl = await uploadImageToR2(pendingImageFile);
+        if (user?.email) {
+          queryClient.setQueryData([...brandingSettingsQueryKey, user.email], {
+            mode: "image",
+            text: branding.text || DEFAULT_BRANDING.text,
+            imageDataUrl: uploadedUrl,
+            imageScale: pendingImageScale,
+          } as BrandingConfig);
+        }
         await saveBrandingImageRequest({
           imageDataUrl: uploadedUrl,
           imageScale: pendingImageScale,
@@ -110,17 +127,26 @@ export default function SettingsPage() {
   };
 
   const handleReset = () => {
-    if (!user?.email) return;
+    if (!user?.email || resettingBranding) return;
+    setResettingBranding(true);
+    // Feedback immédiat côté UI, sans attendre le round-trip réseau.
+    setBranding(DEFAULT_BRANDING);
+    setTextDraft(DEFAULT_BRANDING.text);
+    setPendingImageSource(null);
+    setPendingImageFile(null);
+    setPendingImageScale(100);
+    if (user?.email) {
+      queryClient.setQueryData([...brandingSettingsQueryKey, user.email], DEFAULT_BRANDING);
+    }
     void (async () => {
       try {
         await resetBrandingSettingsRequest();
         await queryClient.invalidateQueries({ queryKey: brandingSettingsQueryKey });
-        setPendingImageSource(null);
-        setPendingImageFile(null);
-        setPendingImageScale(100);
         toast.success("Logo réinitialisé.");
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Impossible de réinitialiser le logo.");
+      } finally {
+        setResettingBranding(false);
       }
     })();
   };
@@ -164,9 +190,11 @@ export default function SettingsPage() {
           <button
             type="button"
             onClick={handleReset}
-            className="px-3 py-2 rounded-lg border border-border text-sm hover:bg-secondary w-full md:w-auto"
+            disabled={resettingBranding}
+            className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-border text-sm hover:bg-secondary w-full md:w-auto disabled:opacity-60"
           >
-            Réinitialiser
+            {resettingBranding && <Loader2 className="h-4 w-4 animate-spin" />}
+            {resettingBranding ? "Réinitialisation..." : "Utiliser le logo par défaut"}
           </button>
         </div>
 

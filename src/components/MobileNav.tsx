@@ -49,7 +49,7 @@ export default function MobileNav() {
     <>
       <header className="md:hidden flex items-center justify-between px-4 py-3 bg-sidebar border-b border-sidebar-border">
         {branding?.mode === 'image' && branding.imageDataUrl ? (
-          <div className="h-9 w-[170px] max-w-[65vw] rounded-lg border border-sidebar-border bg-card/60 overflow-hidden flex items-center justify-center">
+          <div className="h-9 w-[170px] max-w-[65vw] rounded-lg bg-card/60 overflow-hidden flex items-center justify-center">
             <img
               src={branding.imageDataUrl}
               alt="Logo"
@@ -59,7 +59,7 @@ export default function MobileNav() {
           </div>
         ) : (
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-primary/20 border border-sidebar-border overflow-hidden flex items-center justify-center shrink-0">
+            <div className="w-8 h-8 rounded-lg bg-primary/20 overflow-hidden flex items-center justify-center shrink-0">
               <Car className="w-4 h-4 text-primary" />
             </div>
             <span className="font-bold text-foreground truncate">{branding?.text ?? 'AutoParc'}</span>
