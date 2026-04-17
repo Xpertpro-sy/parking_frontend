@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { NavLink, useLocation } from 'react-router-dom';
 import { Car, LayoutDashboard, Receipt, History, Menu, X, LogOut, Calculator, Settings, Trash2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
@@ -26,10 +27,20 @@ const navItems = [
 ];
 
 export default function MobileNav() {
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [showLogoutPopup, setShowLogoutPopup] = useState(false);
   const location = useLocation();
   const { logout } = useAuth();
+
+  const handleLogout = () => {
+    // Vide le cache en mémoire + cache persisté pour éviter la fuite de données entre comptes.
+    queryClient.clear();
+    localStorage.removeItem('gestion-parking-react-query-cache-v1');
+    logout();
+    setOpen(false);
+    setShowLogoutPopup(false);
+  };
 
   return (
     <>
@@ -88,10 +99,7 @@ export default function MobileNav() {
           <AlertDialogFooter>
             <AlertDialogCancel>Annuler</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => {
-                logout();
-                setOpen(false);
-              }}
+              onClick={handleLogout}
               className="bg-destructive text-destructive-foreground hover:opacity-90"
             >
               Se deconnecter

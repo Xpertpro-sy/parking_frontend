@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -34,9 +35,18 @@ const navItems = [
 ];
 
 export default function AppSidebar() {
+  const queryClient = useQueryClient();
   const location = useLocation();
   const { user, logout } = useAuth();
   const [showLogoutPopup, setShowLogoutPopup] = useState(false);
+
+  const handleLogout = () => {
+    // Vide le cache en mémoire + cache persisté pour éviter la fuite de données entre comptes.
+    queryClient.clear();
+    localStorage.removeItem('gestion-parking-react-query-cache-v1');
+    logout();
+    setShowLogoutPopup(false);
+  };
 
   return (
     <aside className="hidden md:flex flex-col w-64 h-screen bg-sidebar border-r border-sidebar-border sticky top-0">
@@ -109,7 +119,7 @@ export default function AppSidebar() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annuler</AlertDialogCancel>
-            <AlertDialogAction onClick={logout} className="bg-destructive text-destructive-foreground hover:opacity-90">
+            <AlertDialogAction onClick={handleLogout} className="bg-destructive text-destructive-foreground hover:opacity-90">
               Se deconnecter
             </AlertDialogAction>
           </AlertDialogFooter>
