@@ -4,7 +4,7 @@ import { CalendarClock, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { cancelReservationRequest, listReservationsRequest } from '@/lib/vehicle-action-api';
-import { vehicleQueryKeys } from '@/lib/vehicle-queries';
+import { LIVE_COLLAB_REFETCH_MS, vehicleQueryKeys } from '@/lib/vehicle-queries';
 
 const formatDateFr = (value: string) =>
   new Date(value).toLocaleDateString('fr-FR', {
@@ -39,8 +39,10 @@ export default function ReservedVehicles() {
   const { data: reservations = [], isLoading, isError, error } = useQuery({
     queryKey: ['reservations', 'list'],
     queryFn: listReservationsRequest,
-    staleTime: 3 * 60 * 1000,
+    staleTime: 0,
     gcTime: 10 * 60 * 1000,
+    refetchInterval: LIVE_COLLAB_REFETCH_MS,
+    refetchOnWindowFocus: true,
   });
 
   useEffect(() => {

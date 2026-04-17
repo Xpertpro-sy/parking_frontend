@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Loader2, Save, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { uploadImageToR2 } from "@/lib/cloudflare-upload";
-import { useVehicleDetailQuery, vehicleQueryKeys } from "@/lib/vehicle-queries";
+import { LIVE_COLLAB_REFETCH_MS, useVehicleDetailQuery, vehicleQueryKeys } from "@/lib/vehicle-queries";
 import { accountMovementsQueryKey } from "@/lib/accounting-api";
 import { finalizeReservationToRentalRequest, listReservationsRequest } from "@/lib/vehicle-action-api";
 
@@ -66,12 +66,14 @@ export default function FinalizeReservationRentalForm() {
   const queryClient = useQueryClient();
   const vehicleId = searchParams.get("vehicleId") ?? "";
 
-  const { data: vehicle, isLoading: loadingVehicle } = useVehicleDetailQuery(vehicleId || undefined);
+  const { data: vehicle, isLoading: loadingVehicle } = useVehicleDetailQuery(vehicleId || undefined, { live: true });
   const { data: reservations = [], isLoading: loadingReservations } = useQuery({
     queryKey: ["reservations", "list"],
     queryFn: listReservationsRequest,
-    staleTime: 3 * 60 * 1000,
+    staleTime: 0,
     gcTime: 10 * 60 * 1000,
+    refetchInterval: LIVE_COLLAB_REFETCH_MS,
+    refetchOnWindowFocus: true,
   });
 
   const activeReservation = useMemo(

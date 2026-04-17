@@ -28,7 +28,7 @@ export default function VehicleList() {
   const [search, setSearch] = useState('');
   const [pendingDeleteVehicle, setPendingDeleteVehicle] = useState<{ id: string; label: string } | null>(null);
   const [isDeletingVehicle, setIsDeletingVehicle] = useState(false);
-  const { data: vehicles = [], isLoading, isError, error } = useVehiclesQuery();
+  const { data: vehicles = [], isLoading, isError, error } = useVehiclesQuery({ live: true });
 
   useEffect(() => {
     if (isError) {

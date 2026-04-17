@@ -7,7 +7,7 @@ import StatusBadge from '@/components/StatusBadge';
 import { accountMovementsQueryKey } from '@/lib/accounting-api';
 import type { AppPermission } from '@/lib/access-control';
 import { getCurrentUserAccessProfile } from '@/lib/access-control';
-import { useVehicleDetailQuery, vehicleQueryKeys } from '@/lib/vehicle-queries';
+import { LIVE_COLLAB_REFETCH_MS, useVehicleDetailQuery, vehicleQueryKeys } from '@/lib/vehicle-queries';
 import { completeRentalRequest, listRentalsRequest } from '@/lib/rental-api';
 import {
   cancelReservationRequest,
@@ -49,7 +49,7 @@ export default function VehicleDetail() {
   const canReserve = can('reservations');
   const canUseVehiclesModule = can('vehicles');
 
-  const { data: vehicle, isLoading, isError, error } = useVehicleDetailQuery(id);
+  const { data: vehicle, isLoading, isError, error } = useVehicleDetailQuery(id, { live: true });
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const [completingRental, setCompletingRental] = useState(false);
   const [showCompleteRentalPopup, setShowCompleteRentalPopup] = useState(false);
@@ -78,14 +78,18 @@ export default function VehicleDetail() {
   const { data: rentals = [], isLoading: loadingRentals } = useQuery({
     queryKey: ['rentals', 'list'],
     queryFn: listRentalsRequest,
-    staleTime: 3 * 60 * 1000,
+    staleTime: 0,
     gcTime: 10 * 60 * 1000,
+    refetchInterval: LIVE_COLLAB_REFETCH_MS,
+    refetchOnWindowFocus: true,
   });
   const { data: reservations = [] } = useQuery({
     queryKey: ['reservations', 'list'],
     queryFn: listReservationsRequest,
-    staleTime: 3 * 60 * 1000,
+    staleTime: 0,
     gcTime: 10 * 60 * 1000,
+    refetchInterval: LIVE_COLLAB_REFETCH_MS,
+    refetchOnWindowFocus: true,
   });
 
   useEffect(() => {

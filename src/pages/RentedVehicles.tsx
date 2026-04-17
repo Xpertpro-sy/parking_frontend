@@ -4,6 +4,7 @@ import { Car, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { listRentalsRequest } from '@/lib/rental-api';
+import { LIVE_COLLAB_REFETCH_MS } from '@/lib/vehicle-queries';
 
 const formatDateTimeFr = (value: string) =>
   new Date(value).toLocaleString('fr-FR', {
@@ -37,8 +38,10 @@ export default function RentedVehicles() {
   const { data: rentals = [], isLoading, isError, error } = useQuery({
     queryKey: ['rentals', 'list'],
     queryFn: listRentalsRequest,
-    staleTime: 3 * 60 * 1000,
+    staleTime: 0,
     gcTime: 10 * 60 * 1000,
+    refetchInterval: LIVE_COLLAB_REFETCH_MS,
+    refetchOnWindowFocus: true,
   });
 
   useEffect(() => {

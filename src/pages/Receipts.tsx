@@ -21,6 +21,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import FullscreenLoader from '@/components/ui/fullscreen-loader';
+import { getCurrentUserAccessProfile } from '@/lib/access-control';
 
 type UiReceipt =
   | {
@@ -184,6 +185,12 @@ function printInvoice(receipt: UiReceipt) {
 
 export default function Receipts() {
   const queryClient = useQueryClient();
+  const { data: accessProfile } = useQuery({
+    queryKey: ['access-profile'],
+    queryFn: getCurrentUserAccessProfile,
+  });
+  const canUseTrash =
+    accessProfile?.role === 'ADMIN' || accessProfile?.permissions?.trash === true;
   const [searchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedType, setSelectedType] = useState<'all' | 'sale' | 'rental'>('all');
@@ -534,14 +541,16 @@ export default function Receipts() {
                         : 'Recu pret pour impression'}
                     </div>
                     <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setPendingDeleteReceipt(receipt)}
-                        className="inline-flex items-center gap-2 rounded-lg border border-destructive/40 px-3 py-2 text-xs font-medium text-destructive hover:bg-destructive/10"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        Corbeille
-                      </button>
+                      {canUseTrash && (
+                        <button
+                          type="button"
+                          onClick={() => setPendingDeleteReceipt(receipt)}
+                          className="inline-flex items-center gap-2 rounded-lg border border-destructive/40 px-3 py-2 text-xs font-medium text-destructive hover:bg-destructive/10"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Corbeille
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => printInvoice(receipt)}
@@ -603,7 +612,7 @@ export default function Receipts() {
       )}
 
       <AlertDialog
-        open={Boolean(pendingDeleteReceipt)}
+        open={canUseTrash && Boolean(pendingDeleteReceipt)}
         onOpenChange={(open) => !open && !isDeletingReceipt && setPendingDeleteReceipt(null)}
       >
         <AlertDialogContent>

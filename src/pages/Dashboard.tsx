@@ -7,7 +7,7 @@ import heroImage from '@/assets/hero-parking.jpg';
 import { useVehiclesQuery } from '@/lib/vehicle-queries';
 
 export default function Dashboard() {
-  const { data: vehicles = [], isError, error } = useVehiclesQuery();
+  const { data: vehicles = [], isError, error } = useVehiclesQuery({ live: true });
 
   useEffect(() => {
     if (isError) {

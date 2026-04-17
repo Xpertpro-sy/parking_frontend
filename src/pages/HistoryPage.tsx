@@ -11,6 +11,7 @@ import {
   moveReservationHistoryToTrashRequest,
   trashItemsQueryKey,
 } from '@/lib/trash-api';
+import { LIVE_COLLAB_REFETCH_MS } from '@/lib/vehicle-queries';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,6 +23,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import FullscreenLoader from '@/components/ui/fullscreen-loader';
+import { getCurrentUserAccessProfile } from '@/lib/access-control';
 
 type PeriodFilter = 'today' | 'yesterday' | 'week' | 'month' | 'year';
 
@@ -43,6 +45,12 @@ const formatDateTimeFr = (value: string) =>
 
 export default function HistoryPage() {
   const queryClient = useQueryClient();
+  const { data: accessProfile } = useQuery({
+    queryKey: ['access-profile'],
+    queryFn: getCurrentUserAccessProfile,
+  });
+  const canUseTrash =
+    accessProfile?.role === 'ADMIN' || accessProfile?.permissions?.trash === true;
   const [pendingDelete, setPendingDelete] = useState<
     { type: 'reservation' | 'rental'; id: string; label: string } | null
   >(null);
@@ -54,20 +62,26 @@ export default function HistoryPage() {
   const { data: rentals = [], isLoading: loadingRentals, isError: rentalError, error: rentalErrorValue } = useQuery({
     queryKey: ['rentals', 'list'],
     queryFn: listRentalsRequest,
-    staleTime: 3 * 60 * 1000,
+    staleTime: 0,
     gcTime: 10 * 60 * 1000,
+    refetchInterval: LIVE_COLLAB_REFETCH_MS,
+    refetchOnWindowFocus: true,
   });
   const { data: reservations = [], isLoading: loadingReservations, isError: reservationError, error: reservationErrorValue } = useQuery({
     queryKey: ['reservations', 'list'],
     queryFn: listReservationsRequest,
-    staleTime: 3 * 60 * 1000,
+    staleTime: 0,
     gcTime: 10 * 60 * 1000,
+    refetchInterval: LIVE_COLLAB_REFETCH_MS,
+    refetchOnWindowFocus: true,
   });
   const { data: sales = [], isLoading: loadingSales, isError: salesError, error: salesErrorValue } = useQuery({
     queryKey: ['sales', 'list'],
     queryFn: listSalesRequest,
-    staleTime: 3 * 60 * 1000,
+    staleTime: 0,
     gcTime: 10 * 60 * 1000,
+    refetchInterval: LIVE_COLLAB_REFETCH_MS,
+    refetchOnWindowFocus: true,
   });
 
   useEffect(() => {
@@ -154,6 +168,10 @@ export default function HistoryPage() {
   );
 
   const onDeleteReservationHistory = async (reservationId: string) => {
+    if (!canUseTrash) {
+      toast.error("Vous n'avez pas accès à la corbeille.");
+      return;
+    }
     try {
       await moveReservationHistoryToTrashRequest(reservationId);
       await queryClient.invalidateQueries({ queryKey: ['reservations', 'list'] });
@@ -166,6 +184,10 @@ export default function HistoryPage() {
   };
 
   const onDeleteRentalHistory = async (rentalId: string) => {
+    if (!canUseTrash) {
+      toast.error("Vous n'avez pas accès à la corbeille.");
+      return;
+    }
     try {
       await moveRentalHistoryToTrashRequest(rentalId);
       await queryClient.invalidateQueries({ queryKey: ['rentals', 'list'] });
@@ -178,6 +200,11 @@ export default function HistoryPage() {
   };
 
   const onConfirmDelete = async () => {
+    if (!canUseTrash) {
+      toast.error("Vous n'avez pas accès à la corbeille.");
+      setPendingDelete(null);
+      return;
+    }
     if (!pendingDelete || isDeletingHistoryItem) return;
     setIsDeletingHistoryItem(true);
     try {
@@ -275,20 +302,22 @@ export default function HistoryPage() {
                     </span>
                   <div className="flex items-center gap-2">
                     <p className="text-xs text-muted-foreground">{formatDateTimeFr(reservation.createdAt)}</p>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setPendingDelete({
-                          type: 'reservation',
-                          id: reservation.id,
-                          label: `Réservation ${reservation.customerName}`,
-                        })
-                      }
-                      className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-destructive/40 text-destructive text-xs"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      Corbeille
-                    </button>
+                    {canUseTrash && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPendingDelete({
+                            type: 'reservation',
+                            id: reservation.id,
+                            label: `Réservation ${reservation.customerName}`,
+                          })
+                        }
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-destructive/40 text-destructive text-xs"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Corbeille
+                      </button>
+                    )}
                   </div>
                   </div>
 
@@ -345,20 +374,22 @@ export default function HistoryPage() {
                   </span>
                   <div className="flex items-center gap-2">
                     <p className="text-xs text-muted-foreground">{formatDateTimeFr(rental.createdAt)}</p>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setPendingDelete({
-                          type: 'rental',
-                          id: rental.id,
-                          label: `Location ${rental.tenantName}`,
-                        })
-                      }
-                      className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-destructive/40 text-destructive text-xs"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      Corbeille
-                    </button>
+                    {canUseTrash && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPendingDelete({
+                            type: 'rental',
+                            id: rental.id,
+                            label: `Location ${rental.tenantName}`,
+                          })
+                        }
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-destructive/40 text-destructive text-xs"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Corbeille
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -522,7 +553,7 @@ export default function HistoryPage() {
       )}
 
       <AlertDialog
-        open={Boolean(pendingDelete)}
+        open={canUseTrash && Boolean(pendingDelete)}
         onOpenChange={(open) => !open && !isDeletingHistoryItem && setPendingDelete(null)}
       >
         <AlertDialogContent>
