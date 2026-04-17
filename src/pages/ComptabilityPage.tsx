@@ -64,6 +64,17 @@ const sourceSelectOptions: { value: MovementSource; label: string }[] = [
   { value: "credit", label: sourceLabel.credit },
 ];
 
+const transferSourceOptions: { value: MovementSource; label: string }[] = [
+  { value: "caisse", label: sourceLabel.caisse },
+  { value: "banque", label: sourceLabel.banque },
+  { value: "mobile-money", label: sourceLabel["mobile-money"] },
+];
+
+const expenseSourceOptions: { value: MovementSource; label: string }[] = [
+  { value: "caisse", label: sourceLabel.caisse },
+  { value: "mobile-money", label: "Orange Money" },
+];
+
 const periodOptions: { value: PeriodFilter; label: string }[] = [
   { value: "today", label: "Aujourd'hui" },
   { value: "yesterday", label: "Hier" },
@@ -613,7 +624,7 @@ export default function ComptabilityPage() {
                   onChange={(e) => handleTransferFromChange(e.target.value as MovementSource)}
                   className="w-full px-3 py-2.5 rounded-lg bg-secondary border border-border text-sm"
                 >
-                  {sourceSelectOptions.map((o) => (
+                  {transferSourceOptions.map((o) => (
                     <option key={o.value} value={o.value}>
                       {o.label}
                     </option>
@@ -704,7 +715,7 @@ export default function ComptabilityPage() {
                 onChange={(e) => setExpenseSource(e.target.value as MovementSource)}
                 className="w-full px-3 py-2.5 rounded-lg bg-secondary border border-border text-sm"
               >
-                {sourceSelectOptions.map((o) => (
+                {expenseSourceOptions.map((o) => (
                   <option key={o.value} value={o.value}>
                     {o.label}
                   </option>

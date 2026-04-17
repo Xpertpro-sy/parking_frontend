@@ -204,6 +204,9 @@ export async function createManualExpenseRequest(payload: CreateManualExpensePay
   if (!Number.isFinite(payload.amount) || payload.amount <= 0) {
     throw new Error("Montant invalide.");
   }
+  if (payload.source !== "caisse" && payload.source !== "mobile-money") {
+    throw new Error("La depense manuelle est autorisee uniquement depuis Caisse ou Orange Money.");
+  }
   const desc = payload.description.trim();
   if (!desc) {
     throw new Error("Le motif est obligatoire.");
