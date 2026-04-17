@@ -1,8 +1,17 @@
 import { ChangeEvent, useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ImagePlus, Type } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
-import { BrandingConfig, clearBranding, readBranding, saveBranding } from "@/lib/branding";
+import { uploadImageToR2 } from "@/lib/cloudflare-upload";
+import {
+  BrandingConfig,
+  brandingSettingsQueryKey,
+  getBrandingSettingsRequest,
+  resetBrandingSettingsRequest,
+  saveBrandingImageRequest,
+  saveBrandingTextRequest,
+} from "@/lib/branding-api";
 
 const MIN_LOGO_DIMENSION = 120;
 
@@ -15,18 +24,26 @@ const DEFAULT_BRANDING: BrandingConfig = {
 
 export default function SettingsPage() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [branding, setBranding] = useState<BrandingConfig>(DEFAULT_BRANDING);
   const [textDraft, setTextDraft] = useState(DEFAULT_BRANDING.text);
   const [pendingImageSource, setPendingImageSource] = useState<string | null>(null);
+  const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
   const [pendingImageScale, setPendingImageScale] = useState(100);
+  const [savingImage, setSavingImage] = useState(false);
+
+  const { data: brandingData = DEFAULT_BRANDING } = useQuery({
+    queryKey: [...brandingSettingsQueryKey, user?.email ?? "anonymous"],
+    queryFn: getBrandingSettingsRequest,
+    enabled: Boolean(user?.email),
+    staleTime: 60 * 1000,
+  });
 
   useEffect(() => {
-    if (!user?.email) return;
-    const stored = readBranding(user.email);
-    setBranding(stored);
-    setTextDraft(stored.text);
-    setPendingImageScale(stored.imageScale);
-  }, [user?.email]);
+    setBranding(brandingData);
+    setTextDraft(brandingData.text);
+    setPendingImageScale(brandingData.imageScale);
+  }, [brandingData]);
 
   const handleTextSave = () => {
     if (!user?.email) return;
@@ -35,10 +52,15 @@ export default function SettingsPage() {
       toast.error("Le texte du logo ne peut pas être vide.");
       return;
     }
-    const next: BrandingConfig = { mode: "text", text, imageDataUrl: null, imageScale: branding.imageScale || 100 };
-    saveBranding(user.email, next);
-    setBranding(next);
-    toast.success("Logo texte enregistré.");
+    void (async () => {
+      try {
+        await saveBrandingTextRequest({ text });
+        await queryClient.invalidateQueries({ queryKey: brandingSettingsQueryKey });
+        toast.success("Logo texte enregistré.");
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Impossible d'enregistrer le logo texte.");
+      }
+    })();
   };
 
   const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -56,6 +78,7 @@ export default function SettingsPage() {
           return;
         }
         setPendingImageSource(src);
+        setPendingImageFile(file);
       };
       image.onerror = () => toast.error("Fichier image non supporté.");
       image.src = src;
@@ -64,27 +87,42 @@ export default function SettingsPage() {
   };
 
   const handleImageSave = () => {
-    if (!user?.email || !pendingImageSource) return;
-    const next: BrandingConfig = {
-      mode: "image",
-      text: branding.text || DEFAULT_BRANDING.text,
-      imageDataUrl: pendingImageSource,
-      imageScale: pendingImageScale,
-    };
-    saveBranding(user.email, next);
-    setBranding(next);
-    setPendingImageSource(null);
-    toast.success("Logo image enregistré.");
+    if (!user?.email || !pendingImageSource || !pendingImageFile) return;
+    void (async () => {
+      setSavingImage(true);
+      try {
+        const uploadedUrl = await uploadImageToR2(pendingImageFile);
+        await saveBrandingImageRequest({
+          imageDataUrl: uploadedUrl,
+          imageScale: pendingImageScale,
+          fallbackText: branding.text,
+        });
+        await queryClient.invalidateQueries({ queryKey: brandingSettingsQueryKey });
+        setPendingImageSource(null);
+        setPendingImageFile(null);
+        toast.success("Logo image enregistré.");
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Impossible d'enregistrer le logo image.");
+      } finally {
+        setSavingImage(false);
+      }
+    })();
   };
 
   const handleReset = () => {
     if (!user?.email) return;
-    clearBranding(user.email);
-    setBranding(DEFAULT_BRANDING);
-    setTextDraft(DEFAULT_BRANDING.text);
-    setPendingImageSource(null);
-    setPendingImageScale(100);
-    toast.success("Logo réinitialisé.");
+    void (async () => {
+      try {
+        await resetBrandingSettingsRequest();
+        await queryClient.invalidateQueries({ queryKey: brandingSettingsQueryKey });
+        setPendingImageSource(null);
+        setPendingImageFile(null);
+        setPendingImageScale(100);
+        toast.success("Logo réinitialisé.");
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Impossible de réinitialiser le logo.");
+      }
+    })();
   };
 
   return (
@@ -195,7 +233,10 @@ export default function SettingsPage() {
             <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
               <button
                 type="button"
-                onClick={() => setPendingImageSource(null)}
+                onClick={() => {
+                  setPendingImageSource(null);
+                  setPendingImageFile(null);
+                }}
                 className="rounded-lg border border-border px-4 py-2.5 text-sm hover:bg-secondary"
               >
                 Annuler
@@ -203,9 +244,10 @@ export default function SettingsPage() {
               <button
                 type="button"
                 onClick={handleImageSave}
+                disabled={savingImage}
                 className="rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground disabled:opacity-60"
               >
-                Appliquer l&apos;image
+                {savingImage ? "Upload..." : "Appliquer l&apos;image"}
               </button>
             </div>
           </div>

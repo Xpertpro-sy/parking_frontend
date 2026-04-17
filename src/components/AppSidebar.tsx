@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -11,7 +12,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { getBrandingEventName, readBranding, type BrandingConfig } from '@/lib/branding';
+import { brandingSettingsQueryKey, getBrandingSettingsRequest } from '@/lib/branding-api';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -38,22 +39,12 @@ export default function AppSidebar() {
   const location = useLocation();
   const { user, logout } = useAuth();
   const [showLogoutPopup, setShowLogoutPopup] = useState(false);
-  const [branding, setBranding] = useState<BrandingConfig>(() => readBranding(user?.email));
-
-  useEffect(() => {
-    setBranding(readBranding(user?.email));
-  }, [user?.email]);
-
-  useEffect(() => {
-    const eventName = getBrandingEventName();
-    const refresh = () => setBranding(readBranding(user?.email));
-    window.addEventListener(eventName, refresh as EventListener);
-    window.addEventListener('storage', refresh);
-    return () => {
-      window.removeEventListener(eventName, refresh as EventListener);
-      window.removeEventListener('storage', refresh);
-    };
-  }, [user?.email]);
+  const { data: branding } = useQuery({
+    queryKey: [...brandingSettingsQueryKey, user?.email ?? 'anonymous'],
+    queryFn: getBrandingSettingsRequest,
+    enabled: Boolean(user?.email),
+    staleTime: 60 * 1000,
+  });
 
   const handleLogout = () => {
     logout();
@@ -63,7 +54,7 @@ export default function AppSidebar() {
   return (
     <aside className="hidden md:flex flex-col w-64 h-screen bg-sidebar border-r border-sidebar-border sticky top-0">
       {/* Logo */}
-      {branding.mode === 'image' && branding.imageDataUrl ? (
+      {branding?.mode === 'image' && branding.imageDataUrl ? (
         <div className="px-4 py-[5px] border-b border-sidebar-border">
           <div className="h-16 w-full rounded-lg bg-card/60 overflow-hidden flex items-center justify-center">
             <img
@@ -79,7 +70,7 @@ export default function AppSidebar() {
           <div className="w-9 h-9 rounded-lg bg-primary/20 border border-sidebar-border overflow-hidden flex items-center justify-center shrink-0">
             <Car className="w-5 h-5 text-primary" />
           </div>
-          <span className="text-lg font-bold text-foreground tracking-tight truncate">{branding.text}</span>
+          <span className="text-lg font-bold text-foreground tracking-tight truncate">{branding?.text ?? 'AutoParc'}</span>
         </div>
       )}
 

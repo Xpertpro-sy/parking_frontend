@@ -151,6 +151,24 @@ service cloud.firestore {
       allow delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
     }
 
+    match /brandingSettings/{brandingId} {
+      allow read: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      allow create: if isSignedIn()
+        && brandingId == request.auth.uid
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.mode is string
+        && request.resource.data.text is string
+        && request.resource.data.imageScale is number;
+      allow update: if isSignedIn()
+        && brandingId == request.auth.uid
+        && resource.data.ownerUid == request.auth.uid
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.mode is string
+        && request.resource.data.text is string
+        && request.resource.data.imageScale is number;
+      allow delete: if isSignedIn() && brandingId == request.auth.uid && resource.data.ownerUid == request.auth.uid;
+    }
+
     // Tout le reste est refuse par defaut.
     match /{document=**} {
       allow read, write: if false;

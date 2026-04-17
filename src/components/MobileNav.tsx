@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { NavLink, useLocation } from 'react-router-dom';
 import { Car, LayoutDashboard, Receipt, History, Menu, X, LogOut, Calculator, Settings, Trash2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { getBrandingEventName, readBranding, type BrandingConfig } from '@/lib/branding';
+import { brandingSettingsQueryKey, getBrandingSettingsRequest } from '@/lib/branding-api';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,22 +32,12 @@ export default function MobileNav() {
   const [showLogoutPopup, setShowLogoutPopup] = useState(false);
   const location = useLocation();
   const { logout, user } = useAuth();
-  const [branding, setBranding] = useState<BrandingConfig>(() => readBranding(user?.email));
-
-  useEffect(() => {
-    setBranding(readBranding(user?.email));
-  }, [user?.email]);
-
-  useEffect(() => {
-    const eventName = getBrandingEventName();
-    const refresh = () => setBranding(readBranding(user?.email));
-    window.addEventListener(eventName, refresh as EventListener);
-    window.addEventListener('storage', refresh);
-    return () => {
-      window.removeEventListener(eventName, refresh as EventListener);
-      window.removeEventListener('storage', refresh);
-    };
-  }, [user?.email]);
+  const { data: branding } = useQuery({
+    queryKey: [...brandingSettingsQueryKey, user?.email ?? 'anonymous'],
+    queryFn: getBrandingSettingsRequest,
+    enabled: Boolean(user?.email),
+    staleTime: 60 * 1000,
+  });
 
   const handleLogout = () => {
     logout();
@@ -57,7 +48,7 @@ export default function MobileNav() {
   return (
     <>
       <header className="md:hidden flex items-center justify-between px-4 py-3 bg-sidebar border-b border-sidebar-border">
-        {branding.mode === 'image' && branding.imageDataUrl ? (
+        {branding?.mode === 'image' && branding.imageDataUrl ? (
           <div className="h-9 w-[170px] max-w-[65vw] rounded-lg border border-sidebar-border bg-card/60 overflow-hidden flex items-center justify-center">
             <img
               src={branding.imageDataUrl}
@@ -71,7 +62,7 @@ export default function MobileNav() {
             <div className="w-8 h-8 rounded-lg bg-primary/20 border border-sidebar-border overflow-hidden flex items-center justify-center shrink-0">
               <Car className="w-4 h-4 text-primary" />
             </div>
-            <span className="font-bold text-foreground truncate">{branding.text}</span>
+            <span className="font-bold text-foreground truncate">{branding?.text ?? 'AutoParc'}</span>
           </div>
         )}
         <button onClick={() => setOpen(!open)} className="text-foreground">
