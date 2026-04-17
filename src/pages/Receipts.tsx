@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, Printer, Search, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, Printer, Search, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSearchParams } from 'react-router-dom';
 import { getPaymentMethodLabel, listReceiptsRequest, type CreateSalePayload } from '@/lib/sale-api';
@@ -20,6 +20,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import FullscreenLoader from '@/components/ui/fullscreen-loader';
 
 type UiReceipt =
   | {
@@ -187,6 +188,7 @@ export default function Receipts() {
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('week');
   const [currentPage, setCurrentPage] = useState(1);
   const [pendingDeleteReceipt, setPendingDeleteReceipt] = useState<UiReceipt | null>(null);
+  const [isDeletingReceipt, setIsDeletingReceipt] = useState(false);
   const { data: receipts = [], isLoading, isError, error } = useQuery({
     queryKey: ['receipts', 'list'],
     queryFn: async (): Promise<UiReceipt[]> => {
@@ -324,6 +326,8 @@ export default function Receipts() {
   }, [currentPage, totalPages]);
 
   const onMoveReceiptToTrash = async (receipt: UiReceipt) => {
+    if (isDeletingReceipt) return;
+    setIsDeletingReceipt(true);
     try {
       if (receipt.type === 'sale') {
         await moveSaleReceiptToTrashRequest(receipt.id);
@@ -336,6 +340,8 @@ export default function Receipts() {
       setPendingDeleteReceipt(null);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Impossible de supprimer le reçu.');
+    } finally {
+      setIsDeletingReceipt(false);
     }
   };
 
@@ -591,7 +597,10 @@ export default function Receipts() {
         </div>
       )}
 
-      <AlertDialog open={Boolean(pendingDeleteReceipt)} onOpenChange={(open) => !open && setPendingDeleteReceipt(null)}>
+      <AlertDialog
+        open={Boolean(pendingDeleteReceipt)}
+        onOpenChange={(open) => !open && !isDeletingReceipt && setPendingDeleteReceipt(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Envoyer à la corbeille</AlertDialogTitle>
@@ -600,13 +609,20 @@ export default function Receipts() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
-            <AlertDialogAction onClick={() => pendingDeleteReceipt && onMoveReceiptToTrash(pendingDeleteReceipt)}>
-              Confirmer
+            <AlertDialogCancel disabled={isDeletingReceipt}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => pendingDeleteReceipt && onMoveReceiptToTrash(pendingDeleteReceipt)}
+              disabled={isDeletingReceipt}
+            >
+              {isDeletingReceipt ? 'Suppression...' : 'Confirmer'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {isDeletingReceipt && (
+        <FullscreenLoader message="Suppression du reçu..." />
+      )}
     </div>
   );
 }

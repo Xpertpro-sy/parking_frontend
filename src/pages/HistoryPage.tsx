@@ -21,6 +21,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import FullscreenLoader from '@/components/ui/fullscreen-loader';
 
 type PeriodFilter = 'today' | 'yesterday' | 'week' | 'month' | 'year';
 
@@ -45,6 +46,7 @@ export default function HistoryPage() {
   const [pendingDelete, setPendingDelete] = useState<
     { type: 'reservation' | 'rental'; id: string; label: string } | null
   >(null);
+  const [isDeletingHistoryItem, setIsDeletingHistoryItem] = useState(false);
   const [period, setPeriod] = useState<PeriodFilter>('week');
   const [typeFilter, setTypeFilter] = useState<'all' | 'reservation' | 'location'>('all');
   const [currentPage, setCurrentPage] = useState(1);
@@ -176,12 +178,17 @@ export default function HistoryPage() {
   };
 
   const onConfirmDelete = async () => {
-    if (!pendingDelete) return;
-    if (pendingDelete.type === 'reservation') {
-      await onDeleteReservationHistory(pendingDelete.id);
-      return;
+    if (!pendingDelete || isDeletingHistoryItem) return;
+    setIsDeletingHistoryItem(true);
+    try {
+      if (pendingDelete.type === 'reservation') {
+        await onDeleteReservationHistory(pendingDelete.id);
+        return;
+      }
+      await onDeleteRentalHistory(pendingDelete.id);
+    } finally {
+      setIsDeletingHistoryItem(false);
     }
-    await onDeleteRentalHistory(pendingDelete.id);
   };
 
   
@@ -261,7 +268,7 @@ export default function HistoryPage() {
               const isActive = reservation.status === 'ACTIVE';
               const isCancelled = reservation.status === 'CANCELLED';
               return (
-                <div key={`reservation-${reservation.id}`} className="rounded-xl border border-border bg-card p-4 shadow-sm">
+                <div key={`reservation-${reservation.id}`} className="rounded-lg border border-border bg-card p-3 shadow-sm">
                   <div className="flex items-center justify-between gap-3 mb-3">
                     <span className="inline-flex px-2.5 py-1 rounded-full text-[11px] font-semibold bg-purple-100 text-purple-700">
                       Reservation
@@ -301,7 +308,7 @@ export default function HistoryPage() {
                     </span>
                   </div>
 
-                  <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
+                  <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-sm">
                     <div>
                       <p className="text-xs text-muted-foreground">Client</p>
                       <p className="text-foreground font-medium">{reservation.customerName}</p>
@@ -327,7 +334,7 @@ export default function HistoryPage() {
             const rental = entry.payload;
             const isCompleted = rental.status?.toLowerCase() === 'completed';
             return (
-              <div key={`rental-${rental.id}`} className="rounded-xl border border-border bg-card p-4 shadow-sm">
+              <div key={`rental-${rental.id}`} className="rounded-lg border border-border bg-card p-3 shadow-sm">
                 <div className="flex items-center justify-between gap-3 mb-3">
                   <span className="inline-flex px-2.5 py-1 rounded-full text-[11px] font-semibold bg-info/15 text-info">
                     Location
@@ -367,7 +374,7 @@ export default function HistoryPage() {
                   </span>
                 </div>
 
-                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
+                <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-sm">
                   <div>
                     <p className="text-xs text-muted-foreground">Locataire</p>
                     <p className="text-foreground font-medium">{rental.tenantName}</p>
@@ -387,7 +394,7 @@ export default function HistoryPage() {
                   </div>
                 </div>
 
-                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
+                <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-sm">
                   <div>
                     <p className="text-xs text-muted-foreground">Numero CNI</p>
                     <p className="text-foreground">{rental.tenantIdCardNumber}</p>
@@ -431,7 +438,7 @@ export default function HistoryPage() {
                 </div>
 
                 {rental.receipt && (
-                  <div className="mt-3 rounded-lg border border-info/20 bg-info/5 p-3">
+                  <div className="mt-2 rounded-lg border border-info/20 bg-info/5 p-2.5">
                     <p className="text-xs font-medium text-muted-foreground mb-2">Details du recu</p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
                       <div>
@@ -506,7 +513,10 @@ export default function HistoryPage() {
         </div>
       )}
 
-      <AlertDialog open={Boolean(pendingDelete)} onOpenChange={(open) => !open && setPendingDelete(null)}>
+      <AlertDialog
+        open={Boolean(pendingDelete)}
+        onOpenChange={(open) => !open && !isDeletingHistoryItem && setPendingDelete(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Envoyer à la corbeille</AlertDialogTitle>
@@ -515,11 +525,17 @@ export default function HistoryPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
-            <AlertDialogAction onClick={onConfirmDelete}>Confirmer</AlertDialogAction>
+            <AlertDialogCancel disabled={isDeletingHistoryItem}>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={onConfirmDelete} disabled={isDeletingHistoryItem}>
+              {isDeletingHistoryItem ? 'Suppression...' : 'Confirmer'}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {isDeletingHistoryItem && (
+        <FullscreenLoader message="Mise en corbeille en cours..." />
+      )}
     </div>
   );
 }

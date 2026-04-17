@@ -17,6 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import FullscreenLoader from '@/components/ui/fullscreen-loader';
 
 const statusFilters: (VehicleStatus | 'all')[] = ['all', 'available', 'sold', 'rented', 'repair', 'reserved'];
 
@@ -26,6 +27,7 @@ export default function VehicleList() {
   const [filter, setFilter] = useState<VehicleStatus | 'all'>('all');
   const [search, setSearch] = useState('');
   const [pendingDeleteVehicle, setPendingDeleteVehicle] = useState<{ id: string; label: string } | null>(null);
+  const [isDeletingVehicle, setIsDeletingVehicle] = useState(false);
   const { data: vehicles = [], isLoading, isError, error } = useVehiclesQuery();
 
   useEffect(() => {
@@ -42,7 +44,8 @@ export default function VehicleList() {
   });
 
   const handleConfirmVehicleDelete = async () => {
-    if (!pendingDeleteVehicle) return;
+    if (!pendingDeleteVehicle || isDeletingVehicle) return;
+    setIsDeletingVehicle(true);
     try {
       await moveVehicleToTrashRequest(pendingDeleteVehicle.id);
       await queryClient.invalidateQueries({ queryKey: ['vehicles'] });
@@ -51,6 +54,8 @@ export default function VehicleList() {
       setPendingDeleteVehicle(null);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Echec de la suppression.');
+    } finally {
+      setIsDeletingVehicle(false);
     }
   };
 
@@ -126,7 +131,10 @@ export default function VehicleList() {
         </div>
       )}
 
-      <AlertDialog open={Boolean(pendingDeleteVehicle)} onOpenChange={(open) => !open && setPendingDeleteVehicle(null)}>
+      <AlertDialog
+        open={Boolean(pendingDeleteVehicle)}
+        onOpenChange={(open) => !open && !isDeletingVehicle && setPendingDeleteVehicle(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Envoyer à la corbeille</AlertDialogTitle>
@@ -135,11 +143,17 @@ export default function VehicleList() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmVehicleDelete}>Confirmer</AlertDialogAction>
+            <AlertDialogCancel disabled={isDeletingVehicle}>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmVehicleDelete} disabled={isDeletingVehicle}>
+              {isDeletingVehicle ? 'Suppression...' : 'Confirmer'}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {isDeletingVehicle && (
+        <FullscreenLoader message="Suppression du véhicule..." />
+      )}
     </div>
   );
 }

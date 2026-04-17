@@ -8,6 +8,7 @@ import {
   query,
   setDoc,
   serverTimestamp,
+  writeBatch,
   where,
   Timestamp,
 } from 'firebase/firestore';
@@ -188,4 +189,46 @@ export async function deleteTrashItemPermanentlyRequest(trashItemId: string): Pr
   const data = trashSnap.data() as TrashItemFirestoreDoc;
   if (data.ownerUid !== uid) throw new Error('Acces refuse.');
   await deleteDoc(trashRef);
+}
+
+export async function restoreTrashItemRequest(trashItemId: string): Promise<void> {
+  const db = getFirebaseDb();
+  const { uid } = await getAuthIdentity();
+  const trashRef = doc(db, 'trashItems', trashItemId);
+  const trashSnap = await getDoc(trashRef);
+  if (!trashSnap.exists()) throw new Error('Element de corbeille introuvable.');
+  const data = trashSnap.data() as TrashItemFirestoreDoc;
+  if (data.ownerUid !== uid) throw new Error('Acces refuse.');
+
+  const sourceRef = doc(db, data.sourceCollection, data.sourceId);
+  await setDoc(sourceRef, data.payload as Record<string, unknown>);
+  await deleteDoc(trashRef);
+}
+
+export async function deleteSelectedTrashItemsPermanentlyRequest(trashItemIds: string[]): Promise<void> {
+  if (trashItemIds.length === 0) return;
+  const db = getFirebaseDb();
+  const { uid } = await getAuthIdentity();
+  const batch = writeBatch(db);
+  for (const id of trashItemIds) {
+    const ref = doc(db, 'trashItems', id);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) continue;
+    const data = snap.data() as TrashItemFirestoreDoc;
+    if (data.ownerUid !== uid) continue;
+    batch.delete(ref);
+  }
+  await batch.commit();
+}
+
+export async function restoreSelectedTrashItemsRequest(trashItemIds: string[]): Promise<void> {
+  if (trashItemIds.length === 0) return;
+  for (const id of trashItemIds) {
+    await restoreTrashItemRequest(id);
+  }
+}
+
+export async function emptyTrashRequest(): Promise<void> {
+  const items = await listTrashItemsRequest();
+  await deleteSelectedTrashItemsPermanentlyRequest(items.map((item) => item.id));
 }
