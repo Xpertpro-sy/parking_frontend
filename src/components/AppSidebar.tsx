@@ -61,7 +61,7 @@ export default function AppSidebar() {
   };
 
   return (
-    <aside className="hidden md:flex flex-col w-64 h-screen bg-sidebar border-r border-sidebar-border sticky top-0">
+    <aside className="hidden md:flex flex-col w-64 h-screen bg-sidebar border-r border-sidebar-border sticky top-0 overflow-hidden">
       {/* Logo */}
       {branding?.mode === 'image' && branding.imageDataUrl ? (
         <div className="px-4 py-[5px] border-b border-sidebar-border">
@@ -107,7 +107,7 @@ export default function AppSidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="px-3 py-4 border-t border-sidebar-border space-y-1 shrink-0">
+      <div className="px-3 py-4 border-t border-sidebar-border space-y-1 shrink-0 bg-sidebar sticky bottom-0 z-10">
         <div className="px-3 py-2">
           <p className="text-xs uppercase tracking-wide text-sidebar-foreground/70">Connecte</p>
           <p className="text-sm font-medium text-sidebar-accent-foreground truncate">{user?.name}</p>
