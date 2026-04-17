@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, Landmark, Search, Smartphone, Wallet } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Landmark, Search, Smartphone, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import {
   accountMovementsQueryKey,
@@ -25,6 +25,7 @@ import {
 
 type MovementType = "entree" | "sortie";
 type MovementSource = "caisse" | "banque" | "mobile-money" | "credit";
+type PeriodFilter = "today" | "yesterday" | "week" | "month" | "year";
 
 type Movement = {
   id: string;
@@ -63,6 +64,16 @@ const sourceSelectOptions: { value: MovementSource; label: string }[] = [
   { value: "credit", label: sourceLabel.credit },
 ];
 
+const periodOptions: { value: PeriodFilter; label: string }[] = [
+  { value: "today", label: "Aujourd'hui" },
+  { value: "yesterday", label: "Hier" },
+  { value: "week", label: "Semaine" },
+  { value: "month", label: "Mois en cours" },
+  { value: "year", label: "Année" },
+];
+
+const MOVEMENTS_PER_PAGE = 12;
+
 const formatDateFr = (value: string) =>
   new Date(value).toLocaleDateString("fr-FR", {
     day: "2-digit",
@@ -72,9 +83,10 @@ const formatDateFr = (value: string) =>
 
 export default function ComptabilityPage() {
   const queryClient = useQueryClient();
-  const [periodFilter, setPeriodFilter] = useState<"semaine" | "mois">("semaine");
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("week");
   const [sourceFilter, setSourceFilter] = useState<"all" | MovementSource>("all");
   const [typeFilter, setTypeFilter] = useState<"all" | MovementType>("all");
+  const [currentPage, setCurrentPage] = useState(1);
   const [search, setSearch] = useState("");
   const [transferOpen, setTransferOpen] = useState(false);
   const [expenseOpen, setExpenseOpen] = useState(false);
@@ -130,14 +142,29 @@ export default function ComptabilityPage() {
 
   const filteredMovements = useMemo(() => {
     const now = new Date();
-    const startDate =
-      periodFilter === "semaine"
-        ? new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-        : new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const isSameDay = (a: Date, b: Date) =>
+      a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const weekStart = new Date(now);
+    weekStart.setHours(0, 0, 0, 0);
+    weekStart.setDate(weekStart.getDate() - 6);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const yearStart = new Date(now.getFullYear(), 0, 1);
 
     return movementData.filter((movement) => {
       const movementDate = new Date(movement.operationDate);
-      if (movementDate < startDate) return false;
+      const matchesPeriod =
+        periodFilter === "today"
+          ? isSameDay(movementDate, now)
+          : periodFilter === "yesterday"
+            ? isSameDay(movementDate, yesterday)
+            : periodFilter === "week"
+              ? movementDate >= weekStart
+              : periodFilter === "month"
+                ? movementDate >= monthStart
+                : movementDate >= yearStart;
+      if (!matchesPeriod) return false;
       if (sourceFilter !== "all" && movement.source !== sourceFilter) return false;
       if (typeFilter !== "all" && movement.type !== typeFilter) return false;
       if (!search.trim()) return true;
@@ -169,6 +196,24 @@ export default function ComptabilityPage() {
       credit: accumulate("credit"),
     };
   }, [filteredMovements]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredMovements.length / MOVEMENTS_PER_PAGE));
+
+  const paginatedMovements = useMemo(() => {
+    const safePage = Math.min(currentPage, totalPages);
+    const startIndex = (safePage - 1) * MOVEMENTS_PER_PAGE;
+    return filteredMovements.slice(startIndex, startIndex + MOVEMENTS_PER_PAGE);
+  }, [currentPage, filteredMovements, totalPages]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, periodFilter, sourceFilter, typeFilter]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   const sourceAvailableBalances = useMemo(() => {
     const balances: Record<MovementSource, number> = {
@@ -323,7 +368,7 @@ export default function ComptabilityPage() {
             <Landmark className="w-4 h-4 text-sky-500" />
           </div>
           <p className="mt-2 text-3xl font-bold text-foreground">{metrics.banque.net.toLocaleString()} CFA</p>
-          <p className="text-xs text-muted-foreground mt-1">Periode: {periodFilter}</p>
+          <p className="text-xs text-muted-foreground mt-1">Période: {periodOptions.find((o) => o.value === periodFilter)?.label}</p>
         </div>
         <div className="rounded-xl border border-violet-200/40 bg-violet-500/10 p-4">
           <div className="flex items-center justify-between">
@@ -331,7 +376,7 @@ export default function ComptabilityPage() {
             <Smartphone className="w-4 h-4 text-violet-500" />
           </div>
           <p className="mt-2 text-3xl font-bold text-foreground">{metrics.mobileMoney.net.toLocaleString()} CFA</p>
-          <p className="text-xs text-muted-foreground mt-1">Periode: {periodFilter}</p>
+          <p className="text-xs text-muted-foreground mt-1">Période: {periodOptions.find((o) => o.value === periodFilter)?.label}</p>
         </div>
         <div className="rounded-xl border border-amber-200/40 bg-amber-500/10 p-4">
           <div className="flex items-center justify-between">
@@ -339,7 +384,7 @@ export default function ComptabilityPage() {
             <Wallet className="w-4 h-4 text-amber-500" />
           </div>
           <p className="mt-2 text-3xl font-bold text-foreground">{metrics.credit.net.toLocaleString()} CFA</p>
-          <p className="text-xs text-muted-foreground mt-1">Periode: {periodFilter}</p>
+          <p className="text-xs text-muted-foreground mt-1">Période: {periodOptions.find((o) => o.value === periodFilter)?.label}</p>
         </div>
       </div>
 
@@ -356,11 +401,14 @@ export default function ComptabilityPage() {
           </div>
           <select
             value={periodFilter}
-            onChange={(event) => setPeriodFilter(event.target.value as "semaine" | "mois")}
+            onChange={(event) => setPeriodFilter(event.target.value as PeriodFilter)}
             className="w-full lg:w-auto px-3 py-2.5 rounded-lg bg-secondary border border-border text-sm"
           >
-            <option value="semaine">Semaine</option>
-            <option value="mois">Mois</option>
+            {periodOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
           </select>
           <select
             value={sourceFilter}
@@ -395,7 +443,7 @@ export default function ComptabilityPage() {
         </div>
 
         <div className="space-y-3 lg:hidden">
-          {filteredMovements.map((movement) => (
+          {paginatedMovements.map((movement) => (
             <div key={`mobile-${movement.id}`} className="rounded-lg border border-border bg-secondary/20 p-3 space-y-2">
               <div className="flex items-start justify-between gap-2">
                 <div>
@@ -456,7 +504,7 @@ export default function ComptabilityPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredMovements.map((movement) => (
+              {paginatedMovements.map((movement) => (
                 <tr key={movement.id} className="border-b border-border/60 hover:bg-secondary/35 transition-colors">
                   <td className="py-3 px-2">{movement.reference}</td>
                   <td className="py-3 px-2">{formatDateFr(movement.createdAt)}</td>
@@ -514,6 +562,36 @@ export default function ComptabilityPage() {
         {!isLoading && filteredMovements.length === 0 && (
           <div className="py-8 text-center text-muted-foreground lg:hidden">
             Aucun mouvement comptable trouve pour ces filtres.
+          </div>
+        )}
+
+        {filteredMovements.length > MOVEMENTS_PER_PAGE && (
+          <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-muted-foreground">
+              Affichage {(currentPage - 1) * MOVEMENTS_PER_PAGE + 1}
+              {" - "}
+              {Math.min(currentPage * MOVEMENTS_PER_PAGE, filteredMovements.length)} sur {filteredMovements.length}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                disabled={currentPage === 1}
+                className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary disabled:opacity-50"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Precedent
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                disabled={currentPage === totalPages}
+                className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary disabled:opacity-50"
+              >
+                Suivant
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         )}
       </div>
