@@ -1,7 +1,15 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Plus, ShieldCheck } from "lucide-react";
+import { Loader2, Plus, ShieldCheck, UserPlus } from "lucide-react";
 import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { DEFAULT_MANAGER_PERMISSIONS, PermissionMap, getCurrentUserAccessProfile } from "@/lib/access-control";
 import {
   MANAGER_DEFAULT_INITIAL_PASSWORD,
@@ -30,6 +38,7 @@ export default function AccountsPage() {
   const [managerEmail, setManagerEmail] = useState("");
   const [permissions, setPermissions] = useState<PermissionMap>(DEFAULT_MANAGER_PERMISSIONS);
   const [creating, setCreating] = useState(false);
+  const [addManagerOpen, setAddManagerOpen] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   const { data: accessProfile, isLoading: profileLoading } = useQuery({
@@ -52,6 +61,18 @@ export default function AccountsPage() {
     setPermissions((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
+  const resetAddManagerForm = () => {
+    setManagerName("");
+    setManagerEmail("");
+    setPermissions(DEFAULT_MANAGER_PERMISSIONS);
+  };
+
+  const handleAddManagerOpenChange = (open: boolean) => {
+    if (!open && creating) return;
+    setAddManagerOpen(open);
+    if (!open) resetAddManagerForm();
+  };
+
   const handleCreateManager = async () => {
     if (!managerName.trim() || !managerEmail.trim()) {
       toast.error("Nom et email du gestionnaire sont obligatoires.");
@@ -69,9 +90,8 @@ export default function AccountsPage() {
       toast.success(
         `Gestionnaire ajouté. Connexion : e-mail du gestionnaire, mot de passe ${MANAGER_DEFAULT_INITIAL_PASSWORD}.`,
       );
-      setManagerName("");
-      setManagerEmail("");
-      setPermissions(DEFAULT_MANAGER_PERMISSIONS);
+      resetAddManagerForm();
+      setAddManagerOpen(false);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Impossible d'ajouter le gestionnaire.");
     } finally {
@@ -132,49 +152,89 @@ export default function AccountsPage() {
         <h1 className="text-2xl font-bold text-foreground">Comptes</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Créez des gestionnaires et attribuez des permissions pour aider à gérer votre entreprise. Chaque gestionnaire
-          reçoit un compte Firebase Authentication avec le mot de passe initial{" "}
+          reçoit un compte Authentication avec le mot de passe initial{" "}
           <span className="font-mono text-foreground">{MANAGER_DEFAULT_INITIAL_PASSWORD}</span>.
         </p>
-      </div>
-
-      <section className="rounded-xl border border-border bg-card p-4 space-y-4">
-        <div className="flex items-center gap-2">
-          <ShieldCheck className="h-5 w-5 text-primary" />
-          <h2 className="text-base font-semibold text-foreground">Ajouter un gestionnaire</h2>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <input
-            value={managerName}
-            onChange={(e) => setManagerName(e.target.value)}
-            placeholder="Nom du gestionnaire"
-            className="w-full rounded-lg border border-border bg-secondary px-3 py-2.5 text-sm"
-          />
-          <input
-            type="email"
-            value={managerEmail}
-            onChange={(e) => setManagerEmail(e.target.value)}
-            placeholder="Email du gestionnaire"
-            className="w-full rounded-lg border border-border bg-secondary px-3 py-2.5 text-sm"
-          />
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-          {MANAGED_PERMISSION_KEYS.map((key) => (
-            <label key={key} className="flex items-center gap-2 rounded-lg border border-border bg-secondary/40 px-2.5 py-2 text-xs">
-              <input type="checkbox" checked={permissions[key]} onChange={() => toggleDraftPermission(key)} className="accent-primary" />
-              {MANAGER_PERMISSION_LABELS[key]}
-            </label>
-          ))}
-        </div>
         <button
           type="button"
-          onClick={handleCreateManager}
-          disabled={creating}
-          className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground disabled:opacity-60"
+          onClick={() => setAddManagerOpen(true)}
+          className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground"
         >
-          {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-          {creating ? "Ajout..." : "Ajouter le gestionnaire"}
+          <UserPlus className="h-4 w-4" />
+          Ajouter un gestionnaire
         </button>
-      </section>
+      </div>
+
+      <Dialog open={addManagerOpen} onOpenChange={handleAddManagerOpenChange}>
+        <DialogContent
+          className="max-h-[90vh] max-w-2xl overflow-y-auto"
+          onPointerDownOutside={(e) => creating && e.preventDefault()}
+          onEscapeKeyDown={(e) => creating && e.preventDefault()}
+        >
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-primary" />
+              Ajouter un gestionnaire
+            </DialogTitle>
+            <DialogDescription>
+              Renseignez le nom, l&apos;e-mail et les permissions. Mot de passe initial :{" "}
+              <span className="font-mono text-foreground">{MANAGER_DEFAULT_INITIAL_PASSWORD}</span>.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <input
+                value={managerName}
+                onChange={(e) => setManagerName(e.target.value)}
+                placeholder="Nom du gestionnaire"
+                className="w-full rounded-lg border border-border bg-secondary px-3 py-2.5 text-sm"
+              />
+              <input
+                type="email"
+                value={managerEmail}
+                onChange={(e) => setManagerEmail(e.target.value)}
+                placeholder="Email du gestionnaire"
+                className="w-full rounded-lg border border-border bg-secondary px-3 py-2.5 text-sm"
+              />
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+              {MANAGED_PERMISSION_KEYS.map((key) => (
+                <label
+                  key={key}
+                  className="flex items-center gap-2 rounded-lg border border-border bg-secondary/40 px-2.5 py-2 text-xs"
+                >
+                  <input
+                    type="checkbox"
+                    checked={permissions[key]}
+                    onChange={() => toggleDraftPermission(key)}
+                    className="accent-primary"
+                  />
+                  {MANAGER_PERMISSION_LABELS[key]}
+                </label>
+              ))}
+            </div>
+          </div>
+          <DialogFooter>
+            <button
+              type="button"
+              onClick={() => handleAddManagerOpenChange(false)}
+              disabled={creating}
+              className="rounded-lg border border-border bg-background px-4 py-2.5 text-sm font-medium disabled:opacity-60"
+            >
+              Annuler
+            </button>
+            <button
+              type="button"
+              onClick={handleCreateManager}
+              disabled={creating}
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground disabled:opacity-60"
+            >
+              {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+              {creating ? "Ajout..." : "Ajouter le gestionnaire"}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <section className="rounded-xl border border-border bg-card p-4 space-y-4">
         <h2 className="text-base font-semibold text-foreground">Gestionnaires de l&apos;entreprise</h2>
