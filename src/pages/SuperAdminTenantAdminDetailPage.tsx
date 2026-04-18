@@ -17,13 +17,10 @@ export default function SuperAdminTenantAdminDetailPage() {
   const queryClient = useQueryClient();
   const [draftMax, setDraftMax] = useState<number | null>(null);
 
-   const { data: detail, isLoading, isError, error } = useQuery({
+  const { data: detail, isLoading, isError, error } = useQuery({
     queryKey: superAdminTenantAdminDetailQueryKey(adminUid ?? ""),
     queryFn: () => getTenantAdminDetailForSuperAdminRequest(adminUid!),
     enabled: Boolean(adminUid),
-    staleTime: 0,
-    refetchOnMount: "always",
-    refetchOnWindowFocus: true,
   });
 
   const effectiveDraft =

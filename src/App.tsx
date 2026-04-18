@@ -38,14 +38,15 @@ const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 5 * 60 * 1000,
-      gcTime: ONE_DAY_MS,
+      // Pas de cache par défaut (sauf requêtes véhicules : voir `vehicle-queries.ts` et persistance ci-dessous).
+      staleTime: 0,
+      gcTime: 0,
       retry: 1,
-      networkMode: "offlineFirst",
-      refetchOnWindowFocus: false,
+      networkMode: "online",
+      refetchOnWindowFocus: true,
     },
     mutations: {
-      networkMode: "offlineFirst",
+      networkMode: "online",
       retry: 0,
     },
   },
@@ -65,8 +66,7 @@ const App = () => (
       maxAge: ONE_DAY_MS,
       dehydrateOptions: {
         shouldDehydrateQuery: (query) => {
-          if (query.queryKey[0] === "tenant-admin-max-managers") return false;
-          if (query.queryKey[0] === "super-admin" && query.queryKey[1] === "tenant-admin-detail") return false;
+          if (query.queryKey[0] !== "vehicles") return false;
           return defaultShouldDehydrateQuery(query);
         },
       },

@@ -37,7 +37,6 @@ export default function SettingsPage() {
     queryKey: [...brandingSettingsQueryKey, user?.email ?? "anonymous"],
     queryFn: getBrandingSettingsRequest,
     enabled: Boolean(user?.email),
-    staleTime: 60 * 1000,
   });
 
   useEffect(() => {

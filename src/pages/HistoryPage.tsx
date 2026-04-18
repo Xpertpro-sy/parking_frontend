@@ -64,24 +64,18 @@ export default function HistoryPage() {
   const { data: rentals = [], isLoading: loadingRentals, isError: rentalError, error: rentalErrorValue } = useQuery({
     queryKey: ['rentals', 'list'],
     queryFn: listRentalsRequest,
-    staleTime: 0,
-    gcTime: 10 * 60 * 1000,
     refetchInterval: LIVE_COLLAB_REFETCH_MS,
     refetchOnWindowFocus: true,
   });
   const { data: reservations = [], isLoading: loadingReservations, isError: reservationError, error: reservationErrorValue } = useQuery({
     queryKey: ['reservations', 'list'],
     queryFn: listReservationsRequest,
-    staleTime: 0,
-    gcTime: 10 * 60 * 1000,
     refetchInterval: LIVE_COLLAB_REFETCH_MS,
     refetchOnWindowFocus: true,
   });
   const { data: sales = [], isLoading: loadingSales, isError: salesError, error: salesErrorValue } = useQuery({
     queryKey: ['sales', 'list'],
     queryFn: listSalesRequest,
-    staleTime: 0,
-    gcTime: 10 * 60 * 1000,
     refetchInterval: LIVE_COLLAB_REFETCH_MS,
     refetchOnWindowFocus: true,
   });

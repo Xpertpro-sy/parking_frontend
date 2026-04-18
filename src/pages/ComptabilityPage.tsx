@@ -135,9 +135,6 @@ export default function ComptabilityPage() {
   } = useQuery({
     queryKey: accountMovementsQueryKey,
     queryFn: listAccountMovementsRequest,
-    staleTime: 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-    refetchOnWindowFocus: true,
   });
 
   useEffect(() => {

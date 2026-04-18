@@ -76,11 +76,7 @@ export default function AccountsPage() {
     enabled: Boolean(
       accessProfile?.role === "ADMIN" && accessProfile.permissions.accounts && accessProfile.uid,
     ),
-    // Plafond modifiable par le super admin : pas de cache « froid », reprise à l’ouverture de l’onglet et léger polling.
-    staleTime: 0,
-    refetchOnMount: "always",
-    refetchOnWindowFocus: true,
-    refetchOnReconnect: true,
+    // Plafond modifiable par le super admin : polling léger (le reste du cache est désactivé globalement).
     refetchInterval: 20_000,
     refetchIntervalInBackground: false,
   });

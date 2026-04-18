@@ -70,8 +70,6 @@ export default function FinalizeReservationRentalForm() {
   const { data: reservations = [], isLoading: loadingReservations } = useQuery({
     queryKey: ["reservations", "list"],
     queryFn: listReservationsRequest,
-    staleTime: 0,
-    gcTime: 10 * 60 * 1000,
     refetchInterval: LIVE_COLLAB_REFETCH_MS,
     refetchOnWindowFocus: true,
   });

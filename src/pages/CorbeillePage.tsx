@@ -53,8 +53,6 @@ export default function CorbeillePage() {
   const { data: trashItems = [], isLoading, isError, error } = useQuery({
     queryKey: trashItemsQueryKey,
     queryFn: listTrashItemsRequest,
-    staleTime: 0,
-    gcTime: 10 * 60 * 1000,
     refetchInterval: LIVE_COLLAB_REFETCH_MS,
     refetchOnWindowFocus: true,
   });

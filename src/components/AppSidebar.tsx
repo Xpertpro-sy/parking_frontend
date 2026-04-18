@@ -47,13 +47,11 @@ export default function AppSidebar() {
     queryKey: ['access-profile'],
     queryFn: getCurrentUserAccessProfile,
     enabled: Boolean(user?.email),
-    staleTime: 60 * 1000,
   });
   const { data: branding } = useQuery({
     queryKey: [...brandingSettingsQueryKey, user?.email ?? 'anonymous'],
     queryFn: getBrandingSettingsRequest,
     enabled: Boolean(user?.email),
-    staleTime: 60 * 1000,
   });
 
   const handleLogout = () => {

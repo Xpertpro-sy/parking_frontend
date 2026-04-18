@@ -38,8 +38,6 @@ export default function RentedVehicles() {
   const { data: rentals = [], isLoading, isError, error } = useQuery({
     queryKey: ['rentals', 'list'],
     queryFn: listRentalsRequest,
-    staleTime: 0,
-    gcTime: 10 * 60 * 1000,
     refetchInterval: LIVE_COLLAB_REFETCH_MS,
     refetchOnWindowFocus: true,
   });

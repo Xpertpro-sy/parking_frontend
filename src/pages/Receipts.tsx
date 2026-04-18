@@ -257,8 +257,6 @@ export default function Receipts() {
         (a, b) => new Date(b.issuedAt).getTime() - new Date(a.issuedAt).getTime(),
       );
     },
-    staleTime: 3 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
   });
 
   useEffect(() => {
