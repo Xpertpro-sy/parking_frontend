@@ -251,6 +251,54 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    function isTenantAdminOnly() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && usersDoc(request.auth.uid).data.role == "ADMIN";
+    }
+
+    // Demandes de paiement abonnement (Orange Money). Création : admin locataire uniquement.
+    match /subscriptionRequests/{requestId} {
+      allow read: if isSuperAdmin()
+        || (isTenantAdminOnly() && resource.data.ownerUid == request.auth.uid)
+        || (
+          isManager()
+          && managerWorkspaceAllowed()
+          && resource.data.ownerUid == currentUserData().enterpriseOwnerUid
+        );
+
+      allow create: if isTenantAdminOnly()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.status == "pending"
+        && request.resource.data.planId in ["1m", "3m", "6m", "1y"]
+        && request.resource.data.depositReference is string
+        && request.resource.data.depositReference.size() >= 4
+        && request.resource.data.amountCfa is int
+        && request.resource.data.amountCfa > 0
+        && request.resource.data.amountCfa <= 1000000
+        && request.resource.data.ownerEmail is string
+        && request.resource.data.ownerDisplayName is string;
+
+      allow update: if isSuperAdmin()
+        && resource.data.status == "pending"
+        && (request.resource.data.status == "approved" || request.resource.data.status == "rejected")
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.planId == resource.data.planId
+        && request.resource.data.amountCfa == resource.data.amountCfa
+        && request.resource.data.depositReference == resource.data.depositReference;
+
+      allow delete: if false;
+    }
+
+    // Abonnement actif par entreprise (ownerUid = admin locataire). Écriture : super admin (validation paiement).
+    match /tenantSubscriptions/{ownerUid} {
+      allow read: if isSuperAdmin()
+        || isOwner(ownerUid)
+        || (isManager() && managerActiveFor(ownerUid));
+      allow create, update: if isSuperAdmin();
+      allow delete: if false;
+    }
+
     match /managerAccess/{accessId} {
       // Le gestionnaire doit pouvoir lire sa fiche même si inactive (pour afficher un message clair à la connexion).
       allow read: if isSignedIn()

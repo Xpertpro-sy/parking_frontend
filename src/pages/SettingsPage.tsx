@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { uploadImageToR2 } from "@/lib/cloudflare-upload";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import SubscriptionTenantPanel from "@/components/settings/SubscriptionTenantPanel";
 import {
   BrandingConfig,
   brandingSettingsQueryKey,
@@ -320,36 +321,7 @@ export default function SettingsPage() {
         </TabsContent>
 
         <TabsContent value="subscription" className="mt-6 focus-visible:outline-none">
-          <section className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6 space-y-6">
-            <div>
-              <h2 className="text-lg font-semibold text-foreground">Abonnement</h2>
-              <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
-                Suivez ici votre formule, votre statut et les options de facturation lorsqu&apos;elles seront disponibles.
-              </p>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="rounded-xl border border-border bg-muted/30 p-5">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Formule actuelle</p>
-                <p className="mt-2 text-xl font-semibold text-foreground">Standard</p>
-                <p className="mt-1 text-sm text-muted-foreground">Accès complet aux modules de votre espace.</p>
-              </div>
-              <div className="rounded-xl border border-border bg-muted/30 p-5">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Statut</p>
-                <p className="mt-2 text-xl font-semibold text-foreground">Actif</p>
-                <p className="mt-1 text-sm text-muted-foreground">Aucune action requise pour le moment.</p>
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-6 text-center">
-              <CreditCard className="mx-auto h-10 w-10 text-muted-foreground/70 mb-3" aria-hidden />
-              <p className="text-sm font-medium text-foreground">Évolution à venir</p>
-              <p className="text-sm text-muted-foreground mt-2 max-w-md mx-auto">
-                Le changement de formule, l&apos;historique de facturation et le portail client seront proposés dans une
-                prochaine version. Contactez le support si vous avez besoin d&apos;une modification de contrat.
-              </p>
-            </div>
-          </section>
+          <SubscriptionTenantPanel />
         </TabsContent>
       </Tabs>
     </div>

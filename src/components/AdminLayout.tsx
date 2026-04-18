@@ -30,6 +30,12 @@ export default function AdminLayout() {
               Admins locataires
             </Link>
             <Link
+              to="/admin/abonnements"
+              className={`shrink-0 rounded-md px-2.5 py-1.5 ${location.pathname.startsWith("/admin/abonnements") ? "bg-sidebar-accent text-sidebar-primary" : "text-muted-foreground"}`}
+            >
+              Abonnements
+            </Link>
+            <Link
               to="/admin/profil"
               className={`shrink-0 rounded-md px-2.5 py-1.5 ${location.pathname.startsWith("/admin/profil") ? "bg-sidebar-accent text-sidebar-primary" : "text-muted-foreground"}`}
             >

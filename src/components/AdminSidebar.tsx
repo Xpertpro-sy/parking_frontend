@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { LayoutDashboard, LogOut, Users, ChevronRight } from "lucide-react";
+import { CreditCard, LayoutDashboard, LogOut, Users, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import {
@@ -56,6 +56,19 @@ export default function AdminSidebar() {
         >
           <Users className="w-5 h-5" />
           Administrateurs locataires
+        </NavLink>
+        <NavLink
+          to="/admin/abonnements"
+          className={({ isActive }) =>
+            `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+              isActive
+                ? "bg-sidebar-accent text-sidebar-primary"
+                : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            }`
+          }
+        >
+          <CreditCard className="w-5 h-5" />
+          Abonnements
         </NavLink>
       </nav>
 

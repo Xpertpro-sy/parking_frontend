@@ -29,6 +29,7 @@ import ProfilePage from "./pages/ProfilePage";
 import SuperAdminDashboard from "./pages/SuperAdminDashboard";
 import SuperAdminPlatformAccountsPage from "./pages/SuperAdminPlatformAccountsPage";
 import SuperAdminTenantAdminDetailPage from "./pages/SuperAdminTenantAdminDetailPage";
+import SuperAdminSubscriptionsPage from "./pages/SuperAdminSubscriptionsPage";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import NotFound from "./pages/NotFound";
@@ -89,6 +90,7 @@ const App = () => (
                   <Route index element={<SuperAdminDashboard />} />
                   <Route path="comptes/:adminUid" element={<SuperAdminTenantAdminDetailPage />} />
                   <Route path="comptes" element={<SuperAdminPlatformAccountsPage />} />
+                  <Route path="abonnements" element={<SuperAdminSubscriptionsPage />} />
                   <Route path="profil" element={<ProfilePage />} />
                 </Route>
               </Route>
