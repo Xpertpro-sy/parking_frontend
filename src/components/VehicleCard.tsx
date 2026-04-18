@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { CalendarCheck, Car, Fuel, Gauge, MoreVertical } from 'lucide-react';
+import { CalendarCheck, CalendarX, Car, Fuel, Gauge, MoreVertical } from 'lucide-react';
 import { Vehicle } from '@/types/vehicle';
 import StatusBadge from './StatusBadge';
 import {
@@ -14,6 +14,8 @@ interface VehicleCardProps {
   showActions?: boolean;
   /** Affiche un repère lorsque la date prévue de la réservation active est aujourd’hui (liste véhicules). */
   reservationDueToday?: boolean;
+  /** Période réservée dépassée alors que la réservation est encore active (liste véhicules). */
+  reservationPeriodEnded?: boolean;
   onEdit?: (vehicle: Vehicle) => void;
   onDelete?: (vehicle: Vehicle) => void;
 }
@@ -22,6 +24,7 @@ export default function VehicleCard({
   vehicle,
   showActions = false,
   reservationDueToday = false,
+  reservationPeriodEnded = false,
   onEdit,
   onDelete,
 }: VehicleCardProps) {
@@ -50,6 +53,16 @@ export default function VehicleCard({
           >
             <CalendarCheck className="w-3.5 h-3.5 shrink-0" aria-hidden />
             <span>Jour de réservation</span>
+          </div>
+        )}
+
+        {reservationPeriodEnded && (
+          <div
+            className="absolute top-2 left-2 z-10 inline-flex items-center gap-1 rounded-md border border-amber-400/90 bg-amber-600/95 px-2 py-1 text-[11px] font-semibold text-white shadow-sm"
+            title="La période prévue pour cette réservation est terminée — pensez à finaliser ou suivre le véhicule"
+          >
+            <CalendarX className="w-3.5 h-3.5 shrink-0" aria-hidden />
+            <span>Réservation terminée</span>
           </div>
         )}
 

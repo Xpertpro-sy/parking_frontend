@@ -39,6 +39,16 @@ function isInReservationHighlightWindow(reservationDateIso: string, reservationE
   return today >= start && today <= end;
 }
 
+/** La fenêtre réservation est passée (aujourd’hui après le dernier jour inclus) — réservation encore ACTIVE côté app. */
+function isReservationPeriodEnded(reservationDateIso: string, reservationEndDateIso: string | null): boolean {
+  const start = localDayStartMs(reservationDateIso);
+  if (Number.isNaN(start)) return false;
+  const end = reservationEndDateIso ? localDayStartMs(reservationEndDateIso) : start;
+  if (Number.isNaN(end)) return false;
+  const today = localDayStartMs(new Date());
+  return today > end;
+}
+
 export default function VehicleList() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -68,6 +78,18 @@ export default function VehicleList() {
     return map;
   }, [reservations]);
 
+  const reservationPeriodEndedByVehicleId = useMemo(() => {
+    const map = new Map<string, boolean>();
+    for (const r of reservations) {
+      if (r.status !== "ACTIVE") continue;
+      map.set(
+        r.vehicleId,
+        isReservationPeriodEnded(r.reservationDate, r.reservationEndDate),
+      );
+    }
+    return map;
+  }, [reservations]);
+
   useEffect(() => {
     if (isError) {
       toast.error(error instanceof Error ? error.message : "Impossible de charger les vehicules.");
@@ -81,18 +103,18 @@ export default function VehicleList() {
     return matchStatus && matchSearch;
   });
 
-  /** Réservations « en fenêtre » aujourd’hui : affichées en premier pour qu’on les voie sans défiler. */
+  /** Jour de réservation (2) puis période dépassée (1), puis le reste. */
   const sortedFiltered = useMemo(() => {
     const list = [...filtered];
-    list.sort((a, b) => {
-      const aPri =
-        a.status === "reserved" && reservationDueByVehicleId.get(a.id) === true ? 1 : 0;
-      const bPri =
-        b.status === "reserved" && reservationDueByVehicleId.get(b.id) === true ? 1 : 0;
-      return bPri - aPri;
-    });
+    const sortKey = (v: (typeof list)[0]) => {
+      if (v.status !== "reserved") return 0;
+      if (reservationDueByVehicleId.get(v.id) === true) return 2;
+      if (reservationPeriodEndedByVehicleId.get(v.id) === true) return 1;
+      return 0;
+    };
+    list.sort((a, b) => sortKey(b) - sortKey(a));
     return list;
-  }, [filtered, reservationDueByVehicleId]);
+  }, [filtered, reservationDueByVehicleId, reservationPeriodEndedByVehicleId]);
 
   const handleConfirmVehicleDelete = async () => {
     if (!pendingDeleteVehicle || isDeletingVehicle) return;
@@ -162,24 +184,32 @@ export default function VehicleList() {
         </div>
       ) : sortedFiltered.length > 0 ? (
         <>
-          {sortedFiltered.some(
+          {(sortedFiltered.some(
             (v) => v.status === "reserved" && reservationDueByVehicleId.get(v.id) === true,
-          ) && (
+          ) ||
+            sortedFiltered.some(
+              (v) => v.status === "reserved" && reservationPeriodEndedByVehicleId.get(v.id) === true,
+            )) && (
             <p className="text-xs text-muted-foreground mb-2">
-              Les véhicules en période de réservation (aujourd&apos;hui) sont affichés en premier.
+              Ordre : jour de réservation en premier, puis réservation dont la période est terminée (dates dépassées).
             </p>
           )}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {sortedFiltered.map(v => {
             const canDelete = v.status === 'available' || v.status === 'sold';
             const reservationDueToday =
-              v.status === 'reserved' && (reservationDueByVehicleId.get(v.id) === true);
+              v.status === "reserved" && reservationDueByVehicleId.get(v.id) === true;
+            const reservationPeriodEnded =
+              v.status === "reserved" &&
+              !reservationDueToday &&
+              reservationPeriodEndedByVehicleId.get(v.id) === true;
             return (
               <VehicleCard
                 key={v.id}
                 vehicle={v}
                 showActions
                 reservationDueToday={reservationDueToday}
+                reservationPeriodEnded={reservationPeriodEnded}
                 onEdit={(vehicle) => {
                   navigate(`/vehicles/${vehicle.id}/edit`);
                 }}
