@@ -4,6 +4,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  limit,
   orderBy,
   query,
   runTransaction,
@@ -16,6 +17,7 @@ import {
 import { getFirebaseDb } from "@/lib/firebase";
 import { getWorkspaceIdentity } from "@/lib/access-control";
 import {
+  TRIAL_SUBSCRIPTION_PLAN,
   addCalendarMonths,
   getSubscriptionPlan,
   type SubscriptionPlanId,
@@ -53,7 +55,85 @@ export type TenantSubscriptionState = {
   isActive: boolean;
   expiresAtLabel: string | null;
   planLabel: string | null;
+  /** Essai déduit de la date d’inscription (pas de document Firestore `tenantSubscriptions`). */
+  isImplicitTrial?: boolean;
 };
+
+export type SubscriptionDaySummary = {
+  headline: string;
+  subline: string;
+  variant: "default" | "success" | "warning" | "destructive";
+};
+
+function daysRemainingCeil(from: Date, to: Date): number {
+  return Math.max(0, Math.ceil((to.getTime() - from.getTime()) / 86_400_000));
+}
+
+/** Résumé lisible pour le super admin (état au jour le jour). */
+export function buildSubscriptionDaySummary(
+  state: TenantSubscriptionState,
+  accountCreatedAt: Date | null,
+  hasPendingRequest: boolean,
+): SubscriptionDaySummary {
+  const now = new Date();
+  const pending =
+    hasPendingRequest ? "Une demande de souscription est en attente de vérification (sous 24 h)." : "";
+
+  if (state.subscription?.expiresAt) {
+    const exp = new Date(state.subscription.expiresAt);
+    const label = state.planLabel ?? state.subscription.planId;
+    const dateStr = exp.toLocaleDateString("fr-FR", { dateStyle: "long" });
+    if (exp.getTime() > now.getTime()) {
+      const d = daysRemainingCeil(now, exp);
+      return {
+        headline: `${label} — actif`,
+        subline: [pending, `Au ${dateStr} (${d} jour${d > 1 ? "s" : ""} restant${d > 1 ? "s" : ""}).`]
+          .filter(Boolean)
+          .join(" ")
+          .trim(),
+        variant: hasPendingRequest ? "warning" : "success",
+      };
+    }
+    return {
+      headline: `${label} — expiré`,
+      subline: [pending, `Échéance dépassée depuis le ${dateStr}.`].filter(Boolean).join(" ").trim(),
+      variant: "destructive",
+    };
+  }
+
+  if (accountCreatedAt) {
+    const trialEnd = addCalendarMonths(accountCreatedAt, 1);
+    const endLabel = trialEnd.toLocaleDateString("fr-FR", { dateStyle: "long" });
+    if (trialEnd.getTime() > now.getTime()) {
+      const d = daysRemainingCeil(now, trialEnd);
+      return {
+        headline: "Essai 1 mois — actif (sans fiche Firestore)",
+        subline: [pending, `Période gratuite déduite de l’inscription jusqu’au ${endLabel} (${d} jour${d > 1 ? "s" : ""}).`]
+          .filter(Boolean)
+          .join(" ")
+          .trim(),
+        variant: hasPendingRequest ? "warning" : "success",
+      };
+    }
+    return {
+      headline: "Essai gratuit terminé",
+      subline: [
+        pending,
+        `L’essai d’un mois après inscription est clos depuis le ${endLabel}. Aucun abonnement payant actif.`,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .trim(),
+      variant: "destructive",
+    };
+  }
+
+  return {
+    headline: "Aucun abonnement actif",
+    subline: pending || "Aucune formule ni essai n’est enregistré pour ce compte.",
+    variant: hasPendingRequest ? "warning" : "default",
+  };
+}
 
 function assertSuperAdmin(role: string | undefined) {
   if (role !== "SUPER_ADMIN") throw new Error("Accès réservé au super administrateur.");
@@ -91,13 +171,57 @@ export async function getTenantSubscriptionStateRequest(ownerUid: string): Promi
     throw new Error("Accès refusé.");
   }
   const db = getFirebaseDb();
+
+  const canReadOwnerSignupDate =
+    identity.role === "SUPER_ADMIN" || (identity.role === "ADMIN" && identity.actorUid === ownerUid);
+
   const subSnap = await getDoc(doc(db, COL_TENANT_SUBS, ownerUid));
   if (!subSnap.exists()) {
+    if (!canReadOwnerSignupDate) {
+      return {
+        subscription: null,
+        isActive: false,
+        expiresAtLabel: null,
+        planLabel: null,
+        isImplicitTrial: false,
+      };
+    }
+    const userSnap = await getDoc(doc(db, "users", ownerUid));
+    const createdRaw = userSnap.exists()
+      ? (userSnap.data() as { createdAt?: Timestamp }).createdAt
+      : undefined;
+    const createdDate = createdRaw?.toDate?.() ?? null;
+    if (!createdDate) {
+      return {
+        subscription: null,
+        isActive: false,
+        expiresAtLabel: null,
+        planLabel: null,
+        isImplicitTrial: false,
+      };
+    }
+    const virtualEnd = addCalendarMonths(createdDate, 1);
+    if (virtualEnd.getTime() > Date.now()) {
+      return {
+        subscription: {
+          ownerUid,
+          planId: TRIAL_SUBSCRIPTION_PLAN.id,
+          expiresAt: virtualEnd.toISOString(),
+          updatedAt: null,
+          lastApprovedRequestId: null,
+        },
+        isActive: true,
+        expiresAtLabel: virtualEnd.toLocaleDateString("fr-FR", { dateStyle: "long" }),
+        planLabel: TRIAL_SUBSCRIPTION_PLAN.label,
+        isImplicitTrial: true,
+      };
+    }
     return {
       subscription: null,
       isActive: false,
       expiresAtLabel: null,
       planLabel: null,
+      isImplicitTrial: false,
     };
   }
   const d = subSnap.data() as {
@@ -122,6 +246,7 @@ export async function getTenantSubscriptionStateRequest(ownerUid: string): Promi
     isActive,
     expiresAtLabel: expiresDate ? expiresDate.toLocaleDateString("fr-FR", { dateStyle: "long" }) : null,
     planLabel: plan?.label ?? d.planId ?? null,
+    isImplicitTrial: false,
   };
 }
 
@@ -132,13 +257,16 @@ export async function listTenantSubscriptionRequestsRequest(ownerUid: string): P
   }
 
   const db = getFirebaseDb();
-  const q = query(
-    collection(db, COL_REQUESTS),
-    where("ownerUid", "==", ownerUid),
-    orderBy("createdAt", "desc"),
-  );
+  // Pas d’orderBy Firestore : évite l’index composite ownerUid + createdAt (tri en mémoire, volume faible).
+  const q = query(collection(db, COL_REQUESTS), where("ownerUid", "==", ownerUid));
   const snap = await getDocs(q);
-  return snap.docs.map((x) => mapRequestDoc(x.id, x.data()));
+  const rows = snap.docs.map((x) => mapRequestDoc(x.id, x.data()));
+  rows.sort((a, b) => {
+    const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    return tb - ta;
+  });
+  return rows;
 }
 
 function mapRequestDoc(id: string, d: Record<string, unknown>): SubscriptionRequestRow {
@@ -326,4 +454,19 @@ export async function countPendingSubscriptionRequestsSuperAdminRequest(): Promi
   const db = getFirebaseDb();
   const snap = await getDocs(query(collection(db, COL_REQUESTS), where("status", "==", "pending")));
   return snap.size;
+}
+
+export async function hasPendingSubscriptionRequestSuperAdminRequest(ownerUid: string): Promise<boolean> {
+  const identity = await getWorkspaceIdentity();
+  assertSuperAdmin(identity.role);
+  const db = getFirebaseDb();
+  const snap = await getDocs(
+    query(
+      collection(db, COL_REQUESTS),
+      where("ownerUid", "==", ownerUid),
+      where("status", "==", "pending"),
+      limit(1),
+    ),
+  );
+  return !snap.empty;
 }

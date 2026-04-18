@@ -7,6 +7,7 @@ import {
   ORANGE_MONEY_PHONE_DISPLAY,
   SUBSCRIPTION_PLANS,
   formatCfa,
+  getSubscriptionPlan,
   type SubscriptionPlanId,
 } from "@/lib/subscription-plans";
 import {
@@ -34,17 +35,32 @@ export default function SubscriptionTenantPanel() {
     enabled: Boolean(ownerUid && (isAdmin || isManager)),
   });
 
-  const { data: history = [], isLoading: historyLoading } = useQuery({
+  const {
+    data: history,
+    isLoading: historyLoading,
+    isError: historyError,
+    error: historyQueryError,
+    refetch: refetchHistory,
+  } = useQuery({
     queryKey: tenantSubscriptionRequestsQueryKey(ownerUid),
     queryFn: () => listTenantSubscriptionRequestsRequest(ownerUid),
     enabled: Boolean(ownerUid && (isAdmin || isManager)),
+    refetchOnWindowFocus: true,
+    staleTime: 0,
   });
+
+  const historyList = history ?? [];
 
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlanId | null>(null);
   const [depositId, setDepositId] = useState("");
   const [submittedPending, setSubmittedPending] = useState(false);
 
-  const pendingRequest = useMemo(() => history.find((r) => r.status === "pending"), [history]);
+  const pendingRequest = useMemo(() => historyList.find((r) => r.status === "pending"), [historyList]);
+
+  const lastRejectedRequest = useMemo(
+    () => historyList.find((r) => r.status === "rejected"),
+    [historyList],
+  );
 
   const submitMutation = useMutation({
     mutationFn: () => {
@@ -232,9 +248,36 @@ export default function SubscriptionTenantPanel() {
 
       <div>
         <h3 className="text-sm font-semibold text-foreground mb-3">Historique des demandes</h3>
-        {history.length === 0 ? (
+        {historyError ? (
+          <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-4 text-sm space-y-3">
+            <p className="font-medium text-destructive">Impossible de charger l’historique des demandes</p>
+            <p className="text-muted-foreground">
+              {historyQueryError instanceof Error
+                ? historyQueryError.message
+                : "Vérifiez votre connexion et les règles Firestore (déploiement à jour), puis réessayez."}
+            </p>
+            <button
+              type="button"
+              onClick={() => void refetchHistory()}
+              className="rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium hover:bg-muted/60"
+            >
+              Réessayer
+            </button>
+          </div>
+        ) : null}
+        {!historyError && lastRejectedRequest ? (
+          <div className="mb-4 rounded-xl border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm">
+            <p className="font-medium text-destructive">Demande refusée par la plateforme</p>
+            <p className="mt-1 text-muted-foreground">
+              Une ou plusieurs demandes ont été refusées. Le motif indiqué par l’équipe figure dans la colonne « Réponse
+              ». {isAdmin ? "Vous pouvez soumettre une nouvelle demande avec un ID de dépôt correct." : "L’administrateur de l’entreprise peut soumettre une nouvelle demande."}
+            </p>
+          </div>
+        ) : null}
+        {!historyError && historyList.length === 0 ? (
           <p className="text-sm text-muted-foreground">Aucune demande enregistrée.</p>
-        ) : (
+        ) : null}
+        {!historyError && historyList.length > 0 ? (
           <div className="overflow-x-auto rounded-xl border border-border">
             <table className="w-full text-sm">
               <thead>
@@ -244,10 +287,11 @@ export default function SubscriptionTenantPanel() {
                   <th className="px-3 py-2">Montant</th>
                   <th className="px-3 py-2">ID dépôt</th>
                   <th className="px-3 py-2">Statut</th>
+                  <th className="px-3 py-2 min-w-[200px]">Réponse</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {history.map((row) => (
+                {historyList.map((row) => (
                   <tr key={row.id}>
                     <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">
                       {row.createdAt
@@ -257,24 +301,58 @@ export default function SubscriptionTenantPanel() {
                           })
                         : "—"}
                     </td>
-                    <td className="px-3 py-2">{SUBSCRIPTION_PLANS.find((p) => p.id === row.planId)?.label ?? row.planId}</td>
+                    <td className="px-3 py-2">
+                      {getSubscriptionPlan(row.planId)?.label ?? row.planId}
+                    </td>
                     <td className="px-3 py-2">{formatCfa(row.amountCfa)}</td>
                     <td className="px-3 py-2 font-mono text-xs">{row.depositReference}</td>
-                    <td className="px-3 py-2">
-                      {row.status === "pending" && <span className="text-amber-600">En attente</span>}
-                      {row.status === "approved" && <span className="text-emerald-600">Validé</span>}
+                    <td className="px-3 py-2 align-top">
+                      {row.status === "pending" && <span className="text-amber-600 font-medium">En attente</span>}
+                      {row.status === "approved" && <span className="text-emerald-600 font-medium">Validé</span>}
                       {row.status === "rejected" && (
-                        <span className="text-destructive" title={row.rejectReason ?? ""}>
-                          Refusé
-                        </span>
+                        <span className="text-destructive font-medium">Refusé</span>
                       )}
+                    </td>
+                    <td className="px-3 py-2 align-top text-muted-foreground">
+                      {row.status === "rejected" ? (
+                        <div className="space-y-1 max-w-md">
+                          <p className="text-foreground text-sm">
+                            {row.rejectReason?.trim()
+                              ? row.rejectReason.trim()
+                              : "Aucun motif n’a été précisé. Contactez le support si besoin."}
+                          </p>
+                          {row.reviewedAt ? (
+                            <p className="text-xs">
+                              Traité le{" "}
+                              {new Date(row.reviewedAt).toLocaleString("fr-FR", {
+                                dateStyle: "short",
+                                timeStyle: "short",
+                              })}
+                            </p>
+                          ) : null}
+                        </div>
+                      ) : null}
+                      {row.status === "approved" ? (
+                        row.reviewedAt ? (
+                          <p className="text-xs">
+                            Validé le{" "}
+                            {new Date(row.reviewedAt).toLocaleString("fr-FR", {
+                              dateStyle: "short",
+                              timeStyle: "short",
+                            })}
+                          </p>
+                        ) : (
+                          <span className="text-xs">—</span>
+                        )
+                      ) : null}
+                      {row.status === "pending" ? <span className="text-xs">—</span> : null}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        )}
+        ) : null}
       </div>
     </section>
   );

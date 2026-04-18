@@ -1,6 +1,17 @@
 export type SubscriptionPlanId = "1m" | "3m" | "6m" | "1y";
 
+/** Identifiant stocké en base pour l’essai gratuit (hors formules payantes). */
+export const TRIAL_SUBSCRIPTION_PLAN_ID = "trial" as const;
+
 export type SubscriptionPlanDef = {
+  id: SubscriptionPlanId | typeof TRIAL_SUBSCRIPTION_PLAN_ID;
+  label: string;
+  durationMonths: number;
+  priceCfa: number;
+};
+
+/** Formule payante (sélection Orange Money) — `id` sans `trial`. */
+export type PaidSubscriptionPlanDef = {
   id: SubscriptionPlanId;
   label: string;
   durationMonths: number;
@@ -10,7 +21,16 @@ export type SubscriptionPlanDef = {
 /** Numéro affiché pour les dépôts Orange Money (Mali). */
 export const ORANGE_MONEY_PHONE_DISPLAY = "+223 78 71 16 23";
 
-export const SUBSCRIPTION_PLANS: SubscriptionPlanDef[] = [
+/** Essai gratuit d’un mois après création du compte administrateur (non proposé comme achat). */
+export const TRIAL_SUBSCRIPTION_PLAN: SubscriptionPlanDef = {
+  id: TRIAL_SUBSCRIPTION_PLAN_ID,
+  label: "Essai 1 mois",
+  durationMonths: 1,
+  priceCfa: 0,
+};
+
+/** Formules payantes (sélection Orange Money). */
+export const SUBSCRIPTION_PLANS: PaidSubscriptionPlanDef[] = [
   { id: "1m", label: "1 mois", durationMonths: 1, priceCfa: 5_000 },
   { id: "3m", label: "3 mois", durationMonths: 3, priceCfa: 12_500 },
   { id: "6m", label: "6 mois", durationMonths: 6, priceCfa: 25_000 },
@@ -18,10 +38,11 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlanDef[] = [
 ];
 
 const PLAN_BY_ID: Record<string, SubscriptionPlanDef | undefined> = Object.fromEntries(
-  SUBSCRIPTION_PLANS.map((p) => [p.id, p]),
+  SUBSCRIPTION_PLANS.map((p): [string, SubscriptionPlanDef] => [p.id, p]),
 );
 
 export function getSubscriptionPlan(planId: string): SubscriptionPlanDef | undefined {
+  if (planId === TRIAL_SUBSCRIPTION_PLAN_ID) return TRIAL_SUBSCRIPTION_PLAN;
   return PLAN_BY_ID[planId];
 }
 

@@ -258,9 +258,11 @@ service cloud.firestore {
     }
 
     // Demandes de paiement abonnement (Orange Money). Création : admin locataire uniquement.
+    // Lecture : super admin ; propriétaire de la demande (même uid que ownerUid) ; gestionnaire rattaché à l’entreprise.
+    // On n’exige pas isTenantAdminOnly() pour la lecture : seul le créateur peut avoir ownerUid == request.auth.uid (règle create).
     match /subscriptionRequests/{requestId} {
       allow read: if isSuperAdmin()
-        || (isTenantAdminOnly() && resource.data.ownerUid == request.auth.uid)
+        || (isSignedIn() && resource.data.ownerUid == request.auth.uid)
         || (
           isManager()
           && managerWorkspaceAllowed()
@@ -290,12 +292,26 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Abonnement actif par entreprise (ownerUid = admin locataire). Écriture : super admin (validation paiement).
+    // Abonnement actif par entreprise (ownerUid = admin locataire).
+    // Création « essai » : une fois, par l’admin locataire, plan trial uniquement (super admin garde tous les droits).
     match /tenantSubscriptions/{ownerUid} {
       allow read: if isSuperAdmin()
         || isOwner(ownerUid)
         || (isManager() && managerActiveFor(ownerUid));
-      allow create, update: if isSuperAdmin();
+      allow create: if isSuperAdmin()
+        || (
+          isTenantAdminOnly()
+          && request.auth.uid == ownerUid
+          && !exists(/databases/$(database)/documents/tenantSubscriptions/$(ownerUid))
+          && request.resource.data.ownerUid == ownerUid
+          && request.resource.data.planId == "trial"
+          && request.resource.data.expiresAt is timestamp
+          && request.resource.data.expiresAt > request.time
+          && request.resource.data.expiresAt < request.time + duration(40, 'd')
+          && request.resource.data.updatedAt is timestamp
+          && request.resource.data.keys().hasAll(['ownerUid', 'planId', 'expiresAt', 'updatedAt'])
+        );
+      allow update: if isSuperAdmin();
       allow delete: if false;
     }
 

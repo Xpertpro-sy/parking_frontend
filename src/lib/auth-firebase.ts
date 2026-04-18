@@ -7,11 +7,22 @@ import {
   type Auth,
   type User,
 } from "firebase/auth";
-import { collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, where } from "firebase/firestore";
+import {
+  Timestamp,
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  serverTimestamp,
+  setDoc,
+  where,
+} from "firebase/firestore";
 import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase";
 import type { AuthApiResponse, LoginPayload, RegisterPayload } from "@/lib/auth-api";
 import { DEFAULT_ADMIN_PERMISSIONS, DEFAULT_MANAGER_PERMISSIONS, PermissionMap } from "@/lib/access-control";
 import { SUPER_ADMIN_DEFAULT_EMAIL } from "@/lib/super-admin";
+import { TRIAL_SUBSCRIPTION_PLAN_ID, addCalendarMonths } from "@/lib/subscription-plans";
 
 /** Même logique que dans manager-access-api (évite une dépendance circulaire auth-firebase → manager-access-api). */
 function normalizeManagerPermissionsFromAccess(input?: Partial<PermissionMap>): PermissionMap {
@@ -106,6 +117,22 @@ async function upsertUserFirestore(params: {
   );
 }
 
+/** Essai gratuit 1 mois : une seule création, si aucune fiche `tenantSubscriptions` encore. */
+async function ensureTrialSubscriptionForNewTenantAdmin(adminUid: string) {
+  const db = getFirebaseDb();
+  const subRef = doc(db, "tenantSubscriptions", adminUid);
+  const existing = await getDoc(subRef);
+  if (existing.exists()) return;
+  const expiresAt = addCalendarMonths(new Date(), 1);
+  await setDoc(subRef, {
+    ownerUid: adminUid,
+    planId: TRIAL_SUBSCRIPTION_PLAN_ID,
+    expiresAt: Timestamp.fromDate(expiresAt),
+    updatedAt: serverTimestamp(),
+    lastApprovedRequestId: null,
+  });
+}
+
 type ManagerAccessRow = {
   status: string;
   ownerUid: string;
@@ -191,14 +218,22 @@ async function postAuthFirestoreSync(
     );
   }
 
+  const isNewProfile = !userSnap.exists();
   await upsertUserFirestore({
     uid,
     email: user.email ?? emailNormalized,
     prenom,
     nom,
     telephone: options?.telephone,
-    includeCreatedAt: Boolean(options?.includeCreatedAtForNewUser && !userSnap.exists()),
+    includeCreatedAt: Boolean(options?.includeCreatedAtForNewUser && isNewProfile),
   });
+  if (options?.includeCreatedAtForNewUser && isNewProfile) {
+    try {
+      await ensureTrialSubscriptionForNewTenantAdmin(uid);
+    } catch (e) {
+      console.warn("Essai gratuit non enregistré (Firestore) :", e);
+    }
+  }
   return "ADMIN";
 }
 

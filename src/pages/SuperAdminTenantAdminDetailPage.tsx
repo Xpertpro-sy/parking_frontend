@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Building2, Car, Loader2, Save, UserCog } from "lucide-react";
+import { ArrowLeft, Building2, Car, CreditCard, Loader2, Save, UserCog } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { DEFAULT_MAX_MANAGERS_PER_TENANT_ADMIN } from "@/lib/tenant-admin-manager-limit";
@@ -11,6 +11,21 @@ import {
   superAdminTenantAdminsQueryKey,
 } from "@/lib/super-admin-platform-api";
 import { tenantAdminMaxManagersQueryKey } from "@/lib/tenant-admin-manager-limit";
+import { cn } from "@/lib/utils";
+import type { SubscriptionDaySummary } from "@/lib/subscription-api";
+
+function subscriptionSummaryToneClass(variant: SubscriptionDaySummary["variant"]) {
+  switch (variant) {
+    case "success":
+      return "text-emerald-700 dark:text-emerald-400";
+    case "warning":
+      return "text-amber-700 dark:text-amber-400";
+    case "destructive":
+      return "text-destructive";
+    default:
+      return "text-foreground";
+  }
+}
 
 export default function SuperAdminTenantAdminDetailPage() {
   const { adminUid } = useParams<{ adminUid: string }>();
@@ -104,6 +119,41 @@ export default function SuperAdminTenantAdminDetailPage() {
               </div>
               <p className="text-3xl font-semibold tabular-nums">{detail.managerAccessCount}</p>
               <p className="text-xs text-muted-foreground mt-1">Fiches d’accès créées (actives ou non)</p>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-border bg-card p-5 shadow-sm space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+                <CreditCard className="h-5 w-5 text-primary" />
+                Abonnement — état du jour
+              </h2>
+              <Link
+                to="/admin/abonnements"
+                className="text-sm font-medium text-primary hover:underline"
+              >
+                Gérer les abonnements
+              </Link>
+            </div>
+            <p className={cn("text-lg font-semibold", subscriptionSummaryToneClass(detail.subscriptionDaySummary.variant))}>
+              {detail.subscriptionDaySummary.headline}
+            </p>
+            <p className="text-sm text-muted-foreground leading-relaxed">{detail.subscriptionDaySummary.subline}</p>
+            <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+              {detail.subscriptionState.isImplicitTrial ? (
+                               <span className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-amber-800 dark:text-amber-200">
+                  Essai 1 mois (déduit de la date d’inscription — abonnement non encore enregistré en base)
+                </span>
+              ) : detail.subscriptionState.subscription?.planId === "trial" ? (
+                <span className="rounded-md border border-border bg-muted/40 px-2 py-1 font-medium text-foreground">
+                  Essai 1 mois
+                </span>
+              ) : null}
+              {detail.createdAtLabel ? (
+                <span className="rounded-md border border-border bg-muted/30 px-2 py-1">
+                  Inscription : {detail.createdAtLabel}
+                </span>
+              ) : null}
             </div>
           </div>
 

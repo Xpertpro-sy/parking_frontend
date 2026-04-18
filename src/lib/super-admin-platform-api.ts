@@ -15,6 +15,13 @@ import {
   TENANT_ADMIN_LIMITS_COLLECTION,
   getTenantAdminMaxManagersAllowedFromServer,
 } from "@/lib/tenant-admin-manager-limit";
+import {
+  buildSubscriptionDaySummary,
+  getTenantSubscriptionStateRequest,
+  hasPendingSubscriptionRequestSuperAdminRequest,
+  type SubscriptionDaySummary,
+  type TenantSubscriptionState,
+} from "@/lib/subscription-api";
 
 export type PlatformTenantAdminRow = {
   uid: string;
@@ -48,6 +55,8 @@ export type TenantAdminDetailForSuperAdmin = {
   vehicleCount: number;
   managerAccessCount: number;
   maxManagers: number;
+  subscriptionState: TenantSubscriptionState;
+  subscriptionDaySummary: SubscriptionDaySummary;
 };
 
 function assertSuperAdminRole(role: string | undefined) {
@@ -81,6 +90,18 @@ type UserDocFields = {
   telephone?: string | null;
   createdAt?: unknown;
 };
+
+function parseUserCreatedAtDate(data: UserDocFields): Date | null {
+  const raw = data.createdAt;
+  if (raw != null && typeof raw === "object" && "toDate" in raw && typeof (raw as Timestamp).toDate === "function") {
+    try {
+      return (raw as Timestamp).toDate();
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
 
 function mapUserDoc(docId: string, data: UserDocFields): PlatformTenantAdminRow {
   const prenom = (data.prenom ?? "").trim();
@@ -140,12 +161,20 @@ export async function getTenantAdminDetailForSuperAdminRequest(
   if ((data.role ?? "").toUpperCase() !== "ADMIN") {
     throw new Error("Ce compte n'est pas un administrateur locataire.");
   }
-  const [vehiclesSnap, managersSnap, maxManagers] = await Promise.all([
+  const accountCreatedAt = parseUserCreatedAtDate(data);
+  const [vehiclesSnap, managersSnap, maxManagers, subscriptionState, hasPendingSub] = await Promise.all([
     getDocs(query(collection(db, "vehicles"), where("ownerUid", "==", adminUid))),
     getDocs(query(collection(db, "managerAccess"), where("ownerUid", "==", adminUid))),
     getTenantAdminMaxManagersAllowedFromServer(adminUid),
+    getTenantSubscriptionStateRequest(adminUid),
+    hasPendingSubscriptionRequestSuperAdminRequest(adminUid),
   ]);
   const row = mapUserDoc(adminUid, data);
+  const subscriptionDaySummary = buildSubscriptionDaySummary(
+    subscriptionState,
+    accountCreatedAt,
+    hasPendingSub,
+  );
   return {
     adminUid,
     email: row.email,
@@ -157,6 +186,8 @@ export async function getTenantAdminDetailForSuperAdminRequest(
     vehicleCount: vehiclesSnap.size,
     managerAccessCount: managersSnap.size,
     maxManagers,
+    subscriptionState,
+    subscriptionDaySummary,
   };
 }
 
