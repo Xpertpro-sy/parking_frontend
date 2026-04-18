@@ -27,6 +27,7 @@ import CorbeillePage from "./pages/CorbeillePage";
 import AccountsPage from "./pages/AccountsPage";
 import ProfilePage from "./pages/ProfilePage";
 import SuperAdminDashboard from "./pages/SuperAdminDashboard";
+import SuperAdminPlatformAccountsPage from "./pages/SuperAdminPlatformAccountsPage";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import NotFound from "./pages/NotFound";
@@ -78,7 +79,7 @@ const App = () => (
               <Route path="/admin" element={<SuperAdminRoute />}>
                 <Route element={<AdminLayout />}>
                   <Route index element={<SuperAdminDashboard />} />
-                  <Route path="comptes" element={<AccountsPage />} />
+                  <Route path="comptes" element={<SuperAdminPlatformAccountsPage />} />
                   <Route path="profil" element={<ProfilePage />} />
                 </Route>
               </Route>

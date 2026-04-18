@@ -55,7 +55,7 @@ export default function AdminSidebar() {
           }
         >
           <Users className="w-5 h-5" />
-          Comptes & Utilisateurs
+          Administrateurs locataires
         </NavLink>
       </nav>
 

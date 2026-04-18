@@ -108,7 +108,7 @@ export function normalizePermissions(input?: Partial<PermissionMap>): Permission
 
 async function ensureAdminWorkspace() {
   const identity = await getWorkspaceIdentity();
-  if (identity.role !== "ADMIN" && identity.role !== "SUPER_ADMIN") {
+  if (identity.role !== "ADMIN") {
     throw new Error("Acces reserve aux administrateurs.");
   }
   return identity;

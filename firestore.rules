@@ -61,6 +61,12 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(uid));
     }
 
+    function isSuperAdmin() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && usersDoc(request.auth.uid).data.role == "SUPER_ADMIN";
+    }
+
     // Admin entreprise (pas gestionnaire) : document users requis.
     function isEnterpriseAdmin() {
       return isSignedIn()
@@ -69,7 +75,8 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read, delete: if isOwner(userId);
+      allow read: if isOwner(userId) || isSuperAdmin();
+      allow delete: if isOwner(userId);
 
       // Mise a jour : soi-meme, ou admin qui gere un gestionnaire de son entreprise.
       allow update: if isOwner(userId)
@@ -93,8 +100,8 @@ service cloud.firestore {
     }
 
     match /vehicles/{vehicleId} {
-      // Lecture autorisee uniquement pour le proprietaire
-      allow read: if canAccessWorkspace(resource.data.ownerUid, "vehicles");
+      // Lecture : périmètre entreprise ou super administrateur (stats / back-office).
+      allow read: if canAccessWorkspace(resource.data.ownerUid, "vehicles") || isSuperAdmin();
 
       // Creation: le document doit appartenir a l'utilisateur connecte
       allow create: if canAccessWorkspace(request.resource.data.ownerUid, "vehicles");

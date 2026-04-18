@@ -27,7 +27,7 @@ export default function AdminLayout() {
               to="/admin/comptes"
               className={`shrink-0 rounded-md px-2.5 py-1.5 ${location.pathname.startsWith("/admin/comptes") ? "bg-sidebar-accent text-sidebar-primary" : "text-muted-foreground"}`}
             >
-              Comptes
+              Admins locataires
             </Link>
             <Link
               to="/admin/profil"
