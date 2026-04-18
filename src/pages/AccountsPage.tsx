@@ -31,6 +31,11 @@ import {
   updateManagerAccessPermissionsRequest,
   updateManagerAccessStatusRequest,
 } from "@/lib/manager-access-api";
+import {
+  DEFAULT_MAX_MANAGERS_PER_TENANT_ADMIN,
+  getTenantAdminMaxManagersAllowed,
+  tenantAdminMaxManagersQueryKey,
+} from "@/lib/tenant-admin-manager-limit";
 
 const MANAGED_PERMISSION_KEYS: (keyof PermissionMap)[] = [
   "dashboard",
@@ -64,6 +69,24 @@ export default function AccountsPage() {
     queryFn: listManagerAccessRequest,
     enabled: accessProfile?.role === "ADMIN",
   });
+
+  const { data: maxManagersAllowed = DEFAULT_MAX_MANAGERS_PER_TENANT_ADMIN } = useQuery({
+    queryKey: tenantAdminMaxManagersQueryKey(accessProfile?.uid ?? ""),
+    queryFn: () => getTenantAdminMaxManagersAllowed(accessProfile!.uid),
+    enabled: Boolean(
+      accessProfile?.role === "ADMIN" && accessProfile.permissions.accounts && accessProfile.uid,
+    ),
+    // Plafond modifiable par le super admin : pas de cache « froid », reprise à l’ouverture de l’onglet et léger polling.
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+    refetchInterval: 20_000,
+    refetchIntervalInBackground: false,
+  });
+
+  const atManagerLimit = managers.length >= maxManagersAllowed;
+  const remainingSlots = Math.max(0, maxManagersAllowed - managers.length);
 
   const canManageAccounts = useMemo(
     () =>
@@ -188,10 +211,30 @@ export default function AccountsPage() {
           reçoit un compte Authentication avec le mot de passe initial{" "}
           <span className="font-mono text-foreground">{MANAGER_DEFAULT_INITIAL_PASSWORD}</span>.
         </p>
+        <p className="mt-3 text-sm text-foreground">
+          <span className="font-medium">Gestionnaires :</span> {managers.length} / {maxManagersAllowed}
+          {atManagerLimit ? (
+            <span className="text-destructive"> — plafond atteint, vous ne pouvez plus en ajouter.</span>
+          ) : (
+            <span className="text-muted-foreground">
+              {" "}
+              — il vous reste {remainingSlots} création{remainingSlots > 1 ? "s" : ""}{" "}
+              possible{remainingSlots > 1 ? "s" : ""}.
+            </span>
+          )}
+        </p>
         <button
           type="button"
-          onClick={() => setAddManagerOpen(true)}
-          className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground"
+          onClick={() => {
+            if (!atManagerLimit) setAddManagerOpen(true);
+          }}
+          disabled={atManagerLimit}
+          title={
+            atManagerLimit
+              ? `Plafond atteint (${maxManagersAllowed} gestionnaire(s) maximum). Contactez le super administrateur pour augmenter la limite.`
+              : undefined
+          }
+          className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground disabled:pointer-events-none disabled:opacity-50"
         >
           <UserPlus className="h-4 w-4" />
           Ajouter un gestionnaire
@@ -259,7 +302,7 @@ export default function AccountsPage() {
             <button
               type="button"
               onClick={handleCreateManager}
-              disabled={creating}
+              disabled={creating || atManagerLimit}
               className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground disabled:opacity-60"
             >
               {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}

@@ -1,4 +1,8 @@
 import { AppPermission, DEFAULT_MANAGER_PERMISSIONS, PermissionMap, getWorkspaceIdentity } from "@/lib/access-control";
+import {
+  countManagerAccessSlotsForOwner,
+  getTenantAdminMaxManagersAllowed,
+} from "@/lib/tenant-admin-manager-limit";
 import { getFirebaseDb, getSecondaryFirebaseAuth } from "@/lib/firebase";
 import { createUserWithEmailAndPassword, signOut, updateProfile } from "firebase/auth";
 import {
@@ -176,6 +180,14 @@ export async function createManagerAccessRequest(payload: CreateManagerPayload):
   );
   if (!existing.empty) {
     throw new Error("Un gestionnaire avec cet email existe deja.");
+  }
+
+  const maxManagers = await getTenantAdminMaxManagersAllowed(identity.uid);
+  const currentSlots = await countManagerAccessSlotsForOwner(identity.uid);
+  if (currentSlots >= maxManagers) {
+    throw new Error(
+      `Nombre maximum de gestionnaires atteint (${maxManagers}). Contactez le super administrateur pour augmenter le plafond.`,
+    );
   }
 
   const secondaryAuth = getSecondaryFirebaseAuth();

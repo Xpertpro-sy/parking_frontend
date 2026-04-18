@@ -62,16 +62,16 @@ export default function SuperAdminDashboard() {
         <h2 className="text-sm font-semibold text-foreground mb-3">Statistiques plateforme</h2>
         <div className="grid gap-4 sm:grid-cols-2 max-w-2xl">
           <StatCard
-            title="Gestionnaires"
-            value={isLoading ? "…" : stats?.managerCount ?? "—"}
-            hint="Utilisateurs rattachés à une entreprise"
-            icon={<UserCog className="h-5 w-5" />}
-          />
-          <StatCard
             title="Super administrateurs"
             value={isLoading ? "…" : stats?.superAdminCount ?? "—"}
             hint="Accès back-office global"
             icon={<Shield className="h-5 w-5" />}
+          />
+          <StatCard
+            title="Gestionnaires"
+            value={isLoading ? "…" : stats?.managerCount ?? "—"}
+            hint="Utilisateurs rattachés à une entreprise"
+            icon={<UserCog className="h-5 w-5" />}
           />
         </div>
       </div>

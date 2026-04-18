@@ -1,4 +1,4 @@
-import { QueryClient } from "@tanstack/react-query";
+import { QueryClient, defaultShouldDehydrateQuery } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
@@ -28,6 +28,7 @@ import AccountsPage from "./pages/AccountsPage";
 import ProfilePage from "./pages/ProfilePage";
 import SuperAdminDashboard from "./pages/SuperAdminDashboard";
 import SuperAdminPlatformAccountsPage from "./pages/SuperAdminPlatformAccountsPage";
+import SuperAdminTenantAdminDetailPage from "./pages/SuperAdminTenantAdminDetailPage";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import NotFound from "./pages/NotFound";
@@ -62,6 +63,13 @@ const App = () => (
     persistOptions={{
       persister,
       maxAge: ONE_DAY_MS,
+      dehydrateOptions: {
+        shouldDehydrateQuery: (query) => {
+          if (query.queryKey[0] === "tenant-admin-max-managers") return false;
+          if (query.queryKey[0] === "super-admin" && query.queryKey[1] === "tenant-admin-detail") return false;
+          return defaultShouldDehydrateQuery(query);
+        },
+      },
     }}
   >
     <AuthProvider>
@@ -79,6 +87,7 @@ const App = () => (
               <Route path="/admin" element={<SuperAdminRoute />}>
                 <Route element={<AdminLayout />}>
                   <Route index element={<SuperAdminDashboard />} />
+                  <Route path="comptes/:adminUid" element={<SuperAdminTenantAdminDetailPage />} />
                   <Route path="comptes" element={<SuperAdminPlatformAccountsPage />} />
                   <Route path="profil" element={<ProfilePage />} />
                 </Route>

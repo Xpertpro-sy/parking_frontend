@@ -1,6 +1,20 @@
-import { collection, getDocs, query, where, type Timestamp } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  serverTimestamp,
+  setDoc,
+  where,
+  type Timestamp,
+} from "firebase/firestore";
 import { getFirebaseDb } from "@/lib/firebase";
 import { getWorkspaceIdentity } from "@/lib/access-control";
+import {
+  TENANT_ADMIN_LIMITS_COLLECTION,
+  getTenantAdminMaxManagersAllowedFromServer,
+} from "@/lib/tenant-admin-manager-limit";
 
 export type PlatformTenantAdminRow = {
   uid: string;
@@ -19,6 +33,22 @@ export type SuperAdminPlatformStats = {
 
 export const superAdminPlatformStatsQueryKey = ["super-admin", "platform-stats"] as const;
 export const superAdminTenantAdminsQueryKey = ["super-admin", "tenant-admins"] as const;
+
+export const superAdminTenantAdminDetailQueryKey = (adminUid: string) =>
+  ["super-admin", "tenant-admin-detail", adminUid] as const;
+
+export type TenantAdminDetailForSuperAdmin = {
+  adminUid: string;
+  email: string;
+  displayName: string;
+  prenom: string;
+  nom: string;
+  telephone: string;
+  createdAtLabel: string | null;
+  vehicleCount: number;
+  managerAccessCount: number;
+  maxManagers: number;
+};
 
 function assertSuperAdminRole(role: string | undefined) {
   if (role !== "SUPER_ADMIN") {
@@ -43,6 +73,7 @@ function formatFirestoreDate(value: unknown): string | null {
 }
 
 type UserDocFields = {
+  role?: string;
   email?: string;
   prenom?: string;
   nom?: string;
@@ -93,4 +124,67 @@ export async function getSuperAdminPlatformStatsRequest(): Promise<SuperAdminPla
     managerCount: managers.size,
     superAdminCount: superAdmins.size,
   };
+}
+
+export async function getTenantAdminDetailForSuperAdminRequest(
+  adminUid: string,
+): Promise<TenantAdminDetailForSuperAdmin> {
+  const identity = await getWorkspaceIdentity();
+  assertSuperAdminRole(identity.role);
+  const db = getFirebaseDb();
+  const userSnap = await getDoc(doc(db, "users", adminUid));
+  if (!userSnap.exists()) {
+    throw new Error("Administrateur introuvable.");
+  }
+  const data = userSnap.data() as UserDocFields;
+  if ((data.role ?? "").toUpperCase() !== "ADMIN") {
+    throw new Error("Ce compte n'est pas un administrateur locataire.");
+  }
+  const [vehiclesSnap, managersSnap, maxManagers] = await Promise.all([
+    getDocs(query(collection(db, "vehicles"), where("ownerUid", "==", adminUid))),
+    getDocs(query(collection(db, "managerAccess"), where("ownerUid", "==", adminUid))),
+    getTenantAdminMaxManagersAllowedFromServer(adminUid),
+  ]);
+  const row = mapUserDoc(adminUid, data);
+  return {
+    adminUid,
+    email: row.email,
+    displayName: row.displayName,
+    prenom: row.prenom,
+    nom: row.nom,
+    telephone: row.telephone,
+    createdAtLabel: row.createdAtLabel,
+    vehicleCount: vehiclesSnap.size,
+    managerAccessCount: managersSnap.size,
+    maxManagers,
+  };
+}
+
+export async function setTenantAdminMaxManagersSuperAdminRequest(
+  adminUid: string,
+  maxManagers: number,
+): Promise<void> {
+  const identity = await getWorkspaceIdentity();
+  assertSuperAdminRole(identity.role);
+  if (!Number.isFinite(maxManagers) || maxManagers < 0 || maxManagers > 500) {
+    throw new Error("Plafond invalide (entre 0 et 500).");
+  }
+  const db = getFirebaseDb();
+  const userSnap = await getDoc(doc(db, "users", adminUid));
+  if (!userSnap.exists()) {
+    throw new Error("Administrateur introuvable.");
+  }
+  const role = ((userSnap.data() as UserDocFields).role ?? "").toUpperCase();
+  if (role !== "ADMIN") {
+    throw new Error("Seuls les administrateurs locataires ont un plafond de gestionnaires.");
+  }
+  await setDoc(
+    doc(db, TENANT_ADMIN_LIMITS_COLLECTION, adminUid),
+    {
+      ownerUid: adminUid,
+      maxManagers: Math.floor(maxManagers),
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  );
 }

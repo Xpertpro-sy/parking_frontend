@@ -240,6 +240,17 @@ service cloud.firestore {
       allow delete: if isSignedIn() && brandingId == request.auth.uid && resource.data.ownerUid == request.auth.uid;
     }
 
+    // Plafond de gestionnaires par admin locataire (défaut côté appli si absent). Écriture : super admin uniquement.
+    match /tenantAdminLimits/{adminUid} {
+      allow read: if isOwner(adminUid) || isSuperAdmin();
+      allow create, update: if isSuperAdmin()
+        && request.resource.data.ownerUid == adminUid
+        && request.resource.data.maxManagers is int
+        && request.resource.data.maxManagers >= 0
+        && request.resource.data.maxManagers <= 500;
+      allow delete: if false;
+    }
+
     match /managerAccess/{accessId} {
       // Le gestionnaire doit pouvoir lire sa fiche même si inactive (pour afficher un message clair à la connexion).
       allow read: if isSignedIn()
@@ -249,6 +260,7 @@ service cloud.firestore {
             request.auth.token.email is string
             && resource.data.managerEmailNormalized == request.auth.token.email.lower()
           )
+          || isSuperAdmin()
         );
       allow create: if isSignedIn()
         && request.resource.data.ownerUid == request.auth.uid
