@@ -4,6 +4,7 @@ import { ChevronLeft, Loader2, Lock, User } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
+import { isSuperAdminRole } from "@/lib/super-admin";
 import { userProfileQueryKey } from "@/lib/profile-query-keys";
 import { changePassword, fetchUserProfile, updateUserProfile } from "@/lib/profile-api";
 
@@ -104,7 +105,7 @@ export default function ProfilePage() {
     <div className="space-y-6 animate-fade-in max-w-2xl">
       <div className="flex items-center gap-3">
         <Link
-          to="/"
+          to={isSuperAdminRole(user.role) ? "/admin" : "/"}
           className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
           aria-label="Retour"
         >

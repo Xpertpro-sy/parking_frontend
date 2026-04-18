@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/context/AuthContext";
+import { isSuperAdminRole } from "@/lib/super-admin";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -28,7 +29,7 @@ export default function Login() {
     }
 
     toast.success(result.message || "Bienvenue sur AutoParc.");
-    navigate("/");
+    navigate(isSuperAdminRole(result.role) ? "/admin" : "/");
   };
 
   return (
@@ -63,7 +64,9 @@ export default function Login() {
             <Card className="border-0 shadow-none bg-transparent">
               <CardHeader className="px-0">
                 <CardTitle className="text-2xl">Connexion</CardTitle>
-                <CardDescription>Renseignez vos identifiants pour acceder a votre espace.</CardDescription>
+                <CardDescription>
+                  Renseignez vos identifiants. Le super administrateur est redirigé vers le back-office.
+                </CardDescription>
               </CardHeader>
               <CardContent className="px-0">
                 <form className="space-y-5" onSubmit={onSubmit}>
@@ -74,7 +77,7 @@ export default function Login() {
                       type="email"
                       value={email}
                       onChange={(event) => setEmail(event.target.value)}
-                      placeholder="exemple@autoparc.com"
+                      placeholder="exemple@gmail.com"
                       autoComplete="email"
                       disabled={submitting}
                       required

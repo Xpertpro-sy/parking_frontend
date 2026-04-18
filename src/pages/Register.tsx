@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/context/AuthContext";
+import { isSuperAdminRole, SUPER_ADMIN_DEFAULT_EMAIL } from "@/lib/super-admin";
 
 export default function Register() {
   const navigate = useNavigate();
@@ -32,6 +33,11 @@ export default function Register() {
       return;
     }
 
+    if (email.trim().toLowerCase() === SUPER_ADMIN_DEFAULT_EMAIL) {
+      toast.error("Cette adresse e-mail est réservée au compte super administrateur.");
+      return;
+    }
+
     const normalizedPhone = phone.replace(/\s+/g, "");
     if (!/^\+?[0-9]{8,15}$/.test(normalizedPhone)) {
       toast.error("Le numero de telephone est invalide.");
@@ -48,7 +54,7 @@ export default function Register() {
     }
 
     toast.success(result.message || "Compte cree. Bienvenue sur AutoParc.");
-    navigate("/");
+    navigate(isSuperAdminRole(result.role) ? "/admin" : "/");
   };
 
   return (

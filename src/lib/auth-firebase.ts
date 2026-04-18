@@ -11,6 +11,7 @@ import { collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, where
 import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase";
 import type { AuthApiResponse, LoginPayload, RegisterPayload } from "@/lib/auth-api";
 import { DEFAULT_ADMIN_PERMISSIONS, DEFAULT_MANAGER_PERMISSIONS, PermissionMap } from "@/lib/access-control";
+import { SUPER_ADMIN_DEFAULT_EMAIL } from "@/lib/super-admin";
 
 /** Même logique que dans manager-access-api (évite une dépendance circulaire auth-firebase → manager-access-api). */
 function normalizeManagerPermissionsFromAccess(input?: Partial<PermissionMap>): PermissionMap {
@@ -71,7 +72,15 @@ async function upsertUserFirestore(params: {
   const db = getFirebaseDb();
   const existingSnap = await getDoc(doc(db, "users", params.uid));
   const existingData = existingSnap.exists() ? (existingSnap.data() as { role?: string; permissions?: Partial<PermissionMap>; enterpriseOwnerUid?: string }) : null;
-  const role = existingData?.role?.toUpperCase() === "GESTIONNAIRE" ? "GESTIONNAIRE" : "ADMIN";
+  const existingRole = existingData?.role?.toUpperCase();
+  const role =
+    existingRole === "GESTIONNAIRE" ? "GESTIONNAIRE" : existingRole === "SUPER_ADMIN" ? "SUPER_ADMIN" : "ADMIN";
+  const permissions =
+    role === "GESTIONNAIRE"
+      ? { ...DEFAULT_MANAGER_PERMISSIONS, ...(existingData?.permissions ?? {}) }
+      : role === "SUPER_ADMIN"
+        ? { ...DEFAULT_ADMIN_PERMISSIONS, ...(existingData?.permissions ?? {}) }
+        : DEFAULT_ADMIN_PERMISSIONS;
   const payload: Record<string, unknown> = {
     uid: params.uid,
     email: params.email,
@@ -80,7 +89,7 @@ async function upsertUserFirestore(params: {
     displayName: `${params.prenom} ${params.nom}`.trim(),
     telephone: params.telephone ?? null,
     role,
-    permissions: role === "GESTIONNAIRE" ? { ...DEFAULT_MANAGER_PERMISSIONS, ...(existingData?.permissions ?? {}) } : DEFAULT_ADMIN_PERMISSIONS,
+    permissions,
     enterpriseOwnerUid: role === "GESTIONNAIRE" ? existingData?.enterpriseOwnerUid ?? params.uid : params.uid,
     updatedAt: serverTimestamp(),
   };
@@ -110,7 +119,7 @@ async function postAuthFirestoreSync(
   prenom: string,
   nom: string,
   options?: { includeCreatedAtForNewUser?: boolean },
-): Promise<"ADMIN" | "GESTIONNAIRE"> {
+): Promise<"ADMIN" | "GESTIONNAIRE" | "SUPER_ADMIN"> {
   const db = getFirebaseDb();
   const emailNormalized = (user.email ?? "").trim().toLowerCase();
   if (!emailNormalized) {
@@ -121,6 +130,10 @@ async function postAuthFirestoreSync(
   const uid = user.uid;
   const userSnap = await getDoc(doc(db, "users", uid));
   const userData = userSnap.exists() ? (userSnap.data() as { role?: string; managerStatus?: string }) : null;
+
+  if (userData?.role?.toUpperCase() === "SUPER_ADMIN") {
+    return "SUPER_ADMIN";
+  }
 
   if (userData?.role?.toUpperCase() === "GESTIONNAIRE" && userData?.managerStatus === "inactive") {
     await signOut(auth);
@@ -187,6 +200,9 @@ async function postAuthFirestoreSync(
 
 export async function registerWithFirebase(payload: RegisterPayload): Promise<AuthApiResponse> {
   try {
+    if (payload.email.trim().toLowerCase() === SUPER_ADMIN_DEFAULT_EMAIL) {
+      throw new Error("Cette adresse e-mail est reservee au compte super administrateur.");
+    }
     const auth = getFirebaseAuth();
     const credential = await createUserWithEmailAndPassword(auth, payload.email, payload.password);
     await updateProfile(credential.user, { displayName: `${payload.prenom} ${payload.nom}`.trim() });

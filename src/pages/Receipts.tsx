@@ -190,7 +190,9 @@ export default function Receipts() {
     queryFn: getCurrentUserAccessProfile,
   });
   const canUseTrash =
-    accessProfile?.role === 'ADMIN' || accessProfile?.permissions?.trash === true;
+    accessProfile?.role === 'ADMIN' ||
+    accessProfile?.role === 'SUPER_ADMIN' ||
+    accessProfile?.permissions?.trash === true;
   const [searchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedType, setSelectedType] = useState<'all' | 'sale' | 'rental'>('all');

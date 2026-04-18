@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "migrate:reservation-end-date": "node scripts/migrations/add-reservation-end-date.mjs"
+    "migrate:reservation-end-date": "node scripts/migrations/add-reservation-end-date.mjs",
+    "seed:super-admin": "node scripts/seed-super-admin.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

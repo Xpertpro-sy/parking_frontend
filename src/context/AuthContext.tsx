@@ -29,8 +29,8 @@ type AuthContextType = {
   user: AuthUser | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (values: LoginInput) => Promise<{ success: boolean; message: string }>;
-  register: (values: RegisterInput) => Promise<{ success: boolean; message: string }>;
+  login: (values: LoginInput) => Promise<{ success: boolean; message: string; role?: string }>;
+  register: (values: RegisterInput) => Promise<{ success: boolean; message: string; role?: string }>;
   logout: () => void;
   /** Met à jour le nom / prénom en session après modification du profil (sans relancer la connexion). */
   applyLocalUserPatch: (patch: { firstName: string; lastName: string }) => void;
@@ -84,7 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       sessionStorage.setItem(STORAGE_CURRENT_USER_KEY, JSON.stringify(nextUser));
       setUser(nextUser);
 
-      return { success: true, message: response.message || "Compte cree avec succes." };
+      return { success: true, message: response.message || "Compte cree avec succes.", role: response.role };
     } catch (error) {
       return {
         success: false,
@@ -113,7 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       sessionStorage.setItem(STORAGE_CURRENT_USER_KEY, JSON.stringify(nextUser));
       setUser(nextUser);
 
-      return { success: true, message: response.message || "Connexion reussie." };
+      return { success: true, message: response.message || "Connexion reussie.", role: response.role };
     } catch (error) {
       return {
         success: false,

@@ -57,12 +57,14 @@ type SessionUser = {
   lastName?: string;
 };
 
+export type WorkspaceRole = "ADMIN" | "GESTIONNAIRE" | "SUPER_ADMIN";
+
 export type WorkspaceIdentity = {
   uid: string;
   email: string | null;
   actorUid: string;
   actorName: string;
-  role: "ADMIN" | "GESTIONNAIRE";
+  role: WorkspaceRole;
   permissions: PermissionMap;
 };
 
@@ -93,12 +95,16 @@ function getSessionUserName(): string {
   }
 }
 
-function normalizeRole(value?: string): "ADMIN" | "GESTIONNAIRE" {
-  return value?.toUpperCase() === "GESTIONNAIRE" ? "GESTIONNAIRE" : "ADMIN";
+function normalizeRole(value?: string): WorkspaceRole {
+  const u = value?.toUpperCase();
+  if (u === "GESTIONNAIRE") return "GESTIONNAIRE";
+  if (u === "SUPER_ADMIN") return "SUPER_ADMIN";
+  return "ADMIN";
 }
 
-function normalizePermissions(role: "ADMIN" | "GESTIONNAIRE", value?: Partial<PermissionMap>): PermissionMap {
-  const base = role === "GESTIONNAIRE" ? DEFAULT_MANAGER_PERMISSIONS : DEFAULT_ADMIN_PERMISSIONS;
+function normalizePermissions(role: WorkspaceRole, value?: Partial<PermissionMap>): PermissionMap {
+  const base =
+    role === "GESTIONNAIRE" ? DEFAULT_MANAGER_PERMISSIONS : DEFAULT_ADMIN_PERMISSIONS;
   if (!value) return base;
   return {
     ...base,

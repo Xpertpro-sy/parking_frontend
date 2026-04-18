@@ -46,7 +46,9 @@ export async function fetchUserProfileFirebase(): Promise<UserProfile> {
   const lastName = (data.nom ?? "").trim() || "";
   const email = (authUser.email ?? "").trim();
   const phone = (data.telephone ?? "").trim();
-  const role = (data.role ?? "").toUpperCase() === "GESTIONNAIRE" ? "Gestionnaire" : "Administrateur";
+  const r = (data.role ?? "").toUpperCase();
+  const role =
+    r === "GESTIONNAIRE" ? "Gestionnaire" : r === "SUPER_ADMIN" ? "Super administrateur" : "Administrateur";
 
   return {
     firstName,

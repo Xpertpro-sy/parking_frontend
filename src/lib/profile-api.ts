@@ -58,7 +58,12 @@ export async function fetchUserProfile(): Promise<UserProfile> {
     lastName: (data.nom ?? "").trim(),
     email: (data.email ?? "").trim(),
     phone: (data.telephone ?? "").trim(),
-    roleLabel: (data.role ?? "").toUpperCase() === "GESTIONNAIRE" ? "Gestionnaire" : "Administrateur",
+    roleLabel:
+      (data.role ?? "").toUpperCase() === "GESTIONNAIRE"
+        ? "Gestionnaire"
+        : (data.role ?? "").toUpperCase() === "SUPER_ADMIN"
+          ? "Super administrateur"
+          : "Administrateur",
   };
 }
 

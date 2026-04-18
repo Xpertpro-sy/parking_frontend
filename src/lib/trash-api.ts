@@ -1,4 +1,4 @@
-import { getWorkspaceIdentity } from '@/lib/access-control';
+import { getWorkspaceIdentity, type WorkspaceRole } from '@/lib/access-control';
 import { getFirebaseDb } from '@/lib/firebase';
 import {
   collection,
@@ -60,8 +60,8 @@ async function getAuthIdentity() {
   };
 }
 
-function assertAdminCanPermanentlyDelete(role: "ADMIN" | "GESTIONNAIRE") {
-  if (role !== "ADMIN") {
+function assertAdminCanPermanentlyDelete(role: WorkspaceRole) {
+  if (role !== "ADMIN" && role !== "SUPER_ADMIN") {
     throw new Error("Seul l'administrateur peut supprimer définitivement dans la corbeille.");
   }
 }

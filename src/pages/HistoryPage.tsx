@@ -50,7 +50,9 @@ export default function HistoryPage() {
     queryFn: getCurrentUserAccessProfile,
   });
   const canUseTrash =
-    accessProfile?.role === 'ADMIN' || accessProfile?.permissions?.trash === true;
+    accessProfile?.role === 'ADMIN' ||
+    accessProfile?.role === 'SUPER_ADMIN' ||
+    accessProfile?.permissions?.trash === true;
   const [pendingDelete, setPendingDelete] = useState<
     { type: 'reservation' | 'rental'; id: string; label: string } | null
   >(null);

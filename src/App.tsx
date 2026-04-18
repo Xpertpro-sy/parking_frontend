@@ -6,8 +6,9 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/context/AuthContext";
-import { GuestRoute, ProtectedRoute } from "@/components/AuthRoute";
+import { GuestRoute, ProtectedRoute, SuperAdminRoute, TenantAppRoute } from "@/components/AuthRoute";
 import AppLayout from "./components/AppLayout";
+import AdminLayout from "./components/AdminLayout";
 import Dashboard from "./pages/Dashboard";
 import VehicleList from "./pages/VehicleList";
 import VehicleDetail from "./pages/VehicleDetail";
@@ -25,6 +26,7 @@ import SettingsPage from "./pages/SettingsPage";
 import CorbeillePage from "./pages/CorbeillePage";
 import AccountsPage from "./pages/AccountsPage";
 import ProfilePage from "./pages/ProfilePage";
+import SuperAdminDashboard from "./pages/SuperAdminDashboard";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import NotFound from "./pages/NotFound";
@@ -73,7 +75,15 @@ const App = () => (
             </Route>
 
             <Route element={<ProtectedRoute />}>
-              <Route element={<AppLayout />}>
+              <Route path="/admin" element={<SuperAdminRoute />}>
+                <Route element={<AdminLayout />}>
+                  <Route index element={<SuperAdminDashboard />} />
+                  <Route path="comptes" element={<AccountsPage />} />
+                  <Route path="profil" element={<ProfilePage />} />
+                </Route>
+              </Route>
+              <Route element={<TenantAppRoute />}>
+                <Route element={<AppLayout />}>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/vehicles" element={<VehicleList />} />
                 <Route path="/vehicles/new" element={<VehicleForm />} />
@@ -91,6 +101,7 @@ const App = () => (
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/corbeille" element={<CorbeillePage />} />
                 <Route path="/comptes" element={<AccountsPage />} />
+                </Route>
               </Route>
             </Route>
 

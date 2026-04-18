@@ -62,11 +62,16 @@ export default function AccountsPage() {
   const { data: managers = [], isLoading } = useQuery({
     queryKey: managerAccessQueryKey,
     queryFn: listManagerAccessRequest,
-    enabled: accessProfile?.role === "ADMIN",
+    enabled: accessProfile?.role === "ADMIN" || accessProfile?.role === "SUPER_ADMIN",
   });
 
   const canManageAccounts = useMemo(
-    () => Boolean(accessProfile && accessProfile.role === "ADMIN" && accessProfile.permissions.accounts),
+    () =>
+      Boolean(
+        accessProfile &&
+          (accessProfile.role === "ADMIN" || accessProfile.role === "SUPER_ADMIN") &&
+          accessProfile.permissions.accounts,
+      ),
     [accessProfile],
   );
 
