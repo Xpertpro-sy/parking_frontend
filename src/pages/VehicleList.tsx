@@ -22,16 +22,21 @@ import FullscreenLoader from '@/components/ui/fullscreen-loader';
 
 const statusFilters: (VehicleStatus | 'all')[] = ['all', 'available', 'sold', 'rented', 'repair', 'reserved'];
 
-/** Compare le jour civil local de la date de réservation (ISO) avec aujourd’hui. */
-function isReservationDueToday(reservationDateIso: string): boolean {
-  const target = new Date(reservationDateIso);
-  if (Number.isNaN(target.getTime())) return false;
-  const now = new Date();
-  return (
-    target.getFullYear() === now.getFullYear() &&
-    target.getMonth() === now.getMonth() &&
-    target.getDate() === now.getDate()
-  );
+/** Jour civil local (minuit local) en timestamp pour comparer des plages sans décalage UTC. */
+function localDayStartMs(isoOrDate: string | Date): number {
+  const d = typeof isoOrDate === "string" ? new Date(isoOrDate) : isoOrDate;
+  if (Number.isNaN(d.getTime())) return NaN;
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+}
+
+/** Aujourd’hui est dans [reservationDate ; reservationEndDate] (inclus), ou le seul jour si pas de fin. */
+function isInReservationHighlightWindow(reservationDateIso: string, reservationEndDateIso: string | null): boolean {
+  const start = localDayStartMs(reservationDateIso);
+  if (Number.isNaN(start)) return false;
+  const end = reservationEndDateIso ? localDayStartMs(reservationEndDateIso) : start;
+  if (Number.isNaN(end)) return false;
+  const today = localDayStartMs(new Date());
+  return today >= start && today <= end;
 }
 
 export default function VehicleList() {
@@ -54,8 +59,11 @@ export default function VehicleList() {
   const reservationDueByVehicleId = useMemo(() => {
     const map = new Map<string, boolean>();
     for (const r of reservations) {
-      if (r.status !== 'ACTIVE') continue;
-      map.set(r.vehicleId, isReservationDueToday(r.reservationDate));
+      if (r.status !== "ACTIVE") continue;
+      map.set(
+        r.vehicleId,
+        isInReservationHighlightWindow(r.reservationDate, r.reservationEndDate),
+      );
     }
     return map;
   }, [reservations]);
@@ -72,6 +80,19 @@ export default function VehicleList() {
       `${v.brand} ${v.model} ${v.plate}`.toLowerCase().includes(search.toLowerCase());
     return matchStatus && matchSearch;
   });
+
+  /** Réservations « en fenêtre » aujourd’hui : affichées en premier pour qu’on les voie sans défiler. */
+  const sortedFiltered = useMemo(() => {
+    const list = [...filtered];
+    list.sort((a, b) => {
+      const aPri =
+        a.status === "reserved" && reservationDueByVehicleId.get(a.id) === true ? 1 : 0;
+      const bPri =
+        b.status === "reserved" && reservationDueByVehicleId.get(b.id) === true ? 1 : 0;
+      return bPri - aPri;
+    });
+    return list;
+  }, [filtered, reservationDueByVehicleId]);
 
   const handleConfirmVehicleDelete = async () => {
     if (!pendingDeleteVehicle || isDeletingVehicle) return;
@@ -139,9 +160,17 @@ export default function VehicleList() {
         <div className="glass-card p-12 text-center">
           <p className="text-muted-foreground">Chargement des vehicules...</p>
         </div>
-      ) : filtered.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filtered.map(v => {
+      ) : sortedFiltered.length > 0 ? (
+        <>
+          {sortedFiltered.some(
+            (v) => v.status === "reserved" && reservationDueByVehicleId.get(v.id) === true,
+          ) && (
+            <p className="text-xs text-muted-foreground mb-2">
+              Les véhicules en période de réservation (aujourd&apos;hui) sont affichés en premier.
+            </p>
+          )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {sortedFiltered.map(v => {
             const canDelete = v.status === 'available' || v.status === 'sold';
             const reservationDueToday =
               v.status === 'reserved' && (reservationDueByVehicleId.get(v.id) === true);
@@ -164,7 +193,8 @@ export default function VehicleList() {
               />
             );
           })}
-        </div>
+          </div>
+        </>
       ) : (
         <div className="glass-card p-12 text-center">
           <p className="text-muted-foreground">Aucun véhicule trouvé.</p>

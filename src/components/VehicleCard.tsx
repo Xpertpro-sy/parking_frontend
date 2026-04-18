@@ -46,7 +46,7 @@ export default function VehicleCard({
         {reservationDueToday && (
           <div
             className="absolute top-2 left-2 z-10 inline-flex items-center gap-1 rounded-md border border-violet-300/80 bg-violet-600/95 px-2 py-1 text-[11px] font-semibold text-white shadow-sm"
-            title="La date prévue de réservation est aujourd'hui"
+            title="Aujourd'hui fait partie de la période réservée pour ce véhicule"
           >
             <CalendarCheck className="w-3.5 h-3.5 shrink-0" aria-hidden />
             <span>Jour de réservation</span>

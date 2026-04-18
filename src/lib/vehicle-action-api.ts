@@ -18,6 +18,8 @@ export type CreateReservationPayload = {
   customerPhone: string;
   notes?: string;
   reservationDate: string;
+  /** Dernier jour inclus de la fenêtre réservation (optionnel). Si absent, seul `reservationDate` compte. */
+  reservationEndDate?: string;
   amountPaid: number;
 };
 
@@ -54,6 +56,7 @@ export type ReservationApiResponse = {
   customerPhone: string;
   notes: string | null;
   reservationDate: string;
+  reservationEndDate: string | null;
   amountPaid: number;
   status: "ACTIVE" | "CANCELLED" | "COMPLETED";
   cancelledAt: string | null;
@@ -72,6 +75,7 @@ type ReservationFirestoreDoc = {
   customerPhone: string;
   notes: string | null;
   reservationDate: string;
+  reservationEndDate?: string | null;
   amountPaid: number;
   status: "ACTIVE" | "CANCELLED" | "COMPLETED";
   cancelledAt: string | null;
@@ -204,6 +208,7 @@ function mapReservationDoc(id: string, data: ReservationFirestoreDoc): Reservati
     customerPhone: data.customerPhone,
     notes: data.notes,
     reservationDate: data.reservationDate,
+    reservationEndDate: data.reservationEndDate ?? null,
     amountPaid: data.amountPaid,
     status: data.status,
     cancelledAt: data.cancelledAt,
@@ -224,6 +229,17 @@ export async function createReservationRequest(vehicleId: string, payload: Creat
   }
 
   const reservationDateIso = parseReservationDate(payload.reservationDate);
+  let reservationEndDateIso: string | null = null;
+  if (payload.reservationEndDate?.trim()) {
+    reservationEndDateIso = parseReservationDate(payload.reservationEndDate.trim());
+    const startDay = new Date(reservationDateIso);
+    const endDay = new Date(reservationEndDateIso);
+    const startStamp = new Date(startDay.getFullYear(), startDay.getMonth(), startDay.getDate()).getTime();
+    const endStamp = new Date(endDay.getFullYear(), endDay.getMonth(), endDay.getDate()).getTime();
+    if (endStamp < startStamp) {
+      throw new Error("La date de fin doit etre le meme jour ou apres le jour de reservation.");
+    }
+  }
   const vehicleRef = doc(db, "vehicles", vehicleId);
   const reservationRef = doc(collection(db, "reservations"));
   const movementRef = doc(collection(db, "accountMovements"));
@@ -256,6 +272,7 @@ export async function createReservationRequest(vehicleId: string, payload: Creat
       customerPhone: payload.customerPhone.trim(),
       notes: payload.notes?.trim() || null,
       reservationDate: reservationDateIso,
+      reservationEndDate: reservationEndDateIso,
       amountPaid: Number(payload.amountPaid),
       status: "ACTIVE",
       cancelledAt: null,

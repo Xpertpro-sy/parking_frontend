@@ -65,6 +65,7 @@ export default function VehicleDetail() {
   const [customerPhone, setCustomerPhone] = useState('');
   const [reservationNotes, setReservationNotes] = useState('');
   const [reservationDate, setReservationDate] = useState(new Date().toISOString().slice(0, 10));
+  const [reservationEndDate, setReservationEndDate] = useState('');
   const [reservationAmountPaid, setReservationAmountPaid] = useState('');
 
   const [repairReason, setRepairReason] = useState('');
@@ -210,6 +211,7 @@ export default function VehicleDetail() {
         customerPhone: customerPhone.trim(),
         notes: reservationNotes.trim() || undefined,
         reservationDate,
+        reservationEndDate: reservationEndDate.trim() || undefined,
         amountPaid: parsedAmount,
       });
       await queryClient.invalidateQueries({ queryKey: vehicleQueryKeys.all });
@@ -221,6 +223,7 @@ export default function VehicleDetail() {
       setCustomerPhone('');
       setReservationNotes('');
       setReservationDate(new Date().toISOString().slice(0, 10));
+      setReservationEndDate('');
       setReservationAmountPaid('');
     } catch (reservationError) {
       toast.error(reservationError instanceof Error ? reservationError.message : "Impossible d'enregistrer la reservation.");
@@ -401,10 +404,28 @@ export default function VehicleDetail() {
       {vehicle.status === 'reserved' && activeReservation && (
         <div className="rounded-lg border border-border bg-secondary/30 px-4 py-3 text-sm">
           <p className="text-muted-foreground">
-            Reserve par <span className="text-foreground font-medium">{activeReservation.customerName}</span> ({activeReservation.customerPhone}) pour le{" "}
-            <span className="text-foreground font-medium">
-              {new Date(activeReservation.reservationDate).toLocaleDateString('fr-FR')}
-            </span>
+                       Reserve par <span className="text-foreground font-medium">{activeReservation.customerName}</span> ({activeReservation.customerPhone})
+            {activeReservation.reservationEndDate ? (
+              <>
+                {" "}
+                du{" "}
+                <span className="text-foreground font-medium">
+                  {new Date(activeReservation.reservationDate).toLocaleDateString("fr-FR")}
+                </span>{" "}
+                au{" "}
+                <span className="text-foreground font-medium">
+                  {new Date(activeReservation.reservationEndDate).toLocaleDateString("fr-FR")}
+                </span>
+              </>
+            ) : (
+              <>
+                {" "}
+                pour le{" "}
+                <span className="text-foreground font-medium">
+                  {new Date(activeReservation.reservationDate).toLocaleDateString("fr-FR")}
+                </span>
+              </>
+            )}
             . Montant paye:{" "}
             <span className="text-foreground font-semibold">{activeReservation.amountPaid.toLocaleString()} CFA</span>
           </p>
@@ -597,14 +618,29 @@ export default function VehicleDetail() {
                 className="w-full px-3 py-2.5 bg-secondary border border-border rounded-lg text-sm text-foreground"
               />
             </div>
-            <div>
-              <label className="block text-sm text-foreground mb-1">Jour de reservation</label>
-              <input
-                type="date"
-                value={reservationDate}
-                onChange={(event) => setReservationDate(event.target.value)}
-                className="w-full px-3 py-2.5 bg-secondary border border-border rounded-lg text-sm text-foreground"
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm text-foreground mb-1">Jour de reservation (debut)</label>
+                <input
+                  type="date"
+                  value={reservationDate}
+                  onChange={(event) => setReservationDate(event.target.value)}
+                  className="w-full px-3 py-2.5 bg-secondary border border-border rounded-lg text-sm text-foreground"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-foreground mb-1">Dernier jour (optionnel)</label>
+                <input
+                  type="date"
+                  value={reservationEndDate}
+                  min={reservationDate || undefined}
+                  onChange={(event) => setReservationEndDate(event.target.value)}
+                  className="w-full px-3 py-2.5 bg-secondary border border-border rounded-lg text-sm text-foreground"
+                />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Ex.: retrait le 17/04 et retour prevu le 18/04 — le repere liste s&apos;affiche sur toute la periode.
+                </p>
+              </div>
             </div>
             <div>
               <label className="block text-sm text-foreground mb-1">Montant paye (CFA)</label>
