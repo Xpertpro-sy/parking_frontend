@@ -76,10 +76,18 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if isOwner(userId) || isSuperAdmin();
-      allow delete: if isOwner(userId);
+      allow delete: if isOwner(userId)
+        || (
+          isSuperAdmin()
+          && request.auth.uid != userId
+          && resource.data.get("role", "") != "SUPER_ADMIN"
+        );
 
-      // Mise a jour : soi-meme, ou admin qui gere un gestionnaire de son entreprise.
-      allow update: if isOwner(userId)
+      // Mise a jour : soi-meme (sans toucher accountStatus), ou admin entreprise (gestionnaire), ou super admin.
+      allow update: if (
+          isOwner(userId)
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(["accountStatus"])
+        )
         || (
           isEnterpriseAdmin()
           && resource.data.role == "GESTIONNAIRE"
@@ -87,6 +95,17 @@ service cloud.firestore {
           && request.resource.data.uid == userId
           && request.resource.data.role == "GESTIONNAIRE"
           && request.resource.data.enterpriseOwnerUid == resource.data.enterpriseOwnerUid
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(["accountStatus"])
+        )
+        || (
+          isSuperAdmin()
+          && request.auth.uid != userId
+          && resource.data.get("role", "") != "SUPER_ADMIN"
+          && request.resource.data.role == resource.data.role
+          && (
+            resource.data.role != "GESTIONNAIRE"
+            || request.resource.data.get("enterpriseOwnerUid", "") == resource.data.get("enterpriseOwnerUid", "")
+          )
         );
 
       // Creation : son propre profil, ou admin qui provisionne un gestionnaire rattache a son entreprise.
@@ -110,11 +129,12 @@ service cloud.firestore {
       // + interdiction de changer le ownerUid
       allow update: if canAccessWorkspace(resource.data.ownerUid, "vehicles")
         && request.resource.data.ownerUid == resource.data.ownerUid;
-      allow delete: if canAccessWorkspace(resource.data.ownerUid, "vehicles");
+      allow delete: if canAccessWorkspace(resource.data.ownerUid, "vehicles")
+        || (isSuperAdmin() && resource.data.keys().hasAll(["ownerUid"]));
     }
 
     match /sales/{saleId} {
-      allow read: if canAccessWorkspace(resource.data.ownerUid, "receipts");
+      allow read: if canAccessWorkspace(resource.data.ownerUid, "receipts") || isSuperAdmin();
       allow create: if canAccessWorkspace(request.resource.data.ownerUid, "receipts")
         && request.resource.data.vehicleId is string
         && request.resource.data.buyerName is string
@@ -123,22 +143,24 @@ service cloud.firestore {
         && request.resource.data.buyerIdCardNumber is string
         && request.resource.data.amount is number
         && request.resource.data.paymentMethod is string;
-      allow update, delete: if false;
+      allow update: if false;
+      allow delete: if isSuperAdmin() && resource.data.keys().hasAll(["ownerUid"]);
     }
 
     match /saleReceipts/{receiptId} {
-      allow read: if canAccessWorkspace(resource.data.ownerUid, "receipts");
+      allow read: if canAccessWorkspace(resource.data.ownerUid, "receipts") || isSuperAdmin();
       allow create: if canAccessWorkspace(request.resource.data.ownerUid, "receipts")
         && request.resource.data.saleId is string
         && request.resource.data.vehicleId is string
         && request.resource.data.receiptNumber is string
         && request.resource.data.amount is number;
       allow update: if false;
-      allow delete: if canAccessWorkspace(resource.data.ownerUid, "receipts");
+      allow delete: if canAccessWorkspace(resource.data.ownerUid, "receipts")
+        || (isSuperAdmin() && resource.data.keys().hasAll(["ownerUid"]));
     }
 
     match /rentals/{rentalId} {
-      allow read: if canAccessWorkspace(resource.data.ownerUid, "rentals");
+      allow read: if canAccessWorkspace(resource.data.ownerUid, "rentals") || isSuperAdmin();
       allow create: if canAccessWorkspace(request.resource.data.ownerUid, "rentals")
         && request.resource.data.vehicleId is string
         && request.resource.data.tenantName is string
@@ -152,22 +174,24 @@ service cloud.firestore {
         && request.resource.data.status is string;
       allow update: if canAccessWorkspace(resource.data.ownerUid, "rentals")
         && request.resource.data.ownerUid == resource.data.ownerUid;
-      allow delete: if canAccessWorkspace(resource.data.ownerUid, "rentals");
+      allow delete: if canAccessWorkspace(resource.data.ownerUid, "rentals")
+        || (isSuperAdmin() && resource.data.keys().hasAll(["ownerUid"]));
     }
 
     match /rentalReceipts/{receiptId} {
-      allow read: if canAccessRentalReceiptWorkspace(resource.data.ownerUid);
+      allow read: if canAccessRentalReceiptWorkspace(resource.data.ownerUid) || isSuperAdmin();
       allow create: if canAccessRentalReceiptWorkspace(request.resource.data.ownerUid)
         && request.resource.data.rentalId is string
         && request.resource.data.vehicleId is string
         && request.resource.data.receiptNumber is string
         && request.resource.data.rentalAmount is number;
       allow update: if false;
-      allow delete: if canAccessRentalReceiptWorkspace(resource.data.ownerUid);
+      allow delete: if canAccessRentalReceiptWorkspace(resource.data.ownerUid)
+        || (isSuperAdmin() && resource.data.keys().hasAll(["ownerUid"]));
     }
 
     match /reservations/{reservationId} {
-      allow read: if canAccessWorkspace(resource.data.ownerUid, "reservations");
+      allow read: if canAccessWorkspace(resource.data.ownerUid, "reservations") || isSuperAdmin();
       allow create: if canAccessWorkspace(request.resource.data.ownerUid, "reservations")
         && request.resource.data.vehicleId is string
         && request.resource.data.customerName is string
@@ -177,11 +201,12 @@ service cloud.firestore {
         && request.resource.data.status is string;
       allow update: if canAccessWorkspace(resource.data.ownerUid, "reservations")
         && request.resource.data.ownerUid == resource.data.ownerUid;
-      allow delete: if canAccessWorkspace(resource.data.ownerUid, "reservations");
+      allow delete: if canAccessWorkspace(resource.data.ownerUid, "reservations")
+        || (isSuperAdmin() && resource.data.keys().hasAll(["ownerUid"]));
     }
 
     match /repairs/{repairId} {
-      allow read: if canAccessWorkspace(resource.data.ownerUid, "vehicles");
+      allow read: if canAccessWorkspace(resource.data.ownerUid, "vehicles") || isSuperAdmin();
       allow create: if canAccessWorkspace(request.resource.data.ownerUid, "vehicles")
         && request.resource.data.vehicleId is string
         && request.resource.data.reason is string
@@ -190,11 +215,11 @@ service cloud.firestore {
         && request.resource.data.status is string;
       allow update: if canAccessWorkspace(resource.data.ownerUid, "vehicles")
         && request.resource.data.ownerUid == resource.data.ownerUid;
-      allow delete: if false;
+      allow delete: if isSuperAdmin() && resource.data.keys().hasAll(["ownerUid"]);
     }
 
     match /accountMovements/{movementId} {
-      allow read: if canAccessWorkspace(resource.data.ownerUid, "comptability");
+      allow read: if canAccessWorkspace(resource.data.ownerUid, "comptability") || isSuperAdmin();
       allow create: if canCreateAccountMovementForOperation()
         && request.resource.data.operationType is string
         && request.resource.data.direction is string
@@ -204,25 +229,30 @@ service cloud.firestore {
         && request.resource.data.amount is number
         && request.resource.data.operationDate is string
         && request.resource.data.vehicleId is string;
-      allow update, delete: if false;
+      allow update: if false;
+      allow delete: if isSuperAdmin() && resource.data.keys().hasAll(["ownerUid"]);
     }
 
     match /trashItems/{trashId} {
-      allow read: if canAccessWorkspace(resource.data.ownerUid, "trash");
+      allow read: if canAccessWorkspace(resource.data.ownerUid, "trash") || isSuperAdmin();
       allow create: if canAccessWorkspace(request.resource.data.ownerUid, "trash")
         && request.resource.data.itemType is string
         && request.resource.data.sourceCollection is string
         && request.resource.data.sourceId is string
         && request.resource.data.title is string;
       allow update: if false;
-      allow delete: if canAccessWorkspace(resource.data.ownerUid, "trash");
+      allow delete: if canAccessWorkspace(resource.data.ownerUid, "trash")
+        || (isSuperAdmin() && resource.data.keys().hasAll(["ownerUid"]));
     }
 
     match /brandingSettings/{brandingId} {
-      allow read: if isSignedIn()
-        && (
-          resource.data.ownerUid == request.auth.uid
-          || managerActiveFor(resource.data.ownerUid)
+      allow read: if isSuperAdmin()
+        || (
+          isSignedIn()
+          && (
+            resource.data.ownerUid == request.auth.uid
+            || managerActiveFor(resource.data.ownerUid)
+          )
         );
       allow create: if isSignedIn()
         && brandingId == request.auth.uid
@@ -237,7 +267,8 @@ service cloud.firestore {
         && request.resource.data.mode is string
         && request.resource.data.text is string
         && request.resource.data.imageScale is number;
-      allow delete: if isSignedIn() && brandingId == request.auth.uid && resource.data.ownerUid == request.auth.uid;
+      allow delete: if (isSignedIn() && brandingId == request.auth.uid && resource.data.ownerUid == request.auth.uid)
+        || (isSuperAdmin() && resource.data.ownerUid is string);
     }
 
     // Plafond de gestionnaires par admin locataire (défaut côté appli si absent). Écriture : super admin uniquement.
@@ -248,7 +279,7 @@ service cloud.firestore {
         && request.resource.data.maxManagers is int
         && request.resource.data.maxManagers >= 0
         && request.resource.data.maxManagers <= 500;
-      allow delete: if false;
+      allow delete: if isSuperAdmin();
     }
 
     function isTenantAdminOnly() {
@@ -289,7 +320,7 @@ service cloud.firestore {
         && request.resource.data.amountCfa == resource.data.amountCfa
         && request.resource.data.depositReference == resource.data.depositReference;
 
-      allow delete: if false;
+      allow delete: if isSuperAdmin() && resource.data.ownerUid is string;
     }
 
     // Abonnement actif par entreprise (ownerUid = admin locataire).
@@ -312,7 +343,9 @@ service cloud.firestore {
           && request.resource.data.keys().hasAll(['ownerUid', 'planId', 'expiresAt', 'updatedAt'])
         );
       allow update: if isSuperAdmin();
-      allow delete: if false;
+      allow delete: if isSuperAdmin()
+        && resource.data.ownerUid == ownerUid
+        && resource.data.keys().hasAll(["ownerUid", "planId"]);
     }
 
     match /managerAccess/{accessId} {
@@ -331,10 +364,16 @@ service cloud.firestore {
         && request.resource.data.managerEmail is string
         && request.resource.data.managerEmailNormalized is string
         && request.resource.data.permissions is map;
-      allow update: if isSignedIn()
-        && resource.data.ownerUid == request.auth.uid
-        && request.resource.data.ownerUid == resource.data.ownerUid;
-      allow delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      allow update: if (
+          isSignedIn()
+          && resource.data.ownerUid == request.auth.uid
+          && request.resource.data.ownerUid == resource.data.ownerUid
+        )
+        || (
+          isSuperAdmin()
+          && request.resource.data.ownerUid == resource.data.ownerUid
+        );
+      allow delete: if (isSignedIn() && resource.data.ownerUid == request.auth.uid) || isSuperAdmin();
     }
 
     // Tout le reste est refuse par defaut.

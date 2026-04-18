@@ -74,9 +74,14 @@ export default function SuperAdminPlatformAccountsPage() {
                     className="cursor-pointer hover:bg-muted/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-2 min-w-0">
+                      <div className="flex items-center gap-2 min-w-0 flex-wrap">
                         <User className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
                         <span className="font-medium text-foreground truncate">{row.displayName || "—"}</span>
+                        {row.accountStatus === "inactive" ? (
+                          <span className="shrink-0 rounded border border-amber-500/35 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-200">
+                            Inactif
+                          </span>
+                        ) : null}
                       </div>
                     </td>
                     <td className="px-4 py-3">

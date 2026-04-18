@@ -37,11 +37,18 @@ function normalizeManagerPermissionsFromAccess(input?: Partial<PermissionMap>): 
 
 function parseFirebaseAuthError(error: unknown): string {
   if (error instanceof Error) {
-    const m = error.message;
+    const m = error.message.trim();
+    // Refus après authentification Firebase réussie (règles métier Firestore / compte)
     if (
       m.startsWith("Votre compte a été désactivé") ||
       m.startsWith("Votre compte a été supprimé") ||
-      m.startsWith("Compte sans adresse")
+      m.startsWith("Compte sans adresse") ||
+      m.startsWith("Ce compte administrateur a été désactivé") ||
+      m.startsWith("Ce compte administrateur est désactivé") ||
+      m.startsWith("Ce compte a été clôturé") ||
+      m.startsWith("L'entreprise associée à ce compte a été clôturée") ||
+      m.startsWith("L'administrateur de votre entreprise a été désactivé") ||
+      m.startsWith("L'administrateur de votre entreprise est désactivé")
     ) {
       return m;
     }
@@ -159,10 +166,24 @@ async function postAuthFirestoreSync(
 
   const uid = user.uid;
   const userSnap = await getDoc(doc(db, "users", uid));
-  const userData = userSnap.exists() ? (userSnap.data() as { role?: string; managerStatus?: string }) : null;
+  const userData = userSnap.exists()
+    ? (userSnap.data() as { role?: string; managerStatus?: string; accountStatus?: string })
+    : null;
 
   if (userData?.role?.toUpperCase() === "SUPER_ADMIN") {
     return "SUPER_ADMIN";
+  }
+
+  const tenantAdminAccountStatus = (userData?.accountStatus ?? "active").toLowerCase();
+  if (userData?.role?.toUpperCase() === "ADMIN" && tenantAdminAccountStatus === "inactive") {
+    await signOut(auth);
+    throw new Error(
+      "Ce compte administrateur a été désactivé par la plateforme. Contactez le support si vous avez besoin d'y accéder à nouveau.",
+    );
+  }
+  if (userData?.role?.toUpperCase() === "ADMIN" && tenantAdminAccountStatus === "purged") {
+    await signOut(auth);
+    throw new Error("Ce compte a été clôturé. La connexion n'est plus possible.");
   }
 
   if (userData?.role?.toUpperCase() === "GESTIONNAIRE" && userData?.managerStatus === "inactive") {
@@ -187,6 +208,19 @@ async function postAuthFirestoreSync(
       await signOut(auth);
       throw new Error(
         "Votre compte a été désactivé par un administrateur. Contactez-le si vous avez besoin d'y accéder à nouveau.",
+      );
+    }
+
+    const ownerSnap = await getDoc(doc(db, "users", access.ownerUid));
+    const ownerData = ownerSnap.exists() ? ownerSnap.data() : null;
+    const ownerStatus = ((ownerData?.accountStatus as string | undefined) ?? "active").toLowerCase();
+    const ownerRole = (ownerData?.role as string | undefined)?.toUpperCase() ?? "";
+    if (ownerRole === "ADMIN" && (ownerStatus === "inactive" || ownerStatus === "purged")) {
+      await signOut(auth);
+      throw new Error(
+        ownerStatus === "purged"
+          ? "L'entreprise associée à ce compte a été clôturée. La connexion n'est plus possible."
+          : "L'administrateur de votre entreprise a été désactivé. La connexion n'est plus possible pour le moment.",
       );
     }
 

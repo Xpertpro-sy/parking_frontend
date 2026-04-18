@@ -49,6 +49,7 @@ type UserAccessDoc = {
   displayName?: string;
   prenom?: string;
   nom?: string;
+  accountStatus?: string;
 };
 
 type SessionUser = {
@@ -126,6 +127,30 @@ export async function getWorkspaceIdentity(): Promise<WorkspaceIdentity> {
   const userDoc = (snap.exists() ? (snap.data() as UserAccessDoc) : undefined) ?? {};
 
   const role = normalizeRole(userDoc.role);
+  const accountStatus = (userDoc.accountStatus ?? "active").toLowerCase();
+  if (role === "ADMIN" && (accountStatus === "inactive" || accountStatus === "purged")) {
+    throw new Error(
+      accountStatus === "purged"
+        ? "Ce compte a été clôturé. Déconnectez-vous et contactez le support si nécessaire."
+        : "Ce compte administrateur est désactivé.",
+    );
+  }
+  if (role === "GESTIONNAIRE" && typeof userDoc.enterpriseOwnerUid === "string" && userDoc.enterpriseOwnerUid.trim()) {
+    const ownerSnap = await getDoc(doc(db, "users", userDoc.enterpriseOwnerUid.trim()));
+    if (ownerSnap.exists()) {
+      const ownerData = ownerSnap.data() as UserAccessDoc;
+      const ownerRole = normalizeRole(ownerData.role);
+      const ownerStatus = (ownerData.accountStatus ?? "active").toLowerCase();
+      if (ownerRole === "ADMIN" && (ownerStatus === "inactive" || ownerStatus === "purged")) {
+        throw new Error(
+          ownerStatus === "purged"
+            ? "L'entreprise associée à ce compte a été clôturée."
+            : "L'administrateur de votre entreprise est désactivé.",
+        );
+      }
+    }
+  }
+
   const resolvedActorName = formatActorName(userDoc, authUser.displayName);
   const ownerUid =
     role === "GESTIONNAIRE" && typeof userDoc.enterpriseOwnerUid === "string" && userDoc.enterpriseOwnerUid.trim()
