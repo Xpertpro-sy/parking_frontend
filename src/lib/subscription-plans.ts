@@ -113,3 +113,17 @@ export function addCalendarMonths(from: Date, months: number): Date {
   d.setMonth(d.getMonth() + months);
   return d;
 }
+
+/**
+ * Libellé pour la durée totale souscrite (somme des formules des paiements validés).
+ * Ex. 1 mois + 3 mois → « 4 mois ».
+ */
+export function formatCumulativeSubscriptionLabel(totalMonths: number): string {
+  if (totalMonths <= 0) return "";
+  if (totalMonths === 12) return "1 an";
+  if (totalMonths > 12 && totalMonths % 12 === 0) {
+    const years = totalMonths / 12;
+    return `${years} ans`;
+  }
+  return `${totalMonths} mois`;
+}

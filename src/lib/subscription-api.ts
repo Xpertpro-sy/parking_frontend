@@ -19,6 +19,7 @@ import { getWorkspaceIdentity } from "@/lib/access-control";
 import {
   TRIAL_SUBSCRIPTION_PLAN,
   addCalendarMonths,
+  formatCumulativeSubscriptionLabel,
   formatSubscriptionTimeRemaining,
   formatTrialExpiryDisplay,
   getSubscriptionPlan,
@@ -155,6 +156,19 @@ function tsToIso(t: Timestamp | undefined | null): string | null {
 const COL_REQUESTS = "subscriptionRequests";
 const COL_TENANT_SUBS = "tenantSubscriptions";
 
+/** Somme des `durationMonths` des demandes validées (prolongations cumulées). */
+async function sumApprovedSubscriptionMonths(db: ReturnType<typeof getFirebaseDb>, ownerUid: string): Promise<number> {
+  const snap = await getDocs(query(collection(db, COL_REQUESTS), where("ownerUid", "==", ownerUid)));
+  let sum = 0;
+  for (const docSnap of snap.docs) {
+    const d = docSnap.data() as { status?: string; planId?: string };
+    if (d.status !== "approved") continue;
+    const p = getSubscriptionPlan(d.planId ?? "");
+    sum += p?.durationMonths ?? 0;
+  }
+  return sum;
+}
+
 export const tenantSubscriptionStateQueryKey = (ownerUid: string) =>
   ["subscription", "tenant-state", ownerUid] as const;
 
@@ -241,11 +255,21 @@ export async function getTenantSubscriptionStateRequest(ownerUid: string): Promi
     updatedAt: tsToIso(d.updatedAt),
     lastApprovedRequestId: d.lastApprovedRequestId ?? null,
   };
-   return {
+
+  let planLabel: string | null = plan?.label ?? d.planId ?? null;
+  const paidPlanId = d.planId ?? "";
+  if (paidPlanId !== "" && paidPlanId !== TRIAL_SUBSCRIPTION_PLAN.id) {
+    const approvedMonthsSum = await sumApprovedSubscriptionMonths(db, ownerUid);
+    if (approvedMonthsSum > 0) {
+      planLabel = formatCumulativeSubscriptionLabel(approvedMonthsSum);
+    }
+  }
+
+  return {
     subscription: row,
     isActive,
     expiresAtLabel: expiresDate ? formatTrialExpiryDisplay(expiresDate) : null,
-    planLabel: plan?.label ?? d.planId ?? null,
+    planLabel,
     isImplicitTrial: false,
   };
 }
