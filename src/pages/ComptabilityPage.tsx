@@ -26,6 +26,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import SubscriptionWriteLockShield from "@/components/SubscriptionWriteLockShield";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -355,6 +356,7 @@ export default function ComptabilityPage() {
   };
 
   return (
+    <SubscriptionWriteLockShield blockFormFields>
     <div className="space-y-6 animate-fade-in min-w-0 overflow-x-hidden">
       <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-3">
         <div>
@@ -430,6 +432,7 @@ export default function ComptabilityPage() {
       </div>
 
       <div className="rounded-xl border border-border bg-card p-4 space-y-4 shadow-sm min-w-0">
+        <div className="space-y-4" data-subscription-lock-bypass>
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_auto] gap-3">
           <div className="relative min-w-0">
             <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
@@ -481,6 +484,7 @@ export default function ComptabilityPage() {
               {option.label}
             </button>
           ))}
+        </div>
         </div>
 
         <div className="space-y-3 lg:hidden">
@@ -607,7 +611,10 @@ export default function ComptabilityPage() {
         )}
 
         {filteredMovements.length > movementsPerPage && (
-          <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div
+            className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between"
+            data-subscription-lock-bypass
+          >
             <p className="text-sm text-muted-foreground">
               Affichage {(currentPage - 1) * movementsPerPage + 1}
               {" - "}
@@ -803,5 +810,6 @@ export default function ComptabilityPage() {
         </DialogContent>
       </Dialog>
     </div>
+    </SubscriptionWriteLockShield>
   );
 }

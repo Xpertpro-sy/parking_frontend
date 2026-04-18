@@ -22,6 +22,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import FullscreenLoader from '@/components/ui/fullscreen-loader';
+import SubscriptionWriteLockShield from '@/components/SubscriptionWriteLockShield';
 import { getCurrentUserAccessProfile } from '@/lib/access-control';
 import { LIVE_COLLAB_REFETCH_MS } from '@/lib/vehicle-queries';
 
@@ -167,6 +168,7 @@ export default function CorbeillePage() {
     isEmptyingTrash;
 
   return (
+    <SubscriptionWriteLockShield>
     <div className="space-y-6 animate-fade-in">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Corbeille</h1>
@@ -386,5 +388,6 @@ export default function CorbeillePage() {
         <FullscreenLoader message="Traitement de la corbeille..." />
       )}
     </div>
+    </SubscriptionWriteLockShield>
   );
 }

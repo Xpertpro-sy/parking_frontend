@@ -21,6 +21,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { DEFAULT_MANAGER_PERMISSIONS, PermissionMap, getCurrentUserAccessProfile } from "@/lib/access-control";
+import SubscriptionWriteLockShield from "@/components/SubscriptionWriteLockShield";
 import {
   MANAGER_DEFAULT_INITIAL_PASSWORD,
   MANAGER_PERMISSION_LABELS,
@@ -199,6 +200,7 @@ export default function AccountsPage() {
   }
 
   return (
+    <SubscriptionWriteLockShield blockFormFields>
     <div className="space-y-6 animate-fade-in">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Comptes</h1>
@@ -395,6 +397,7 @@ export default function AccountsPage() {
         )}
       </section>
     </div>
+    </SubscriptionWriteLockShield>
   );
 }
 

@@ -23,6 +23,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import FullscreenLoader from '@/components/ui/fullscreen-loader';
+import SubscriptionWriteLockShield from '@/components/SubscriptionWriteLockShield';
 import { getCurrentUserAccessProfile } from '@/lib/access-control';
 
 type PeriodFilter = 'today' | 'yesterday' | 'week' | 'month' | 'year';
@@ -216,6 +217,7 @@ export default function HistoryPage() {
 
   
   return (
+    <SubscriptionWriteLockShield>
     <div className="space-y-6 animate-fade-in">
       <div className="rounded-2xl border border-border bg-gradient-to-r from-primary/10 via-info/10 to-purple-500/10 p-5 md:p-6">
         <h1 className="text-2xl font-bold text-foreground">Historique des operations</h1>
@@ -244,7 +246,10 @@ export default function HistoryPage() {
       </div>
 
       <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div
+          className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
+          data-subscription-lock-bypass
+        >
           <select
             value={period}
             onChange={(event) => setPeriod(event.target.value as PeriodFilter)}
@@ -511,7 +516,10 @@ export default function HistoryPage() {
           })}
           </div>
           {timelineItems.length > HISTORY_ITEMS_PER_PAGE && (
-            <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div
+              className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between"
+              data-subscription-lock-bypass
+            >
               <p className="text-sm text-muted-foreground">
                 Affichage {(currentPage - 1) * HISTORY_ITEMS_PER_PAGE + 1}
                 {' - '}
@@ -572,5 +580,6 @@ export default function HistoryPage() {
         <FullscreenLoader message="Mise en corbeille en cours..." />
       )}
     </div>
+    </SubscriptionWriteLockShield>
   );
 }

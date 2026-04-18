@@ -1,5 +1,7 @@
+import type { PointerEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { CalendarCheck, CalendarX, Car, Fuel, Gauge, MoreVertical } from 'lucide-react';
+import { subscriptionExpiredToast } from '@/context/SubscriptionWorkspaceContext';
 import { Vehicle } from '@/types/vehicle';
 import StatusBadge from './StatusBadge';
 import {
@@ -16,6 +18,10 @@ interface VehicleCardProps {
   reservationDueToday?: boolean;
   /** Période réservée dépassée alors que la réservation est encore active (liste véhicules). */
   reservationPeriodEnded?: boolean;
+  /** Abonnement expiré : pas de navigation vers la fiche véhicule. */
+  detailLinkDisabled?: boolean;
+  /** Abonnement expiré : masque le menu actions. */
+  actionsLocked?: boolean;
   onEdit?: (vehicle: Vehicle) => void;
   onDelete?: (vehicle: Vehicle) => void;
 }
@@ -25,27 +31,56 @@ export default function VehicleCard({
   showActions = false,
   reservationDueToday = false,
   reservationPeriodEnded = false,
+  detailLinkDisabled = false,
+  actionsLocked = false,
   onEdit,
   onDelete,
 }: VehicleCardProps) {
+  const showMenu = showActions && !actionsLocked;
+
+  const handleLockedDetailPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    subscriptionExpiredToast();
+  };
+
+  const CoverInner = (
+    <>
+      {vehicle.photos.length > 0 ? (
+        <img
+          src={vehicle.photos[0]}
+          alt={`${vehicle.brand} ${vehicle.model}`}
+          className="w-full h-full object-cover"
+        />
+      ) : (
+        <div className="h-full bg-secondary flex items-center justify-center">
+          <Car className="w-12 h-12 text-muted-foreground/40" />
+        </div>
+      )}
+    </>
+  );
+
   return (
-    <div className="glass-card overflow-hidden group hover:border-primary/30 transition-all animate-fade-in">
+    <div
+      className={`glass-card overflow-hidden group transition-all animate-fade-in ${
+        detailLinkDisabled ? "opacity-95" : "hover:border-primary/30"
+      }`}
+    >
       {/* Vehicle cover */}
       <div className="relative">
-        <Link to={`/vehicles/${vehicle.id}`} className="block h-40 bg-secondary">
-          {vehicle.photos.length > 0 ? (
-            <img
-              src={vehicle.photos[0]}
-              alt={`${vehicle.brand} ${vehicle.model}`}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <div className="h-full bg-secondary flex items-center justify-center">
-              <Car className="w-12 h-12 text-muted-foreground/40" />
-            </div>
-          )}
-        </Link>
-
+        {detailLinkDisabled ? (
+          <div
+            className="block h-40 bg-secondary cursor-not-allowed"
+            onPointerDown={handleLockedDetailPointerDown}
+            role="presentation"
+          >
+            {CoverInner}
+          </div>
+        ) : (
+          <Link to={`/vehicles/${vehicle.id}`} className="block h-40 bg-secondary">
+            {CoverInner}
+          </Link>
+        )}
         {reservationDueToday && (
           <div
             className="absolute top-2 left-2 z-10 inline-flex items-center gap-1 rounded-md border border-violet-300/80 bg-violet-600/95 px-2 py-1 text-[11px] font-semibold text-white shadow-sm"
@@ -66,7 +101,7 @@ export default function VehicleCard({
           </div>
         )}
 
-        {showActions && (
+        {showMenu && (
           <div className="absolute top-2 right-2 z-20">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -99,10 +134,32 @@ export default function VehicleCard({
         )}
       </div>
 
-      <Link to={`/vehicles/${vehicle.id}`} className="block p-4 space-y-3">
+      {detailLinkDisabled ? (
+        <div
+          className="block p-4 space-y-3 cursor-not-allowed"
+          onPointerDown={handleLockedDetailPointerDown}
+          role="presentation"
+        >
+          <Body />
+        </div>
+      ) : (
+        <Link to={`/vehicles/${vehicle.id}`} className="block p-4 space-y-3">
+          <Body />
+        </Link>
+      )}
+    </div>
+  );
+
+  function Body() {
+    return (
+      <>
         <div className="flex items-start justify-between">
           <div>
-            <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors">
+            <h3
+              className={`font-semibold text-foreground transition-colors ${
+                detailLinkDisabled ? "" : "group-hover:text-primary"
+              }`}
+            >
               {vehicle.brand} {vehicle.model}
             </h3>
             <p className="text-sm text-muted-foreground">{vehicle.year} · {vehicle.color}</p>
@@ -132,7 +189,7 @@ export default function VehicleCard({
           </div>
         </div>
         <p className="text-[11px] text-muted-foreground">Ajoute par: {vehicle.createdByName || "Utilisateur"}</p>
-      </Link>
-    </div>
-  );
+      </>
+    );
+  }
 }

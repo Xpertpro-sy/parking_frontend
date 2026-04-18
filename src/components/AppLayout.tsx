@@ -1,17 +1,31 @@
-import { Outlet } from 'react-router-dom';
-import AppSidebar from './AppSidebar';
-import MobileNav from './MobileNav';
+import { Outlet } from "react-router-dom";
+import { SubscriptionWorkspaceProvider, useSubscriptionWorkspace } from "@/context/SubscriptionWorkspaceContext";
+import SubscriptionExpiredBanner from "@/components/SubscriptionExpiredBanner";
+import AppSidebar from "./AppSidebar";
+import MobileNav from "./MobileNav";
+
+function AppMainColumn() {
+  const { showExpiredBanner } = useSubscriptionWorkspace();
+
+  return (
+    <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-x-hidden">
+      <SubscriptionExpiredBanner />
+      {showExpiredBanner ? <div className="h-[3.25rem] shrink-0 border-b border-transparent" aria-hidden /> : null}
+      <MobileNav />
+      <main className="flex-1 min-w-0 min-h-0 overflow-y-auto overflow-x-hidden p-4 md:p-8">
+        <Outlet />
+      </main>
+    </div>
+  );
+}
 
 export default function AppLayout() {
   return (
-    <div className="flex h-screen overflow-hidden overflow-x-hidden">
-      <AppSidebar />
-      <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-x-hidden">
-        <MobileNav />
-        <main className="flex-1 min-w-0 min-h-0 overflow-y-auto overflow-x-hidden p-4 md:p-8">
-          <Outlet />
-        </main>
+    <SubscriptionWorkspaceProvider>
+      <div className="flex h-screen overflow-hidden overflow-x-hidden">
+        <AppSidebar />
+        <AppMainColumn />
       </div>
-    </div>
+    </SubscriptionWorkspaceProvider>
   );
 }

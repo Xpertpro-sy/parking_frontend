@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSubscriptionWorkspace } from '@/context/SubscriptionWorkspaceContext';
 import { useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Loader2, Save, Upload, X } from 'lucide-react';
@@ -84,7 +85,12 @@ async function compressImage(file: File): Promise<File> {
 export default function VehicleEditForm() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { isWriteLocked } = useSubscriptionWorkspace();
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (isWriteLocked) navigate('/settings#abonnement', { replace: true });
+  }, [isWriteLocked, navigate]);
   const { data: vehicle, isLoading } = useVehicleDetailQuery(id);
 
   const [submitting, setSubmitting] = useState(false);

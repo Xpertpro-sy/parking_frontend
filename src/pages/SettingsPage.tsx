@@ -1,11 +1,14 @@
 import { ChangeEvent, useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CreditCard, ImagePlus, Loader2, Palette, Sparkles, Type } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { uploadImageToR2 } from "@/lib/cloudflare-upload";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import SubscriptionWriteLockShield from "@/components/SubscriptionWriteLockShield";
 import SubscriptionTenantPanel from "@/components/settings/SubscriptionTenantPanel";
+import { useSubscriptionWorkspace } from "@/context/SubscriptionWorkspaceContext";
 import {
   BrandingConfig,
   brandingSettingsQueryKey,
@@ -26,7 +29,12 @@ const DEFAULT_BRANDING: BrandingConfig = {
 
 export default function SettingsPage() {
   const { user } = useAuth();
+  const location = useLocation();
+  const { isWriteLocked } = useSubscriptionWorkspace();
   const queryClient = useQueryClient();
+  const [settingsTab, setSettingsTab] = useState<"branding" | "subscription">(() =>
+    typeof window !== "undefined" && window.location.hash === "#abonnement" ? "subscription" : "branding",
+  );
   const [branding, setBranding] = useState<BrandingConfig>(DEFAULT_BRANDING);
   const [textDraft, setTextDraft] = useState(DEFAULT_BRANDING.text);
   const [pendingImageSource, setPendingImageSource] = useState<string | null>(null);
@@ -46,6 +54,10 @@ export default function SettingsPage() {
     setTextDraft(brandingData.text);
     setPendingImageScale(brandingData.imageScale);
   }, [brandingData]);
+
+  useEffect(() => {
+    if (location.hash === "#abonnement") setSettingsTab("subscription");
+  }, [location.hash]);
 
   const handleTextSave = () => {
     if (!user?.email) return;
@@ -167,7 +179,7 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      <Tabs defaultValue="branding" className="w-full">
+      <Tabs value={settingsTab} onValueChange={(v) => setSettingsTab(v as "branding" | "subscription")} className="w-full">
         <TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-xl border border-border bg-muted/50 p-1.5 sm:inline-flex sm:w-auto sm:min-w-[320px]">
           <TabsTrigger
             value="branding"
@@ -186,6 +198,7 @@ export default function SettingsPage() {
         </TabsList>
 
         <TabsContent value="branding" className="mt-6 focus-visible:outline-none">
+          <SubscriptionWriteLockShield blockFormFields={isWriteLocked}>
           <section className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6 space-y-6">
             <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
               <div>
@@ -318,6 +331,7 @@ export default function SettingsPage() {
               </div>
             )}
           </section>
+          </SubscriptionWriteLockShield>
         </TabsContent>
 
         <TabsContent value="subscription" className="mt-6 focus-visible:outline-none">

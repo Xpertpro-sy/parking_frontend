@@ -7,6 +7,7 @@ import { VehicleStatus, STATUS_LABELS } from '@/types/vehicle';
 import VehicleCard from '@/components/VehicleCard';
 import { LIVE_COLLAB_REFETCH_MS, useVehiclesQuery } from '@/lib/vehicle-queries';
 import { moveVehicleToTrashRequest } from '@/lib/trash-api';
+import { subscriptionExpiredToast, useSubscriptionWorkspace } from '@/context/SubscriptionWorkspaceContext';
 import { listReservationsRequest } from '@/lib/vehicle-action-api';
 import {
   AlertDialog,
@@ -50,6 +51,7 @@ function isReservationPeriodEnded(reservationDateIso: string, reservationEndDate
 }
 
 export default function VehicleList() {
+  const { isWriteLocked } = useSubscriptionWorkspace();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<VehicleStatus | 'all'>('all');
@@ -139,13 +141,24 @@ export default function VehicleList() {
           <h1 className="text-2xl font-bold text-foreground">Véhicules</h1>
           <p className="text-muted-foreground mt-1">{vehicles.length} vehicules enregistres</p>
         </div>
-        <Link
-          to="/vehicles/new"
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
-        >
-          <Plus className="w-4 h-4" />
-          Ajouter un véhicule
-        </Link>
+        {isWriteLocked ? (
+          <button
+            type="button"
+            onClick={() => subscriptionExpiredToast()}
+            className="inline-flex cursor-not-allowed items-center gap-2 rounded-lg bg-muted px-4 py-2.5 text-sm font-medium text-muted-foreground opacity-80"
+          >
+            <Plus className="w-4 h-4" />
+            Ajouter un véhicule
+          </button>
+        ) : (
+          <Link
+            to="/vehicles/new"
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
+          >
+            <Plus className="w-4 h-4" />
+            Ajouter un véhicule
+          </Link>
+        )}
       </div>
 
       {/* Search & Filters */}
@@ -208,6 +221,8 @@ export default function VehicleList() {
                 key={v.id}
                 vehicle={v}
                 showActions
+                detailLinkDisabled={isWriteLocked}
+                actionsLocked={isWriteLocked}
                 reservationDueToday={reservationDueToday}
                 reservationPeriodEnded={reservationPeriodEnded}
                 onEdit={(vehicle) => {

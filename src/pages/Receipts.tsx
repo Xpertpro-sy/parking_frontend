@@ -21,6 +21,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import FullscreenLoader from '@/components/ui/fullscreen-loader';
+import SubscriptionWriteLockShield from '@/components/SubscriptionWriteLockShield';
 import { getCurrentUserAccessProfile } from '@/lib/access-control';
 
 type UiReceipt =
@@ -357,6 +358,7 @@ export default function Receipts() {
   };
 
   return (
+    <SubscriptionWriteLockShield>
     <div className="space-y-6 animate-fade-in">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Factures et recus</h1>
@@ -387,7 +389,10 @@ export default function Receipts() {
           )}
 
           <div className="rounded-2xl border border-border bg-card p-4">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div
+              className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"
+              data-subscription-lock-bypass
+            >
               <div className="relative w-full lg:max-w-md">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <input
@@ -574,7 +579,10 @@ export default function Receipts() {
           )}
 
           {filteredReceipts.length > RECEIPTS_PER_PAGE && (
-            <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div
+              className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between"
+              data-subscription-lock-bypass
+            >
               <p className="text-sm text-muted-foreground">
                 Affichage {(currentPage - 1) * RECEIPTS_PER_PAGE + 1}
                 {' - '}
@@ -638,5 +646,6 @@ export default function Receipts() {
         <FullscreenLoader message="Suppression du reçu..." />
       )}
     </div>
+    </SubscriptionWriteLockShield>
   );
 }

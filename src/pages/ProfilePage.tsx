@@ -4,6 +4,8 @@ import { ChevronLeft, Loader2, Lock, User } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
+import SubscriptionWriteLockShield from "@/components/SubscriptionWriteLockShield";
+import { useSubscriptionWorkspaceState } from "@/context/SubscriptionWorkspaceContext";
 import { isSuperAdminRole } from "@/lib/super-admin";
 import { userProfileQueryKey } from "@/lib/profile-query-keys";
 import { changePassword, fetchUserProfile, updateUserProfile } from "@/lib/profile-api";
@@ -13,6 +15,7 @@ const MIN_NEW_PASSWORD_LEN = 8;
 export default function ProfilePage() {
   const queryClient = useQueryClient();
   const { user, applyLocalUserPatch } = useAuth();
+  const isWriteLocked = useSubscriptionWorkspaceState()?.isWriteLocked ?? false;
   const { data: profile, isLoading, isError, error, refetch } = useQuery({
     queryKey: userProfileQueryKey,
     queryFn: fetchUserProfile,
@@ -123,7 +126,7 @@ export default function ProfilePage() {
           Chargement du profil...
         </div>
       ) : (
-        <>
+        <SubscriptionWriteLockShield blockFormFields={isWriteLocked}>
           <section className="rounded-xl border border-border bg-card p-5 shadow-sm space-y-4">
             <div className="flex items-center gap-2 text-foreground">
               <User className="h-5 w-5 text-primary" />
@@ -247,7 +250,7 @@ export default function ProfilePage() {
               {savingPassword ? "Mise à jour..." : "Mettre à jour le mot de passe"}
             </button>
           </section>
-        </>
+        </SubscriptionWriteLockShield>
       )}
     </div>
   );

@@ -5,6 +5,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { cancelReservationRequest, listReservationsRequest } from '@/lib/vehicle-action-api';
 import { LIVE_COLLAB_REFETCH_MS, vehicleQueryKeys } from '@/lib/vehicle-queries';
+import SubscriptionWriteLockShield from '@/components/SubscriptionWriteLockShield';
 
 const formatDateFr = (value: string) =>
   new Date(value).toLocaleDateString('fr-FR', {
@@ -108,13 +109,17 @@ export default function ReservedVehicles() {
   };
 
   return (
+    <SubscriptionWriteLockShield>
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Voitures reservees</h1>
           <p className="text-muted-foreground mt-1">Reservations actives des clients</p>
         </div>
-        <div className="flex w-full sm:w-auto flex-wrap items-center gap-2 sm:justify-end">
+        <div
+          className="flex w-full sm:w-auto flex-wrap items-center gap-2 sm:justify-end"
+          data-subscription-lock-bypass
+        >
           <select
             value={periodFilter}
             onChange={(event) => setPeriodFilter(event.target.value as PeriodFilter)}
@@ -279,7 +284,10 @@ export default function ReservedVehicles() {
       )}
 
       {filteredReservations.length > ITEMS_PER_PAGE && (
-        <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div
+          className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between"
+          data-subscription-lock-bypass
+        >
           <p className="text-sm text-muted-foreground">
             Affichage {(currentPage - 1) * ITEMS_PER_PAGE + 1}
             {' - '}
@@ -308,5 +316,6 @@ export default function ReservedVehicles() {
         </div>
       )}
     </div>
+    </SubscriptionWriteLockShield>
   );
 }

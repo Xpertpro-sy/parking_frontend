@@ -1,12 +1,15 @@
 import { useEffect, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { Car, CheckCircle, Wrench, Key, DollarSign } from 'lucide-react';
 import { toast } from 'sonner';
 import StatCard from '@/components/StatCard';
 import VehicleCard from '@/components/VehicleCard';
 import heroImage from '@/assets/hero-parking.jpg';
 import { useVehiclesQuery } from '@/lib/vehicle-queries';
+import { useSubscriptionWorkspace } from '@/context/SubscriptionWorkspaceContext';
 
 export default function Dashboard() {
+  const { isWriteLocked } = useSubscriptionWorkspace();
   const { data: vehicles = [], isError, error } = useVehiclesQuery({ live: true });
 
   useEffect(() => {
@@ -54,11 +57,13 @@ export default function Dashboard() {
       <div>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-foreground">Véhicules récents</h2>
-          <a href="/vehicles" className="text-sm text-primary hover:underline">Voir tout →</a>
+          <Link to="/vehicles" className="text-sm text-primary hover:underline">
+            Voir tout →
+          </Link>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {recentVehicles.map(v => (
-            <VehicleCard key={v.id} vehicle={v} />
+          {recentVehicles.map((v) => (
+            <VehicleCard key={v.id} vehicle={v} detailLinkDisabled={isWriteLocked} />
           ))}
         </div>
       </div>

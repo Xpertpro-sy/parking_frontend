@@ -4,6 +4,7 @@ import { Car, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { listRentalsRequest } from '@/lib/rental-api';
+import SubscriptionWriteLockShield from '@/components/SubscriptionWriteLockShield';
 import { LIVE_COLLAB_REFETCH_MS } from '@/lib/vehicle-queries';
 
 const formatDateTimeFr = (value: string) =>
@@ -94,13 +95,17 @@ export default function RentedVehicles() {
   }, [currentPage, totalPages]);
 
   return (
+    <SubscriptionWriteLockShield>
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Voitures louees</h1>
           <p className="text-muted-foreground mt-1">Locations actives en cours</p>
         </div>
-        <div className="flex w-full sm:w-auto flex-wrap items-center gap-2 sm:justify-end">
+        <div
+          className="flex w-full sm:w-auto flex-wrap items-center gap-2 sm:justify-end"
+          data-subscription-lock-bypass
+        >
           <select
             value={periodFilter}
             onChange={(event) => setPeriodFilter(event.target.value as PeriodFilter)}
@@ -275,7 +280,10 @@ export default function RentedVehicles() {
       )}
 
       {filteredRentals.length > ITEMS_PER_PAGE && (
-        <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div
+          className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between"
+          data-subscription-lock-bypass
+        >
           <p className="text-sm text-muted-foreground">
             Affichage {(currentPage - 1) * ITEMS_PER_PAGE + 1}
             {' - '}
@@ -304,5 +312,6 @@ export default function RentedVehicles() {
         </div>
       )}
     </div>
+    </SubscriptionWriteLockShield>
   );
 }
