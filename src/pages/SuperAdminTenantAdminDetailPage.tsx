@@ -13,6 +13,7 @@ import {
 import { tenantAdminMaxManagersQueryKey } from "@/lib/tenant-admin-manager-limit";
 import { cn } from "@/lib/utils";
 import type { SubscriptionDaySummary } from "@/lib/subscription-api";
+import { getTrialPlanLabel } from "@/lib/subscription-plans";
 
 function subscriptionSummaryToneClass(variant: SubscriptionDaySummary["variant"]) {
   switch (variant) {
@@ -141,12 +142,12 @@ export default function SuperAdminTenantAdminDetailPage() {
             <p className="text-sm text-muted-foreground leading-relaxed">{detail.subscriptionDaySummary.subline}</p>
             <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
               {detail.subscriptionState.isImplicitTrial ? (
-                               <span className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-amber-800 dark:text-amber-200">
-                  Essai 1 mois (déduit de la date d’inscription — abonnement non encore enregistré en base)
+                <span className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-amber-800 dark:text-amber-200">
+                  {getTrialPlanLabel()} (déduit de la date d’inscription — abonnement non encore enregistré en base)
                 </span>
               ) : detail.subscriptionState.subscription?.planId === "trial" ? (
                 <span className="rounded-md border border-border bg-muted/40 px-2 py-1 font-medium text-foreground">
-                  Essai 1 mois
+                  {getTrialPlanLabel()}
                 </span>
               ) : null}
               {detail.createdAtLabel ? (

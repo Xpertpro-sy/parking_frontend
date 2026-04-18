@@ -22,7 +22,7 @@ import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase";
 import type { AuthApiResponse, LoginPayload, RegisterPayload } from "@/lib/auth-api";
 import { DEFAULT_ADMIN_PERMISSIONS, DEFAULT_MANAGER_PERMISSIONS, PermissionMap } from "@/lib/access-control";
 import { SUPER_ADMIN_DEFAULT_EMAIL } from "@/lib/super-admin";
-import { TRIAL_SUBSCRIPTION_PLAN_ID, addCalendarMonths } from "@/lib/subscription-plans";
+import { TRIAL_SUBSCRIPTION_PLAN_ID, getTrialExpiresAt } from "@/lib/subscription-plans";
 
 /** Même logique que dans manager-access-api (évite une dépendance circulaire auth-firebase → manager-access-api). */
 function normalizeManagerPermissionsFromAccess(input?: Partial<PermissionMap>): PermissionMap {
@@ -123,7 +123,7 @@ async function ensureTrialSubscriptionForNewTenantAdmin(adminUid: string) {
   const subRef = doc(db, "tenantSubscriptions", adminUid);
   const existing = await getDoc(subRef);
   if (existing.exists()) return;
-  const expiresAt = addCalendarMonths(new Date(), 1);
+  const expiresAt = getTrialExpiresAt(new Date());
   await setDoc(subRef, {
     ownerUid: adminUid,
     planId: TRIAL_SUBSCRIPTION_PLAN_ID,

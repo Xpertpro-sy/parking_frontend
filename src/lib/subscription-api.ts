@@ -19,7 +19,11 @@ import { getWorkspaceIdentity } from "@/lib/access-control";
 import {
   TRIAL_SUBSCRIPTION_PLAN,
   addCalendarMonths,
+  formatSubscriptionTimeRemaining,
+  formatTrialExpiryDisplay,
   getSubscriptionPlan,
+  getTrialExpiresAt,
+  getTrialPlanLabel,
   type SubscriptionPlanId,
 } from "@/lib/subscription-plans";
 
@@ -65,10 +69,6 @@ export type SubscriptionDaySummary = {
   variant: "default" | "success" | "warning" | "destructive";
 };
 
-function daysRemainingCeil(from: Date, to: Date): number {
-  return Math.max(0, Math.ceil((to.getTime() - from.getTime()) / 86_400_000));
-}
-
 /** Résumé lisible pour le super admin (état au jour le jour). */
 export function buildSubscriptionDaySummary(
   state: TenantSubscriptionState,
@@ -82,12 +82,12 @@ export function buildSubscriptionDaySummary(
   if (state.subscription?.expiresAt) {
     const exp = new Date(state.subscription.expiresAt);
     const label = state.planLabel ?? state.subscription.planId;
-    const dateStr = exp.toLocaleDateString("fr-FR", { dateStyle: "long" });
+    const dateStr = formatTrialExpiryDisplay(exp);
     if (exp.getTime() > now.getTime()) {
-      const d = daysRemainingCeil(now, exp);
+      const remaining = formatSubscriptionTimeRemaining(now, exp);
       return {
         headline: `${label} — actif`,
-        subline: [pending, `Au ${dateStr} (${d} jour${d > 1 ? "s" : ""} restant${d > 1 ? "s" : ""}).`]
+        subline: [pending, `Expire le ${dateStr} · il reste ${remaining}.`]
           .filter(Boolean)
           .join(" ")
           .trim(),
@@ -102,13 +102,13 @@ export function buildSubscriptionDaySummary(
   }
 
   if (accountCreatedAt) {
-    const trialEnd = addCalendarMonths(accountCreatedAt, 1);
-    const endLabel = trialEnd.toLocaleDateString("fr-FR", { dateStyle: "long" });
+    const trialEnd = getTrialExpiresAt(accountCreatedAt);
+    const endLabel = formatTrialExpiryDisplay(trialEnd);
     if (trialEnd.getTime() > now.getTime()) {
-      const d = daysRemainingCeil(now, trialEnd);
+      const remaining = formatSubscriptionTimeRemaining(now, trialEnd);
       return {
-        headline: "Essai 1 mois — actif (sans fiche Firestore)",
-        subline: [pending, `Période gratuite déduite de l’inscription jusqu’au ${endLabel} (${d} jour${d > 1 ? "s" : ""}).`]
+        headline: `${getTrialPlanLabel()} — actif (sans fiche Firestore)`,
+        subline: [pending, `Période gratuite déduite de l’inscription jusqu’au ${endLabel} · il reste ${remaining}.`]
           .filter(Boolean)
           .join(" ")
           .trim(),
@@ -119,7 +119,7 @@ export function buildSubscriptionDaySummary(
       headline: "Essai gratuit terminé",
       subline: [
         pending,
-        `L’essai d’un mois après inscription est clos depuis le ${endLabel}. Aucun abonnement payant actif.`,
+        `L’essai après inscription est clos depuis le ${endLabel}. Aucun abonnement payant actif.`,
       ]
         .filter(Boolean)
         .join(" ")
@@ -200,7 +200,7 @@ export async function getTenantSubscriptionStateRequest(ownerUid: string): Promi
         isImplicitTrial: false,
       };
     }
-    const virtualEnd = addCalendarMonths(createdDate, 1);
+    const virtualEnd = getTrialExpiresAt(createdDate);
     if (virtualEnd.getTime() > Date.now()) {
       return {
         subscription: {
@@ -211,8 +211,8 @@ export async function getTenantSubscriptionStateRequest(ownerUid: string): Promi
           lastApprovedRequestId: null,
         },
         isActive: true,
-        expiresAtLabel: virtualEnd.toLocaleDateString("fr-FR", { dateStyle: "long" }),
-        planLabel: TRIAL_SUBSCRIPTION_PLAN.label,
+        expiresAtLabel: formatTrialExpiryDisplay(virtualEnd),
+        planLabel: getTrialPlanLabel(),
         isImplicitTrial: true,
       };
     }
@@ -241,10 +241,10 @@ export async function getTenantSubscriptionStateRequest(ownerUid: string): Promi
     updatedAt: tsToIso(d.updatedAt),
     lastApprovedRequestId: d.lastApprovedRequestId ?? null,
   };
-  return {
+   return {
     subscription: row,
     isActive,
-    expiresAtLabel: expiresDate ? expiresDate.toLocaleDateString("fr-FR", { dateStyle: "long" }) : null,
+    expiresAtLabel: expiresDate ? formatTrialExpiryDisplay(expiresDate) : null,
     planLabel: plan?.label ?? d.planId ?? null,
     isImplicitTrial: false,
   };
