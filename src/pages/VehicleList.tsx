@@ -1,12 +1,13 @@
-import { useEffect, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useEffect, useMemo, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { Plus, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { VehicleStatus, STATUS_LABELS } from '@/types/vehicle';
 import VehicleCard from '@/components/VehicleCard';
-import { useVehiclesQuery } from '@/lib/vehicle-queries';
+import { LIVE_COLLAB_REFETCH_MS, useVehiclesQuery } from '@/lib/vehicle-queries';
 import { moveVehicleToTrashRequest } from '@/lib/trash-api';
+import { listReservationsRequest } from '@/lib/vehicle-action-api';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,6 +22,18 @@ import FullscreenLoader from '@/components/ui/fullscreen-loader';
 
 const statusFilters: (VehicleStatus | 'all')[] = ['all', 'available', 'sold', 'rented', 'repair', 'reserved'];
 
+/** Compare le jour civil local de la date de réservation (ISO) avec aujourd’hui. */
+function isReservationDueToday(reservationDateIso: string): boolean {
+  const target = new Date(reservationDateIso);
+  if (Number.isNaN(target.getTime())) return false;
+  const now = new Date();
+  return (
+    target.getFullYear() === now.getFullYear() &&
+    target.getMonth() === now.getMonth() &&
+    target.getDate() === now.getDate()
+  );
+}
+
 export default function VehicleList() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -29,6 +42,23 @@ export default function VehicleList() {
   const [pendingDeleteVehicle, setPendingDeleteVehicle] = useState<{ id: string; label: string } | null>(null);
   const [isDeletingVehicle, setIsDeletingVehicle] = useState(false);
   const { data: vehicles = [], isLoading, isError, error } = useVehiclesQuery({ live: true });
+  const { data: reservations = [] } = useQuery({
+    queryKey: ['reservations', 'list'],
+    queryFn: listReservationsRequest,
+    staleTime: 0,
+    gcTime: 10 * 60 * 1000,
+    refetchInterval: LIVE_COLLAB_REFETCH_MS,
+    refetchOnWindowFocus: true,
+  });
+
+  const reservationDueByVehicleId = useMemo(() => {
+    const map = new Map<string, boolean>();
+    for (const r of reservations) {
+      if (r.status !== 'ACTIVE') continue;
+      map.set(r.vehicleId, isReservationDueToday(r.reservationDate));
+    }
+    return map;
+  }, [reservations]);
 
   useEffect(() => {
     if (isError) {
@@ -113,11 +143,14 @@ export default function VehicleList() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filtered.map(v => {
             const canDelete = v.status === 'available' || v.status === 'sold';
+            const reservationDueToday =
+              v.status === 'reserved' && (reservationDueByVehicleId.get(v.id) === true);
             return (
               <VehicleCard
                 key={v.id}
                 vehicle={v}
                 showActions
+                reservationDueToday={reservationDueToday}
                 onEdit={(vehicle) => {
                   navigate(`/vehicles/${vehicle.id}/edit`);
                 }}

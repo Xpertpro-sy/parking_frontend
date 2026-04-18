@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Car, Fuel, Gauge, MoreVertical } from 'lucide-react';
+import { CalendarCheck, Car, Fuel, Gauge, MoreVertical } from 'lucide-react';
 import { Vehicle } from '@/types/vehicle';
 import StatusBadge from './StatusBadge';
 import {
@@ -12,11 +12,19 @@ import {
 interface VehicleCardProps {
   vehicle: Vehicle;
   showActions?: boolean;
+  /** Affiche un repère lorsque la date prévue de la réservation active est aujourd’hui (liste véhicules). */
+  reservationDueToday?: boolean;
   onEdit?: (vehicle: Vehicle) => void;
   onDelete?: (vehicle: Vehicle) => void;
 }
 
-export default function VehicleCard({ vehicle, showActions = false, onEdit, onDelete }: VehicleCardProps) {
+export default function VehicleCard({
+  vehicle,
+  showActions = false,
+  reservationDueToday = false,
+  onEdit,
+  onDelete,
+}: VehicleCardProps) {
   return (
     <div className="glass-card overflow-hidden group hover:border-primary/30 transition-all animate-fade-in">
       {/* Vehicle cover */}
@@ -34,6 +42,16 @@ export default function VehicleCard({ vehicle, showActions = false, onEdit, onDe
             </div>
           )}
         </Link>
+
+        {reservationDueToday && (
+          <div
+            className="absolute top-2 left-2 z-10 inline-flex items-center gap-1 rounded-md border border-violet-300/80 bg-violet-600/95 px-2 py-1 text-[11px] font-semibold text-white shadow-sm"
+            title="La date prévue de réservation est aujourd'hui"
+          >
+            <CalendarCheck className="w-3.5 h-3.5 shrink-0" aria-hidden />
+            <span>Jour de réservation</span>
+          </div>
+        )}
 
         {showActions && (
           <div className="absolute top-2 right-2 z-20">
