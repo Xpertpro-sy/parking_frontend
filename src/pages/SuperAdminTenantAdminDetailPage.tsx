@@ -155,14 +155,14 @@ export default function SuperAdminTenantAdminDetailPage() {
             </p>
           </div>
 
-          <div className="rounded-xl border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
+          {/* <div className="rounded-xl border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
             <p>
               <span className="font-medium text-foreground">Téléphone :</span> {detail.telephone || "—"}
             </p>
             <p className="mt-1">
               <span className="font-medium text-foreground">Inscription :</span> {detail.createdAtLabel ?? "—"}
             </p>
-          </div>
+          </div> */}
         </>
       )}
     </div>

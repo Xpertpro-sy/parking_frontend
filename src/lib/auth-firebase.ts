@@ -87,12 +87,15 @@ async function upsertUserFirestore(params: {
     prenom: params.prenom,
     nom: params.nom,
     displayName: `${params.prenom} ${params.nom}`.trim(),
-    telephone: params.telephone ?? null,
     role,
     permissions,
     enterpriseOwnerUid: role === "GESTIONNAIRE" ? existingData?.enterpriseOwnerUid ?? params.uid : params.uid,
     updatedAt: serverTimestamp(),
   };
+  // Ne pas écrire `telephone` si absent : sinon à chaque login on fusionnait `null` et effaçait le numéro du profil.
+  if (params.telephone !== undefined) {
+    payload.telephone = params.telephone.trim() === "" ? null : params.telephone.trim();
+  }
   if (params.includeCreatedAt) {
     payload.createdAt = serverTimestamp();
   }
@@ -118,7 +121,7 @@ async function postAuthFirestoreSync(
   user: User,
   prenom: string,
   nom: string,
-  options?: { includeCreatedAtForNewUser?: boolean },
+  options?: { includeCreatedAtForNewUser?: boolean; telephone?: string },
 ): Promise<"ADMIN" | "GESTIONNAIRE" | "SUPER_ADMIN"> {
   const db = getFirebaseDb();
   const emailNormalized = (user.email ?? "").trim().toLowerCase();
@@ -193,6 +196,7 @@ async function postAuthFirestoreSync(
     email: user.email ?? emailNormalized,
     prenom,
     nom,
+    telephone: options?.telephone,
     includeCreatedAt: Boolean(options?.includeCreatedAtForNewUser && !userSnap.exists()),
   });
   return "ADMIN";
@@ -208,6 +212,7 @@ export async function registerWithFirebase(payload: RegisterPayload): Promise<Au
     await updateProfile(credential.user, { displayName: `${payload.prenom} ${payload.nom}`.trim() });
     const role = await postAuthFirestoreSync(auth, credential.user, payload.prenom, payload.nom, {
       includeCreatedAtForNewUser: true,
+      telephone: payload.telephone,
     });
     const token = await getIdToken(credential.user, true);
     return {
