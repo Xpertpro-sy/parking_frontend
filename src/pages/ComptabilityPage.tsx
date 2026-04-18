@@ -1,12 +1,22 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronLeft, ChevronRight, Landmark, Search, Smartphone, Wallet } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Landmark,
+  Receipt,
+  Search,
+  Smartphone,
+  Wallet,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
   accountMovementsQueryKey,
   createFundTransferRequest,
   createManualExpenseRequest,
   listAccountMovementsRequest,
+  type AccountMovementOperationType,
 } from "@/lib/accounting-api";
 import {
   Dialog,
@@ -43,6 +53,7 @@ type Movement = {
   amount: number;
   type: MovementType;
   source: MovementSource;
+  operationType: AccountMovementOperationType;
 };
 
 const sourceLabel: Record<MovementSource, string> = {
@@ -158,6 +169,7 @@ export default function ComptabilityPage() {
         amount: movement.amount,
         type: movement.direction,
         source: movement.source,
+        operationType: movement.operationType,
       }))
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [accountMovements]);
@@ -211,11 +223,16 @@ export default function ComptabilityPage() {
       }
       return { entree, sortie, net: entree - sortie };
     };
+    const depensesTotal = filteredMovements.reduce((sum, item) => {
+      if (item.type !== "sortie") return sum;
+      if (item.operationType === "expense" || item.operationType === "repair") return sum + item.amount;
+      return sum;
+    }, 0);
     return {
       caisse: accumulate("caisse"),
       banque: accumulate("banque"),
       mobileMoney: accumulate("mobile-money"),
-      credit: accumulate("credit"),
+      depensesTotal,
     };
   }, [filteredMovements]);
 
@@ -401,13 +418,17 @@ export default function ComptabilityPage() {
           <p className="mt-2 text-2xl sm:text-3xl font-bold text-foreground break-words">{metrics.mobileMoney.net.toLocaleString()} CFA</p>
           <p className="text-xs text-muted-foreground mt-1">Période: {periodOptions.find((o) => o.value === periodFilter)?.label}</p>
         </div>
-        <div className="rounded-xl border border-amber-200/40 bg-amber-500/10 p-4 min-w-0">
+        <div className="rounded-xl border border-orange-200/40 bg-orange-500/10 p-4 min-w-0">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-medium text-amber-600">Credit</p>
-            <Wallet className="w-4 h-4 text-amber-500" />
+            <p className="text-xs font-medium text-orange-700">Dépenses</p>
+            <Receipt className="w-4 h-4 text-orange-600" />
           </div>
-          <p className="mt-2 text-2xl sm:text-3xl font-bold text-foreground break-words">{metrics.credit.net.toLocaleString()} CFA</p>
-          <p className="text-xs text-muted-foreground mt-1">Période: {periodOptions.find((o) => o.value === periodFilter)?.label}</p>
+          <p className="mt-2 text-2xl sm:text-3xl font-bold text-foreground break-words">
+            {metrics.depensesTotal.toLocaleString()} CFA
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Dépenses manuelles et réparations (période : {periodOptions.find((o) => o.value === periodFilter)?.label})
+          </p>
         </div>
       </div>
 
