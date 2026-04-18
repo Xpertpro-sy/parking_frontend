@@ -1,6 +1,7 @@
 import { createContext, ReactNode, useContext, useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { loginRequest, logoutRequest, registerRequest } from "@/lib/auth-api";
+import { STORAGE_AUTH_TOKEN_KEY, STORAGE_CURRENT_USER_KEY } from "@/lib/auth-session";
 
 type AuthUser = {
   userId: number;
@@ -31,10 +32,10 @@ type AuthContextType = {
   login: (values: LoginInput) => Promise<{ success: boolean; message: string }>;
   register: (values: RegisterInput) => Promise<{ success: boolean; message: string }>;
   logout: () => void;
+  /** Met à jour le nom / prénom en session après modification du profil (sans relancer la connexion). */
+  applyLocalUserPatch: (patch: { firstName: string; lastName: string }) => void;
 };
 
-const STORAGE_AUTH_TOKEN_KEY = "gestion-parking-auth-token";
-const STORAGE_CURRENT_USER_KEY = "gestion-parking-current-user";
 const REACT_QUERY_PERSIST_KEY = "gestion-parking-react-query-cache-v1";
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -130,6 +131,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   };
 
+  const applyLocalUserPatch = ({ firstName, lastName }: { firstName: string; lastName: string }) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const fn = firstName.trim();
+      const ln = lastName.trim();
+      const next: AuthUser = {
+        ...prev,
+        firstName: fn,
+        lastName: ln,
+        name: `${fn} ${ln}`.trim() || prev.name,
+      };
+      sessionStorage.setItem(STORAGE_CURRENT_USER_KEY, JSON.stringify(next));
+      return next;
+    });
+  };
+
   const value = {
     user,
     isAuthenticated: Boolean(user),
@@ -137,6 +154,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     login,
     register,
     logout,
+    applyLocalUserPatch,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -148,8 +166,4 @@ export function useAuth() {
     throw new Error("useAuth doit etre utilise dans AuthProvider.");
   }
   return context;
-}
-
-export function getAccessToken() {
-  return sessionStorage.getItem(STORAGE_AUTH_TOKEN_KEY);
 }

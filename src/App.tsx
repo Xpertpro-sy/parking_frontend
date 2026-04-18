@@ -24,6 +24,7 @@ import ComptabilityPage from "./pages/ComptabilityPage";
 import SettingsPage from "./pages/SettingsPage";
 import CorbeillePage from "./pages/CorbeillePage";
 import AccountsPage from "./pages/AccountsPage";
+import ProfilePage from "./pages/ProfilePage";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import NotFound from "./pages/NotFound";
@@ -86,6 +87,7 @@ const App = () => (
                 <Route path="/voitures-reservees" element={<ReservedVehicles />} />
                 <Route path="/history" element={<HistoryPage />} />
                 <Route path="/comptability" element={<ComptabilityPage />} />
+                <Route path="/profil" element={<ProfilePage />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/corbeille" element={<CorbeillePage />} />
                 <Route path="/comptes" element={<AccountsPage />} />

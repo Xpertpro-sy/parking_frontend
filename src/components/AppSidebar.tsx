@@ -11,6 +11,7 @@ import {
   Calculator,
   Trash2,
   User,
+  ChevronRight,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { AppPermission, getCurrentUserAccessProfile } from '@/lib/access-control';
@@ -108,10 +109,22 @@ export default function AppSidebar() {
 
       {/* Footer */}
       <div className="px-3 py-4 border-t border-sidebar-border space-y-1 shrink-0 bg-sidebar sticky bottom-0 z-10">
-        <div className="px-3 py-2">
-          <p className="text-xs uppercase tracking-wide text-sidebar-foreground/70">Connecte</p>
-          <p className="text-sm font-medium text-sidebar-accent-foreground truncate">{user?.name}</p>
-        </div>
+        <NavLink
+          to="/profil"
+          className={({ isActive }) =>
+            `flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring ${
+              isActive
+                ? "bg-sidebar-accent text-sidebar-primary"
+                : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            }`
+          }
+        >
+          <div className="min-w-0">
+            <p className="text-xs uppercase tracking-wide text-sidebar-foreground/70">Connecté</p>
+            <p className="text-sm font-medium text-sidebar-accent-foreground truncate">{user?.name}</p>
+          </div>
+          <ChevronRight className="w-4 h-4 shrink-0 opacity-70" aria-hidden />
+        </NavLink>
         {(!accessProfile || accessProfile.permissions.settings) && (
           <NavLink
             to="/settings"

@@ -1,4 +1,4 @@
-import { getAccessToken } from "@/context/AuthContext";
+import { getAccessToken } from "@/lib/auth-session";
 const CLOUDFLARE_PRESIGN_URL = (import.meta.env.VITE_CLOUDFLARE_PRESIGN_URL as string | undefined)?.trim();
 
 type UploadResponse = {

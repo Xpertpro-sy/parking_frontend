@@ -100,6 +100,18 @@ export default function MobileNav() {
                 </NavLink>
               );
             })}
+            <NavLink
+              to="/profil"
+              onClick={() => setOpen(false)}
+              className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+                location.pathname === "/profil"
+                  ? "bg-accent text-primary"
+                  : "text-muted-foreground hover:bg-accent hover:text-foreground"
+              }`}
+            >
+              <User className="w-5 h-5" />
+              Mon profil
+            </NavLink>
             <button
               onClick={() => setShowLogoutPopup(true)}
               className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-muted-foreground hover:bg-accent hover:text-destructive transition-colors"

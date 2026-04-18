@@ -1,5 +1,5 @@
 import { doc, getDoc } from "firebase/firestore";
-import { getAccessToken } from "@/context/AuthContext";
+import { getAccessToken } from "@/lib/auth-session";
 import { getFirebaseDb, waitForFirebaseUser } from "@/lib/firebase";
 
 export type AppPermission =
