@@ -8,7 +8,7 @@ import { accountMovementsQueryKey } from '@/lib/accounting-api';
 import type { AppPermission } from '@/lib/access-control';
 import { getCurrentUserAccessProfile } from '@/lib/access-control';
 import { LIVE_COLLAB_REFETCH_MS, useVehicleDetailQuery, vehicleQueryKeys } from '@/lib/vehicle-queries';
-import { completeRentalRequest, listRentalsRequest } from '@/lib/rental-api';
+import { completeRentalRequest, listRentalsRequest, reconcileVehicleRentalStatusRequest } from '@/lib/rental-api';
 import { listSalesRequest } from '@/lib/sale-api';
 import {
   cancelReservationRequest,
@@ -130,6 +130,27 @@ export default function VehicleDetail() {
 
     return () => window.clearInterval(timer);
   }, [vehicle]);
+
+  useEffect(() => {
+    if (!vehicle || loadingRentals) return;
+    if (vehicle.status !== 'rented') return;
+    const hasActiveRental = rentals.some(
+      (rental) => rental.vehicleId === vehicle.id && rental.status?.trim().toLowerCase() === 'active',
+    ) || rentals.some((rental) => rental.vehicleId === vehicle.id && !rental.completedAt);
+    if (hasActiveRental) return;
+
+    void (async () => {
+      try {
+        const reconciled = await reconcileVehicleRentalStatusRequest(vehicle.id);
+        if (reconciled) {
+          await queryClient.invalidateQueries({ queryKey: vehicleQueryKeys.all });
+          toast.success("Statut du véhicule synchronisé automatiquement.");
+        }
+      } catch {
+        // Silence: la synchronisation peut échouer temporairement si les règles ne sont pas encore déployées.
+      }
+    })();
+  }, [vehicle, loadingRentals, rentals, queryClient]);
 
   if (isLoading) {
     return (
@@ -430,12 +451,7 @@ export default function VehicleDetail() {
         )}
       </div>
       <div className="glass-card p-6 space-y-4">
-        <h2 className="text-lg font-semibold text-foreground">Traçabilité</h2>
-        <div className="rounded-lg border border-border bg-secondary/20 px-4 py-3 text-sm">
-          <p className="text-muted-foreground">
-            Véhicule ajouté par <span className="text-foreground font-medium">{vehicle.createdByName || "Utilisateur"}</span>.
-          </p>
-        </div>
+        <h2 className="text-lg font-semibold text-foreground">Informations</h2>
 
         {vehicle.status === 'rented' && activeRental && (
           <div className="rounded-lg border border-info/30 bg-info/10 px-4 py-3 text-sm space-y-1">

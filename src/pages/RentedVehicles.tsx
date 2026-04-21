@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { listRentalsRequest } from '@/lib/rental-api';
 import SubscriptionWriteLockShield from '@/components/SubscriptionWriteLockShield';
-import { LIVE_COLLAB_REFETCH_MS } from '@/lib/vehicle-queries';
+import { LIVE_COLLAB_REFETCH_MS, useVehiclesQuery } from '@/lib/vehicle-queries';
 
 const formatDateTimeFr = (value: string) =>
   new Date(value).toLocaleString('fr-FR', {
@@ -42,6 +42,7 @@ export default function RentedVehicles() {
     refetchInterval: LIVE_COLLAB_REFETCH_MS,
     refetchOnWindowFocus: true,
   });
+  const { data: vehicles = [], isLoading: loadingVehicles } = useVehiclesQuery({ live: true });
 
   useEffect(() => {
     if (isError) {
@@ -63,6 +64,11 @@ export default function RentedVehicles() {
   const activeRentals = rentals
     .filter((rental) => rental.status?.toLowerCase() === 'active')
     .sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
+  const activeVehicleIds = new Set(activeRentals.map((rental) => rental.vehicleId));
+  const rentedVehiclesWithoutActiveRental = vehicles.filter(
+    (vehicle) => vehicle.status === 'rented' && !activeVehicleIds.has(vehicle.id),
+  );
+  const showRentedStatusMismatch = !isLoading && !loadingVehicles && rentedVehiclesWithoutActiveRental.length > 0;
   const filteredRentals = activeRentals.filter((rental) => {
     const date = new Date(rental.startDate);
     if (Number.isNaN(date.getTime())) return false;
@@ -136,10 +142,30 @@ export default function RentedVehicles() {
             Liste
           </button>
           <p className="text-xs text-muted-foreground whitespace-nowrap ml-1">
-            {filteredRentals.length} resultat(s)
+            {filteredRentals.length + rentedVehiclesWithoutActiveRental.length} resultat(s)
           </p>
         </div>
       </div>
+
+      {showRentedStatusMismatch && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm">
+          <p className="font-medium text-foreground">Véhicules marqués "En location" sans fiche location active</p>
+          <p className="text-muted-foreground mt-1">
+            Ces véhicules sont affichés pour éviter qu&apos;ils disparaissent de cette page. Ouvrez leur détail pour les synchroniser.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {rentedVehiclesWithoutActiveRental.map((vehicle) => (
+              <Link
+                key={vehicle.id}
+                to={`/vehicles/${vehicle.id}`}
+                className="rounded-lg border border-border bg-background/70 px-3 py-1.5 text-xs font-medium hover:bg-background"
+              >
+                {vehicle.brand} {vehicle.model} · {vehicle.plate}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="glass-card p-12 text-center">

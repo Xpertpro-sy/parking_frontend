@@ -11,6 +11,7 @@ import {
   serverTimestamp,
   where,
   Timestamp,
+  updateDoc,
 } from "firebase/firestore";
 
 export type CreateRentalPayload = {
@@ -425,6 +426,38 @@ export async function completeRentalRequest(rentalId: string): Promise<RentalApi
     ...mapRentalDoc(rentalId, updatedRentalData),
     receipt,
   };
+}
+
+export async function reconcileVehicleRentalStatusRequest(vehicleId: string): Promise<boolean> {
+  const db = getFirebaseDb();
+  const { uid } = await getAuthIdentity();
+  const vehicleRef = doc(db, "vehicles", vehicleId);
+
+  const [vehicleSnap, activeRentalSnap] = await Promise.all([
+    getDoc(vehicleRef),
+    getDocs(
+      query(
+        collection(db, "rentals"),
+        where("ownerUid", "==", uid),
+        where("vehicleId", "==", vehicleId),
+        where("status", "==", "active"),
+      ),
+    ),
+  ]);
+
+  if (!vehicleSnap.exists()) return false;
+  const vehicle = vehicleSnap.data() as VehicleFirestoreDoc;
+  if (vehicle.ownerUid !== uid) return false;
+
+  const hasActiveRental = !activeRentalSnap.empty;
+  if (vehicle.status !== "rented" || hasActiveRental) return false;
+
+  await updateDoc(vehicleRef, {
+    status: "available",
+    currentRentalId: null,
+    updatedAt: serverTimestamp(),
+  });
+  return true;
 }
 
 export async function getReceiptByRentalIdRequest(rentalId: string): Promise<RentalReceiptApiResponse | null> {
