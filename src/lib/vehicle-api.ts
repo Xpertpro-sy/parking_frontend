@@ -168,6 +168,59 @@ function vehicleFromFirestore(id: string, data: VehicleFirestoreDoc): Vehicle {
   });
 }
 
+type UserProfileDoc = {
+  displayName?: string;
+  prenom?: string;
+  nom?: string;
+};
+
+function buildDisplayName(userData: UserProfileDoc | null): string {
+  if (!userData) return "";
+  const displayName = (userData.displayName ?? "").trim();
+  if (displayName) return displayName;
+  const firstName = (userData.prenom ?? "").trim();
+  const lastName = (userData.nom ?? "").trim();
+  return `${firstName} ${lastName}`.trim();
+}
+
+async function resolveCreatorNameByUid(uid: string): Promise<string> {
+  const db = getFirebaseDb();
+  const snap = await getDoc(doc(db, "users", uid));
+  if (!snap.exists()) return "";
+  return buildDisplayName(snap.data() as UserProfileDoc);
+}
+
+async function hydrateVehicleCreatorNames(items: Vehicle[], docs: VehicleFirestoreDoc[]): Promise<Vehicle[]> {
+  const missingCreatorUids = Array.from(
+    new Set(
+      docs
+        .map((d, index) => {
+          const createdByUid = (d.createdByUid ?? "").trim();
+          const createdByName = (items[index]?.createdByName ?? "").trim().toLowerCase();
+          const needsHydration = !createdByName || createdByName === "utilisateur";
+          return needsHydration && createdByUid ? createdByUid : "";
+        })
+        .filter(Boolean),
+    ),
+  );
+
+  if (missingCreatorUids.length === 0) return items;
+
+  const entries = await Promise.all(
+    missingCreatorUids.map(async (creatorUid) => [creatorUid, await resolveCreatorNameByUid(creatorUid)] as const),
+  );
+  const nameByUid = new Map(entries);
+
+  return items.map((item, index) => {
+    const currentName = (item.createdByName ?? "").trim();
+    if (currentName && currentName.toLowerCase() !== "utilisateur") return item;
+    const createdByUid = (docs[index]?.createdByUid ?? "").trim();
+    const resolvedName = nameByUid.get(createdByUid) ?? "";
+    if (!resolvedName) return item;
+    return { ...item, createdByName: resolvedName };
+  });
+}
+
 async function assertPlateUnique(ownerUid: string, plate: string, excludeVehicleId?: string) {
   const db = getFirebaseDb();
   const existing = await getDocs(
@@ -301,23 +354,18 @@ export async function updateVehicleRequest(vehicleId: string, payload: UpdateVeh
 
 export async function listVehiclesRequest(): Promise<Vehicle[]> {
   const db = getFirebaseDb();
-  const { uid, actorName } = await getAuthIdentity();
+  const { uid } = await getAuthIdentity();
   const q = query(collection(db, "vehicles"), where("ownerUid", "==", uid));
   const snapshot = await getDocs(q);
-  return snapshot.docs
-    .map((d) => {
-      const item = vehicleFromFirestore(d.id, d.data() as VehicleFirestoreDoc);
-      if (!item.createdByName || item.createdByName.toLowerCase() === "utilisateur") {
-        item.createdByName = actorName;
-      }
-      return item;
-    })
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const firestoreDocs = snapshot.docs.map((d) => d.data() as VehicleFirestoreDoc);
+  const mappedItems = snapshot.docs.map((d, index) => vehicleFromFirestore(d.id, firestoreDocs[index]));
+  const hydratedItems = await hydrateVehicleCreatorNames(mappedItems, firestoreDocs);
+  return hydratedItems.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
 export async function getVehicleByIdRequest(vehicleId: string): Promise<Vehicle | null> {
   const db = getFirebaseDb();
-  const { uid, actorName } = await getAuthIdentity();
+  const { uid } = await getAuthIdentity();
   const snap = await getDoc(doc(db, "vehicles", vehicleId));
   if (!snap.exists()) {
     return null;
@@ -326,9 +374,12 @@ export async function getVehicleByIdRequest(vehicleId: string): Promise<Vehicle 
   if (data.ownerUid !== uid) {
     return null;
   }
-  const item = vehicleFromFirestore(snap.id, data);
-  if (!item.createdByName || item.createdByName.toLowerCase() === "utilisateur") {
-    item.createdByName = actorName;
-  }
-  return item;
+  const vehicle = vehicleFromFirestore(snap.id, data);
+  const currentName = (vehicle.createdByName ?? "").trim().toLowerCase();
+  if (currentName && currentName !== "utilisateur") return vehicle;
+  const createdByUid = (data.createdByUid ?? "").trim();
+  if (!createdByUid) return vehicle;
+  const resolvedName = await resolveCreatorNameByUid(createdByUid);
+  if (!resolvedName) return vehicle;
+  return { ...vehicle, createdByName: resolvedName };
 }
