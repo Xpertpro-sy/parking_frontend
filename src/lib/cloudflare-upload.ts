@@ -1,4 +1,4 @@
-import { getAccessToken } from "@/lib/auth-session";
+import { getValidAccessToken } from "@/lib/auth-session";
 const CLOUDFLARE_PRESIGN_URL = (import.meta.env.VITE_CLOUDFLARE_PRESIGN_URL as string | undefined)?.trim();
 
 type UploadResponse = {
@@ -47,7 +47,7 @@ async function parseApiError(response: Response): Promise<string> {
 }
 
 export async function uploadImageToR2(file: File): Promise<string> {
-  const token = getAccessToken();
+  const token = await getValidAccessToken();
   if (!token) {
     throw new Error("Session expiree. Veuillez vous reconnecter.");
   }

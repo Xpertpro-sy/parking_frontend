@@ -41,11 +41,24 @@ const REACT_QUERY_PERSIST_KEY = "gestion-parking-react-query-cache-v1";
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 function readStoredUser(): AuthUser | null {
+  const localStored = localStorage.getItem(STORAGE_CURRENT_USER_KEY);
+  if (localStored) {
+    try {
+      return JSON.parse(localStored) as AuthUser;
+    } catch {
+      return null;
+    }
+  }
+
+  // Migration douce: restaure une session existante stockee auparavant dans sessionStorage.
   const stored = sessionStorage.getItem(STORAGE_CURRENT_USER_KEY);
   if (!stored) return null;
 
   try {
-    return JSON.parse(stored) as AuthUser;
+    const parsed = JSON.parse(stored) as AuthUser;
+    localStorage.setItem(STORAGE_CURRENT_USER_KEY, stored);
+    sessionStorage.removeItem(STORAGE_CURRENT_USER_KEY);
+    return parsed;
   } catch {
     return null;
   }
@@ -80,8 +93,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         role: response.role,
       };
 
-      sessionStorage.setItem(STORAGE_AUTH_TOKEN_KEY, response.accessToken);
-      sessionStorage.setItem(STORAGE_CURRENT_USER_KEY, JSON.stringify(nextUser));
+      localStorage.setItem(STORAGE_AUTH_TOKEN_KEY, response.accessToken);
+      localStorage.setItem(STORAGE_CURRENT_USER_KEY, JSON.stringify(nextUser));
+      sessionStorage.removeItem(STORAGE_AUTH_TOKEN_KEY);
+      sessionStorage.removeItem(STORAGE_CURRENT_USER_KEY);
       setUser(nextUser);
 
       return { success: true, message: response.message || "Compte cree avec succes.", role: response.role };
@@ -109,8 +124,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         role: response.role,
       };
 
-      sessionStorage.setItem(STORAGE_AUTH_TOKEN_KEY, response.accessToken);
-      sessionStorage.setItem(STORAGE_CURRENT_USER_KEY, JSON.stringify(nextUser));
+      localStorage.setItem(STORAGE_AUTH_TOKEN_KEY, response.accessToken);
+      localStorage.setItem(STORAGE_CURRENT_USER_KEY, JSON.stringify(nextUser));
+      sessionStorage.removeItem(STORAGE_AUTH_TOKEN_KEY);
+      sessionStorage.removeItem(STORAGE_CURRENT_USER_KEY);
       setUser(nextUser);
 
       return { success: true, message: response.message || "Connexion reussie.", role: response.role };
@@ -126,6 +143,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void logoutRequest();
     queryClient.clear();
     localStorage.removeItem(REACT_QUERY_PERSIST_KEY);
+    localStorage.removeItem(STORAGE_AUTH_TOKEN_KEY);
+    localStorage.removeItem(STORAGE_CURRENT_USER_KEY);
     sessionStorage.removeItem(STORAGE_AUTH_TOKEN_KEY);
     sessionStorage.removeItem(STORAGE_CURRENT_USER_KEY);
     setUser(null);
@@ -142,7 +161,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         lastName: ln,
         name: `${fn} ${ln}`.trim() || prev.name,
       };
-      sessionStorage.setItem(STORAGE_CURRENT_USER_KEY, JSON.stringify(next));
+      localStorage.setItem(STORAGE_CURRENT_USER_KEY, JSON.stringify(next));
+      sessionStorage.removeItem(STORAGE_CURRENT_USER_KEY);
       return next;
     });
   };

@@ -5,6 +5,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Landmark,
+  Loader2,
   Receipt,
   Search,
   Smartphone,
@@ -56,6 +57,7 @@ type Movement = {
   source: MovementSource;
   operationType: AccountMovementOperationType;
 };
+type MovementViewFilter = "all" | MovementType | "transfer";
 
 const sourceLabel: Record<MovementSource, string> = {
   caisse: "Caisse",
@@ -105,6 +107,17 @@ const formatDateFr = (value: string) =>
     year: "numeric",
   });
 
+function MetricValue({ isLoading, value }: { isLoading: boolean; value: string }) {
+  if (isLoading) {
+    return (
+      <span className="inline-flex items-center gap-2 text-muted-foreground">
+        <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
+      </span>
+    );
+  }
+  return <>{value}</>;
+}
+
 export default function ComptabilityPage() {
   const queryClient = useQueryClient();
   const [isMobile, setIsMobile] = useState(() =>
@@ -112,7 +125,7 @@ export default function ComptabilityPage() {
   );
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("week");
   const [sourceFilter, setSourceFilter] = useState<"all" | MovementSource>("all");
-  const [typeFilter, setTypeFilter] = useState<"all" | MovementType>("all");
+  const [typeFilter, setTypeFilter] = useState<MovementViewFilter>("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [search, setSearch] = useState("");
   const [transferOpen, setTransferOpen] = useState(false);
@@ -184,7 +197,7 @@ export default function ComptabilityPage() {
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const yearStart = new Date(now.getFullYear(), 0, 1);
 
-    return movementData.filter((movement) => {
+    const baseFiltered = movementData.filter((movement) => {
       const movementDate = new Date(movement.operationDate);
       const matchesPeriod =
         periodFilter === "today"
@@ -198,7 +211,11 @@ export default function ComptabilityPage() {
                 : movementDate >= yearStart;
       if (!matchesPeriod) return false;
       if (sourceFilter !== "all" && movement.source !== sourceFilter) return false;
-      if (typeFilter !== "all" && movement.type !== typeFilter) return false;
+      if (typeFilter === "entree" || typeFilter === "sortie") {
+        if (movement.type !== typeFilter) return false;
+        if (movement.operationType === "transfer") return false;
+      }
+      if (typeFilter === "transfer" && movement.operationType !== "transfer") return false;
       if (!search.trim()) return true;
       const q = search.toLowerCase().trim();
       return (
@@ -208,6 +225,29 @@ export default function ComptabilityPage() {
         movement.manager.toLowerCase().includes(q)
       );
     });
+
+    if (typeFilter !== "transfer" && typeFilter !== "all") return baseFiltered;
+
+    const deduplicatedTransfers: Movement[] = [];
+    const transferByReference = new Map<string, Movement>();
+    for (const movement of baseFiltered) {
+      if (movement.operationType !== "transfer") {
+        deduplicatedTransfers.push(movement);
+        continue;
+      }
+      const existing = transferByReference.get(movement.reference);
+      if (!existing) {
+        transferByReference.set(movement.reference, movement);
+        continue;
+      }
+      // Pour un transfert, on affiche une seule ligne par reference.
+      // On privilegie la ligne "sortie" si elle existe.
+      if (existing.type !== "sortie" && movement.type === "sortie") {
+        transferByReference.set(movement.reference, movement);
+      }
+    }
+    deduplicatedTransfers.push(...transferByReference.values());
+    return deduplicatedTransfers.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [movementData, periodFilter, search, sourceFilter, typeFilter]);
 
   const metrics = useMemo(() => {
@@ -215,6 +255,7 @@ export default function ComptabilityPage() {
       let entree = 0;
       let sortie = 0;
       for (const item of filteredMovements) {
+        if (item.operationType === "transfer") continue;
         if (item.source !== source) continue;
         if (item.type === "entree") entree += item.amount;
         else sortie += item.amount;
@@ -242,6 +283,41 @@ export default function ComptabilityPage() {
     const startIndex = (safePage - 1) * movementsPerPage;
     return filteredMovements.slice(startIndex, startIndex + movementsPerPage);
   }, [currentPage, filteredMovements, movementsPerPage, totalPages]);
+  const isTransferTab = typeFilter === "transfer";
+  const isAllTab = typeFilter === "all";
+  const transferRouteByReference = useMemo(() => {
+    const routeMap = new Map<string, { from?: MovementSource; to?: MovementSource }>();
+    for (const movement of movementData) {
+      if (movement.operationType !== "transfer") continue;
+      const route = routeMap.get(movement.reference) ?? {};
+      if (movement.type === "sortie") route.from = movement.source;
+      if (movement.type === "entree") route.to = movement.source;
+      routeMap.set(movement.reference, route);
+    }
+    const labelMap = new Map<string, string>();
+    for (const [reference, route] of routeMap.entries()) {
+      if (route.from && route.to) {
+        labelMap.set(reference, `${sourceLabel[route.from]} -> ${sourceLabel[route.to]}`);
+      }
+    }
+    return labelMap;
+  }, [movementData]);
+  const getSourceDisplayLabel = (movement: Movement) => {
+    if (movement.operationType === "transfer") {
+      return transferRouteByReference.get(movement.reference) ?? sourceLabel[movement.source];
+    }
+    if (!isTransferTab) return `${sourceLabel[movement.source]} - ${directionLabel[movement.type]}`;
+    return sourceLabel[movement.source];
+  };
+  const isTransferMovement = (movement: Movement) => movement.operationType === "transfer";
+  const getAmountColorClass = (movement: Movement) => {
+    if (isTransferMovement(movement)) return "text-emerald-600";
+    return movement.type === "sortie" ? "text-rose-600" : "text-emerald-600";
+  };
+  const getAmountPrefix = (movement: Movement) => {
+    if (isTransferMovement(movement)) return "+";
+    return movement.type === "sortie" ? "-" : "+";
+  };
 
   useEffect(() => {
     setCurrentPage(1);
@@ -392,13 +468,13 @@ export default function ComptabilityPage() {
           </div>
           <p
             className={`mt-2 text-2xl sm:text-3xl font-bold break-words ${
-              metrics.caisse.net < 0 ? "text-rose-600" : "text-foreground"
+              sourceAvailableBalances.caisse < 0 ? "text-rose-600" : "text-foreground"
             }`}
           >
-            {metrics.caisse.net.toLocaleString()} CFA
+            <MetricValue isLoading={isLoading} value={`${sourceAvailableBalances.caisse.toLocaleString()} CFA`} />
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            Déductions : {metrics.caisse.sortie.toLocaleString()} CFA
+            Solde actuel (toutes périodes)
           </p>
         </div>
         <div className="rounded-xl border border-sky-200/40 bg-sky-500/10 p-4 min-w-0">
@@ -406,16 +482,20 @@ export default function ComptabilityPage() {
             <p className="text-xs font-medium text-sky-600">Banque</p>
             <Landmark className="w-4 h-4 text-sky-500" />
           </div>
-          <p className="mt-2 text-2xl sm:text-3xl font-bold text-foreground break-words">{metrics.banque.net.toLocaleString()} CFA</p>
-          <p className="text-xs text-muted-foreground mt-1">Période: {periodOptions.find((o) => o.value === periodFilter)?.label}</p>
+          <p className="mt-2 text-2xl sm:text-3xl font-bold text-foreground break-words">
+            <MetricValue isLoading={isLoading} value={`${sourceAvailableBalances.banque.toLocaleString()} CFA`} />
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">Solde actuel (toutes périodes)</p>
         </div>
         <div className="rounded-xl border border-violet-200/40 bg-violet-500/10 p-4 min-w-0">
           <div className="flex items-center justify-between">
             <p className="text-xs font-medium text-violet-600">Mobile Money</p>
             <Smartphone className="w-4 h-4 text-violet-500" />
           </div>
-          <p className="mt-2 text-2xl sm:text-3xl font-bold text-foreground break-words">{metrics.mobileMoney.net.toLocaleString()} CFA</p>
-          <p className="text-xs text-muted-foreground mt-1">Période: {periodOptions.find((o) => o.value === periodFilter)?.label}</p>
+          <p className="mt-2 text-2xl sm:text-3xl font-bold text-foreground break-words">
+            <MetricValue isLoading={isLoading} value={`${sourceAvailableBalances["mobile-money"].toLocaleString()} CFA`} />
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">Solde actuel (toutes périodes)</p>
         </div>
         <div className="rounded-xl border border-orange-200/40 bg-orange-500/10 p-4 min-w-0">
           <div className="flex items-center justify-between">
@@ -423,7 +503,7 @@ export default function ComptabilityPage() {
             <Receipt className="w-4 h-4 text-orange-600" />
           </div>
           <p className="mt-2 text-2xl sm:text-3xl font-bold text-foreground break-words">
-            {metrics.depensesTotal.toLocaleString()} CFA
+            <MetricValue isLoading={isLoading} value={`${metrics.depensesTotal.toLocaleString()} CFA`} />
           </p>
           <p className="text-xs text-muted-foreground mt-1">
             Dépenses manuelles et réparations (période : {periodOptions.find((o) => o.value === periodFilter)?.label})
@@ -472,11 +552,12 @@ export default function ComptabilityPage() {
             { key: "all", label: "Tous les mouvements" },
             { key: "entree", label: "Entrees" },
             { key: "sortie", label: "Sorties" },
+            { key: "transfer", label: "Transfert de fond" },
           ].map((option) => (
             <button
               key={option.key}
               type="button"
-              onClick={() => setTypeFilter(option.key as "all" | MovementType)}
+              onClick={() => setTypeFilter(option.key as MovementViewFilter)}
               className={`px-3 py-2 rounded-lg text-sm transition-colors ${
                 typeFilter === option.key ? "bg-primary text-primary-foreground" : "bg-secondary text-foreground hover:bg-secondary/80"
               }`}
@@ -496,7 +577,7 @@ export default function ComptabilityPage() {
                   <p className="text-xs text-muted-foreground">{formatDateFr(movement.createdAt)}</p>
                 </div>
                 <span className="inline-flex rounded-full bg-secondary px-2.5 py-1 text-[11px] font-medium text-foreground">
-                  {sourceLabel[movement.source]} - {directionLabel[movement.type]}
+                  {getSourceDisplayLabel(movement)}
                 </span>
               </div>
               <p className="text-sm text-foreground break-words">{movement.label}</p>
@@ -521,9 +602,9 @@ export default function ComptabilityPage() {
                 <div className="col-span-2">
                   <p className="text-muted-foreground">Montant</p>
                   <p
-                    className={`text-sm font-semibold ${movement.type === "sortie" ? "text-rose-600" : "text-emerald-600"}`}
+                    className={`text-sm font-semibold ${getAmountColorClass(movement)}`}
                   >
-                    {movement.type === "sortie" ? "-" : "+"}
+                    {getAmountPrefix(movement)}
                     {movement.amount.toLocaleString()} CFA
                   </p>
                 </div>
@@ -580,16 +661,14 @@ export default function ComptabilityPage() {
                   <td className="py-3 px-2 whitespace-nowrap">{movement.unitPrice.toLocaleString()} CFA</td>
                   <td className="py-3 px-2 whitespace-nowrap">{movement.quantity}</td>
                   <td
-                    className={`py-3 px-2 whitespace-nowrap font-semibold ${
-                      movement.type === "sortie" ? "text-rose-600" : "text-emerald-600"
-                    }`}
+                    className={`py-3 px-2 whitespace-nowrap font-semibold ${getAmountColorClass(movement)}`}
                   >
-                    {movement.type === "sortie" ? "-" : "+"}
+                    {getAmountPrefix(movement)}
                     {movement.amount.toLocaleString()} CFA
                   </td>
                   <td className="py-3 px-2 whitespace-nowrap">
                     <span className="inline-flex rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-foreground">
-                      {sourceLabel[movement.source]} - {directionLabel[movement.type]}
+                      {getSourceDisplayLabel(movement)}
                     </span>
                   </td>
                 </tr>
