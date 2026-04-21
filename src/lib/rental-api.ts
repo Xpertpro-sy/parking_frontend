@@ -390,9 +390,6 @@ export async function completeRentalRequest(rentalId: string): Promise<RentalApi
       throw new Error("Location introuvable.");
     }
     const rental = rentalSnap.data() as RentalFirestoreDoc;
-    if (rental.ownerUid !== uid) {
-      throw new Error("Acces refuse a cette location.");
-    }
     if (rental.status !== "active") {
       throw new Error("Cette location est deja terminee.");
     }
@@ -403,9 +400,6 @@ export async function completeRentalRequest(rentalId: string): Promise<RentalApi
       throw new Error("Vehicule associe introuvable.");
     }
     const vehicle = vehicleSnap.data() as VehicleFirestoreDoc;
-    if (vehicle.ownerUid !== uid) {
-      throw new Error("Acces refuse au vehicule associe.");
-    }
 
     transaction.update(rentalRef, {
       status: "completed",

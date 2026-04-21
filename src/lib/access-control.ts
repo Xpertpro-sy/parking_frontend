@@ -1,4 +1,4 @@
-import { doc, getDoc } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
 import { getAccessToken } from "@/lib/auth-session";
 import { getFirebaseDb, waitForFirebaseUser } from "@/lib/firebase";
 
@@ -45,6 +45,7 @@ export const DEFAULT_MANAGER_PERMISSIONS: PermissionMap = {
 type UserAccessDoc = {
   role?: string;
   enterpriseOwnerUid?: string;
+  managerAccessId?: string;
   permissions?: Partial<PermissionMap>;
   displayName?: string;
   prenom?: string;
@@ -152,10 +153,25 @@ export async function getWorkspaceIdentity(): Promise<WorkspaceIdentity> {
   }
 
   const resolvedActorName = formatActorName(userDoc, authUser.displayName);
-  const ownerUid =
+  let resolvedEnterpriseOwnerUid =
     role === "GESTIONNAIRE" && typeof userDoc.enterpriseOwnerUid === "string" && userDoc.enterpriseOwnerUid.trim()
       ? userDoc.enterpriseOwnerUid.trim()
-      : authUser.uid;
+      : "";
+
+  // Filet de sécurité: certains anciens profils gestionnaires n'ont pas enterpriseOwnerUid bien rempli.
+  // On tente alors de le retrouver via managerAccess pour conserver l'héritage d'abonnement et d'accès workspace.
+  if (role === "GESTIONNAIRE" && !resolvedEnterpriseOwnerUid) {
+    const managerAccessByUid = await getDocs(
+      query(collection(db, "managerAccess"), where("managerUid", "==", authUser.uid)),
+    );
+    const accessRow = managerAccessByUid.docs[0]?.data() as { ownerUid?: string } | undefined;
+    const fallbackOwnerUid = accessRow?.ownerUid?.trim?.() ?? "";
+    if (fallbackOwnerUid) {
+      resolvedEnterpriseOwnerUid = fallbackOwnerUid;
+    }
+  }
+
+  const ownerUid = role === "GESTIONNAIRE" ? resolvedEnterpriseOwnerUid || authUser.uid : authUser.uid;
 
   return {
     uid: ownerUid,

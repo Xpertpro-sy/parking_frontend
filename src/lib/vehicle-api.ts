@@ -64,6 +64,7 @@ export type VehicleApiResponse = {
   createdAt: string;
   createdByName: string;
   ownerUserId: number;
+  currentRentalId?: string | null;
 };
 
 export type VehicleFirestoreDoc = {
@@ -86,6 +87,7 @@ export type VehicleFirestoreDoc = {
   createdByUid?: string;
   createdByName?: string;
   createdByEmail?: string | null;
+  currentRentalId?: string | null;
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
 };
@@ -126,6 +128,7 @@ export function mapVehicleApiResponseToVehicle(apiVehicle: VehicleApiResponse): 
     photos: apiVehicle.photos ?? [],
     createdAt: apiVehicle.createdAt,
     createdByName: apiVehicle.createdByName,
+    currentRentalId: apiVehicle.currentRentalId ?? null,
   };
 }
 
@@ -161,6 +164,7 @@ function vehicleFromFirestore(id: string, data: VehicleFirestoreDoc): Vehicle {
     createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
     createdByName: name || "Utilisateur",
     ownerUserId: 0,
+    currentRentalId: data.currentRentalId ?? null,
   });
 }
 
@@ -230,6 +234,7 @@ export async function createVehicleRequest(payload: CreateVehiclePayload): Promi
     createdAt: createdData.createdAt ? createdData.createdAt.toDate().toISOString() : new Date().toISOString(),
     createdByName: (createdData.createdByName && createdData.createdByName.trim().toLowerCase() !== "utilisateur" ? createdData.createdByName : "Utilisateur"),
     ownerUserId: 0,
+    currentRentalId: createdData.currentRentalId ?? null,
   };
 }
 
@@ -290,6 +295,7 @@ export async function updateVehicleRequest(vehicleId: string, payload: UpdateVeh
     createdAt: updatedData.createdAt ? updatedData.createdAt.toDate().toISOString() : new Date().toISOString(),
     createdByName: (updatedData.createdByName && updatedData.createdByName.trim().toLowerCase() !== "utilisateur" ? updatedData.createdByName : "Utilisateur"),
     ownerUserId: 0,
+    currentRentalId: updatedData.currentRentalId ?? null,
   };
 }
 

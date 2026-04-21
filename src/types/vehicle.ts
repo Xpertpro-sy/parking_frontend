@@ -17,6 +17,7 @@ export interface Vehicle {
   photos: string[];
   createdAt: string;
   createdByName?: string;
+  currentRentalId?: string | null;
 }
 
 export interface Sale {

@@ -34,10 +34,18 @@ service cloud.firestore {
     }
 
     function canAccessWorkspace(ownerUid, permission) {
+      let ownerUser = ownerUid is string ? usersDoc(ownerUid) : null;
+      let resolvedOwnerUid = (
+        ownerUser != null
+        && ownerUser.exists()
+        && ownerUser.data.role == "GESTIONNAIRE"
+        && ownerUser.data.enterpriseOwnerUid is string
+        && ownerUser.data.enterpriseOwnerUid != ""
+      ) ? ownerUser.data.enterpriseOwnerUid : ownerUid;
       return isSignedIn()
         && (
-          request.auth.uid == ownerUid
-          || (managerActiveFor(ownerUid) && hasManagerPermission(permission))
+          request.auth.uid == resolvedOwnerUid
+          || (managerActiveFor(resolvedOwnerUid) && hasManagerPermission(permission))
         );
     }
 
@@ -75,7 +83,7 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read: if isOwner(userId) || isSuperAdmin();
+      allow read: if isOwner(userId) || managerActiveFor(userId) || isSuperAdmin();
       allow delete: if isOwner(userId)
         || (
           isSuperAdmin()

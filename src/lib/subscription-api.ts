@@ -189,7 +189,7 @@ export async function getTenantSubscriptionStateRequest(ownerUid: string): Promi
   const db = getFirebaseDb();
 
   const canReadOwnerSignupDate =
-    identity.role === "SUPER_ADMIN" || (identity.role === "ADMIN" && identity.actorUid === ownerUid);
+    identity.role === "SUPER_ADMIN" || identity.uid === ownerUid;
 
   const subSnap = await getDoc(doc(db, COL_TENANT_SUBS, ownerUid));
   if (!subSnap.exists()) {

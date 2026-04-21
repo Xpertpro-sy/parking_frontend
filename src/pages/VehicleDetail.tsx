@@ -43,7 +43,7 @@ export default function VehicleDetail() {
     queryKey: ['access-profile'],
     queryFn: getCurrentUserAccessProfile,
   });
-  const can = (permission: AppPermission) => accessProfile?.permissions?.[permission] ?? true;
+  const can = (permission: AppPermission) => accessProfile?.permissions?.[permission] === true;
   const canSell = can('receipts');
   const canRent = can('rentals');
   const canReserve = can('reservations');
@@ -156,8 +156,11 @@ export default function VehicleDetail() {
   };
 
   const activeRental = rentals.find(
-    (rental) => rental.vehicleId === vehicle.id && rental.status?.toLowerCase() === 'active',
+    (rental) => rental.vehicleId === vehicle.id && rental.status?.trim().toLowerCase() === 'active',
+  ) ?? rentals.find(
+    (rental) => rental.vehicleId === vehicle.id && !rental.completedAt,
   );
+  const activeRentalId = activeRental?.id ?? vehicle.currentRentalId ?? null;
   const activeReservation = reservations.find(
     (reservation) => reservation.vehicleId === vehicle.id && reservation.status === 'ACTIVE',
   );
@@ -167,7 +170,7 @@ export default function VehicleDetail() {
       toast.info("Chargement de la location en cours...");
       return;
     }
-    if (!activeRental) {
+    if (!activeRentalId) {
       toast.error("Aucune location active trouvee pour ce vehicule.");
       return;
     }
@@ -175,20 +178,25 @@ export default function VehicleDetail() {
   };
 
   const handleConfirmCompleteRental = async () => {
-    if (!activeRental) {
+    if (!activeRentalId) {
       toast.error("Aucune location active trouvee pour ce vehicule.");
       return;
     }
     setCompletingRental(true);
     try {
-      await completeRentalRequest(activeRental.id);
+      await completeRentalRequest(activeRentalId);
       await queryClient.invalidateQueries({ queryKey: ['rentals', 'list'] });
       await queryClient.invalidateQueries({ queryKey: ['receipts', 'list'] });
       await queryClient.invalidateQueries({ queryKey: vehicleQueryKeys.all });
       toast.success("Location terminee avec succes.");
       setShowCompleteRentalPopup(false);
     } catch (completeError) {
-      toast.error(completeError instanceof Error ? completeError.message : "Impossible de terminer la location.");
+      const errorMessage = completeError instanceof Error ? completeError.message : "";
+      if (errorMessage.toLowerCase().includes("missing or insufficient permissions")) {
+        toast.error("Vous n'avez pas les permissions requises pour cloturer cette location.");
+      } else {
+        toast.error(errorMessage || "Impossible de terminer la location.");
+      }
     } finally {
       setCompletingRental(false);
     }
@@ -371,10 +379,10 @@ export default function VehicleDetail() {
           <button
             type="button"
             onClick={handleCompleteRentalClick}
-            disabled={completingRental}
+            disabled={completingRental || loadingRentals}
             className="px-4 py-2.5 bg-success text-success-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-60"
           >
-            {completingRental ? "Cloture..." : "Fin de location"}
+            {completingRental ? "Cloture..." : loadingRentals ? "Chargement..." : "Fin de location"}
           </button>
         )}
         {vehicle.status === 'reserved' && (
