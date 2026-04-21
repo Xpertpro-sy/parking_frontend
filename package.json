@@ -12,6 +12,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "migrate:reservation-end-date": "node scripts/migrations/add-reservation-end-date.mjs",
+    "migrate:normalize-enterprise-owner-uids": "node scripts/migrations/normalize-enterprise-owner-uids.mjs",
     "seed:super-admin": "node scripts/seed-super-admin.mjs"
   },
   "dependencies": {

@@ -54,6 +54,11 @@ service cloud.firestore {
       return canAccessWorkspace(ownerUid, "receipts") || canAccessWorkspace(ownerUid, "rentals");
     }
 
+    // Opérations location: autorisées via module Locations ou Véhicules.
+    function canManageRentalsWorkspace(ownerUid) {
+      return canAccessWorkspace(ownerUid, "rentals") || canAccessWorkspace(ownerUid, "vehicles");
+    }
+
     // Mouvements comptables : saisie manuelle = comptabilité ; flux métier = permission du module concerné.
     function canCreateAccountMovementForOperation() {
       let ownerUid = request.resource.data.ownerUid;
@@ -135,7 +140,8 @@ service cloud.firestore {
 
       // Update/Delete: uniquement le proprietaire du document existant
       // + interdiction de changer le ownerUid
-      allow update: if canAccessWorkspace(resource.data.ownerUid, "vehicles")
+      allow update: if (canAccessWorkspace(resource.data.ownerUid, "vehicles")
+        || canAccessWorkspace(resource.data.ownerUid, "rentals"))
         && request.resource.data.ownerUid == resource.data.ownerUid;
       allow delete: if canAccessWorkspace(resource.data.ownerUid, "vehicles")
         || (isSuperAdmin() && resource.data.keys().hasAll(["ownerUid"]));
@@ -168,8 +174,8 @@ service cloud.firestore {
     }
 
     match /rentals/{rentalId} {
-      allow read: if canAccessWorkspace(resource.data.ownerUid, "rentals") || isSuperAdmin();
-      allow create: if canAccessWorkspace(request.resource.data.ownerUid, "rentals")
+      allow read: if canManageRentalsWorkspace(resource.data.ownerUid) || isSuperAdmin();
+      allow create: if canManageRentalsWorkspace(request.resource.data.ownerUid)
         && request.resource.data.vehicleId is string
         && request.resource.data.tenantName is string
         && request.resource.data.tenantPhone is string
@@ -180,9 +186,9 @@ service cloud.firestore {
         && request.resource.data.dailyPrice is number
         && request.resource.data.totalDays is number
         && request.resource.data.status is string;
-      allow update: if canAccessWorkspace(resource.data.ownerUid, "rentals")
+      allow update: if canManageRentalsWorkspace(resource.data.ownerUid)
         && request.resource.data.ownerUid == resource.data.ownerUid;
-      allow delete: if canAccessWorkspace(resource.data.ownerUid, "rentals")
+      allow delete: if canManageRentalsWorkspace(resource.data.ownerUid)
         || (isSuperAdmin() && resource.data.keys().hasAll(["ownerUid"]));
     }
 

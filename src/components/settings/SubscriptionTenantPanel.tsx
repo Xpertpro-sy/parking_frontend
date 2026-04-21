@@ -118,6 +118,9 @@ export default function SubscriptionTenantPanel() {
           <p className="mt-2 text-xl font-semibold text-foreground">
             {state?.isActive ? state.planLabel ?? "—" : "Aucun abonnement actif"}
           </p>
+          {isManager ? (
+            <p className="mt-1 text-xs font-medium text-primary">Abonnement hérité de l’admin</p>
+          ) : null}
           <p className="mt-1 text-sm text-muted-foreground">
             {state?.isActive && state.expiresAtLabel
               ? `Valable jusqu’au ${state.expiresAtLabel}`
