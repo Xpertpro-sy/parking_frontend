@@ -6,7 +6,7 @@ export default function AdminLayout() {
   const location = useLocation();
 
   return (
-    <div className="flex h-screen overflow-hidden overflow-x-hidden bg-background">
+    <div className="flex h-dvh overflow-hidden overflow-x-hidden bg-background">
       <AdminSidebar />
       <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-x-hidden">
         <header className="md:hidden border-b border-border bg-sidebar shrink-0">

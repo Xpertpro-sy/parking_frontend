@@ -62,6 +62,13 @@
 }
 
 @layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+    overflow: hidden;
+  }
+
   * {
     @apply border-border;
   }
@@ -92,12 +99,13 @@
     background-color: hsl(var(--muted-foreground));
   }
 
-  /* Empêche le zoom auto sur focus des champs (iOS/Android) */
+  /* Empêche le zoom auto sur focus des champs (iOS/Android).
+     `!important` est requis car beaucoup de champs utilisent `text-sm` (Tailwind). */
   @media (max-width: 767px) {
     input,
     select,
     textarea {
-      font-size: 16px;
+      font-size: 16px !important;
     }
   }
 }

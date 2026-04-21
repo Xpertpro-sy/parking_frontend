@@ -51,9 +51,20 @@ export default function MobileNav() {
     setShowLogoutPopup(false);
   };
 
+  const mobileHeaderStyle = {
+    paddingTop: "max(env(safe-area-inset-top), 0px)",
+  } as const;
+
+  const mobileMenuStyle = {
+    top: "calc(3.5rem + max(env(safe-area-inset-top), 0px))",
+  } as const;
+
   return (
     <>
-      <header className="md:hidden flex items-center justify-between px-4 py-3 bg-sidebar border-b border-sidebar-border">
+      <header
+        className="md:hidden flex items-center justify-between px-4 py-3 bg-sidebar border-b border-sidebar-border"
+        style={mobileHeaderStyle}
+      >
         {branding?.mode === 'image' && branding.imageDataUrl ? (
           <div className="h-9 w-[170px] max-w-[65vw] rounded-lg bg-card/60 overflow-hidden flex items-center justify-center">
             <img
@@ -77,8 +88,8 @@ export default function MobileNav() {
       </header>
 
       {open && (
-        <div className="md:hidden fixed inset-0 top-14 z-50 bg-background/95 backdrop-blur-sm">
-          <nav className="flex flex-col p-4 gap-1">
+        <div className="md:hidden fixed inset-0 z-50 bg-background" style={mobileMenuStyle}>
+          <nav className="flex flex-col px-4 pt-0.5 pb-2 gap-1">
             {navItems.map((item) => {
               if (accessProfile && !accessProfile.permissions[item.permission]) return null;
               const isActive = location.pathname === item.to;

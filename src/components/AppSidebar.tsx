@@ -60,7 +60,7 @@ export default function AppSidebar() {
   };
 
   return (
-    <aside className="hidden md:flex flex-col w-64 h-screen bg-sidebar border-r border-sidebar-border sticky top-0 overflow-hidden">
+    <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-sidebar-border bg-sidebar overflow-hidden md:flex">
       {/* Logo */}
       {branding?.mode === 'image' && branding.imageDataUrl ? (
         <div className="px-4 py-[5px] border-b border-sidebar-border">

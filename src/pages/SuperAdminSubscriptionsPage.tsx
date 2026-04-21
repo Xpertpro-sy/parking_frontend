@@ -351,7 +351,9 @@ function SubsTable({ rows, variant }: { rows: TenantSubscriptionRow[]; variant: 
                 </Link>
               </td>
               <td className="px-3 py-2">
-                {SUBSCRIPTION_PLANS.find((p) => p.id === s.planId)?.label ?? (s.planId ? s.planId : "—")}
+                {s.cumulativePlanLabel ??
+                  SUBSCRIPTION_PLANS.find((p) => p.id === s.planId)?.label ??
+                  (s.planId ? s.planId : "—")}
               </td>
               <td className="px-3 py-2">
                 {s.expiresAt

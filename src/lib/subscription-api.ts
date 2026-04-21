@@ -52,6 +52,8 @@ export type TenantSubscriptionRow = {
   expiresAt: string;
   updatedAt: string | null;
   lastApprovedRequestId: string | null;
+  /** Somme des formules validées (affichage back-office). */
+  cumulativePlanLabel?: string | null;
 };
 
 export type TenantSubscriptionState = {
@@ -369,6 +371,13 @@ export async function getSuperAdminSubscriptionsOverviewRequest(): Promise<Super
   const requests = reqSnap.docs.map((x) => mapRequestDoc(x.id, x.data()));
   const pending = requests.filter((r) => r.status === "pending");
 
+  const approvedMonthsByOwner = new Map<string, number>();
+  for (const r of requests) {
+    if (r.status !== "approved") continue;
+    const p = getSubscriptionPlan(r.planId);
+    approvedMonthsByOwner.set(r.ownerUid, (approvedMonthsByOwner.get(r.ownerUid) ?? 0) + (p?.durationMonths ?? 0));
+  }
+
   const tenantSubscriptions: TenantSubscriptionRow[] = subSnap.docs.map((x) => {
     const d = x.data() as {
       planId?: string;
@@ -377,12 +386,14 @@ export async function getSuperAdminSubscriptionsOverviewRequest(): Promise<Super
       lastApprovedRequestId?: string | null;
     };
     const exp = d.expiresAt?.toDate?.();
+    const approvedSum = approvedMonthsByOwner.get(x.id) ?? 0;
     return {
       ownerUid: x.id,
       planId: d.planId ?? "",
       expiresAt: exp ? exp.toISOString() : "",
       updatedAt: tsToIso(d.updatedAt),
       lastApprovedRequestId: d.lastApprovedRequestId ?? null,
+      cumulativePlanLabel: approvedSum > 0 ? formatCumulativeSubscriptionLabel(approvedSum) : null,
     };
   });
 

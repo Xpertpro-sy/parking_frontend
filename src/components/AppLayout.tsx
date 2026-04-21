@@ -8,7 +8,7 @@ function AppMainColumn() {
   const { showExpiredBanner } = useSubscriptionWorkspace();
 
   return (
-    <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-x-hidden">
+    <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-x-hidden md:ml-64">
       <SubscriptionExpiredBanner />
       {showExpiredBanner ? <div className="h-[3.25rem] shrink-0 border-b border-transparent" aria-hidden /> : null}
       <MobileNav />
@@ -22,7 +22,7 @@ function AppMainColumn() {
 export default function AppLayout() {
   return (
     <SubscriptionWorkspaceProvider>
-      <div className="flex h-screen overflow-hidden overflow-x-hidden">
+      <div className="flex h-dvh overflow-hidden overflow-x-hidden">
         <AppSidebar />
         <AppMainColumn />
       </div>
