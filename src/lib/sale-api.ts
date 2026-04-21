@@ -43,6 +43,7 @@ export type SaleApiResponse = {
   date: string;
   notes: string | null;
   createdAt: string;
+  createdByName: string;
   receipt: {
     id: string;
     receiptNumber: string;
@@ -172,6 +173,7 @@ function mapSaleDoc(id: string, data: SaleFirestoreDoc): SaleApiResponse {
     date: data.date,
     notes: data.notes || null,
     createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
+    createdByName: data.createdByName && data.createdByName.trim().toLowerCase() !== "utilisateur" ? data.createdByName : "Utilisateur",
     receipt: data.receiptId
       ? {
           id: data.receiptId,

@@ -64,6 +64,23 @@ export type ReservationApiResponse = {
   createdByName: string;
 };
 
+export type RepairApiResponse = {
+  id: string;
+  vehicleId: string;
+  ownerUid: string;
+  reason: string;
+  cost: number;
+  startDate: string;
+  expectedEndDate: string | null;
+  garageName: string | null;
+  technicianName: string | null;
+  notes: string | null;
+  status: "active" | "completed";
+  completedAt: string | null;
+  createdAt: string;
+  createdByName: string;
+};
+
 type ReservationFirestoreDoc = {
   vehicleId: string;
   ownerUid: string;
@@ -153,6 +170,9 @@ type RepairFirestoreDoc = {
   notes: string | null;
   status: "active" | "completed";
   completedAt: string | null;
+  createdByUid?: string;
+  createdByName?: string;
+  createdByEmail?: string | null;
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
 };
@@ -212,6 +232,25 @@ function mapReservationDoc(id: string, data: ReservationFirestoreDoc): Reservati
     amountPaid: data.amountPaid,
     status: data.status,
     cancelledAt: data.cancelledAt,
+    createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
+    createdByName: data.createdByName && data.createdByName.trim().toLowerCase() !== "utilisateur" ? data.createdByName : "Utilisateur",
+  };
+}
+
+function mapRepairDoc(id: string, data: RepairFirestoreDoc): RepairApiResponse {
+  return {
+    id,
+    vehicleId: data.vehicleId,
+    ownerUid: data.ownerUid,
+    reason: data.reason,
+    cost: data.cost,
+    startDate: data.startDate,
+    expectedEndDate: data.expectedEndDate,
+    garageName: data.garageName,
+    technicianName: data.technicianName,
+    notes: data.notes,
+    status: data.status,
+    completedAt: data.completedAt,
     createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
     createdByName: data.createdByName && data.createdByName.trim().toLowerCase() !== "utilisateur" ? data.createdByName : "Utilisateur",
   };
@@ -364,6 +403,9 @@ export async function createRepairRequest(vehicleId: string, payload: CreateRepa
       notes: payload.notes?.trim() || null,
       status: "active",
       completedAt: null,
+      createdByUid: actorUid,
+      createdByName: actorName,
+      createdByEmail: email,
       createdAt: serverTimestamp() as unknown as Timestamp,
       updatedAt: serverTimestamp() as unknown as Timestamp,
     };
@@ -613,6 +655,21 @@ export async function listReservationsRequest(): Promise<ReservationApiResponse[
   return snapshot.docs
     .map((docSnap) => {
       const item = mapReservationDoc(docSnap.id, docSnap.data() as ReservationFirestoreDoc);
+      if (!item.createdByName || item.createdByName.toLowerCase() === "utilisateur") {
+        item.createdByName = actorName;
+      }
+      return item;
+    })
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
+
+export async function listRepairsRequest(): Promise<RepairApiResponse[]> {
+  const db = getFirebaseDb();
+  const { uid, actorName } = await getAuthIdentity();
+  const snapshot = await getDocs(query(collection(db, "repairs"), where("ownerUid", "==", uid)));
+  return snapshot.docs
+    .map((docSnap) => {
+      const item = mapRepairDoc(docSnap.id, docSnap.data() as RepairFirestoreDoc);
       if (!item.createdByName || item.createdByName.toLowerCase() === "utilisateur") {
         item.createdByName = actorName;
       }

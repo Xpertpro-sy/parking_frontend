@@ -9,10 +9,12 @@ import type { AppPermission } from '@/lib/access-control';
 import { getCurrentUserAccessProfile } from '@/lib/access-control';
 import { LIVE_COLLAB_REFETCH_MS, useVehicleDetailQuery, vehicleQueryKeys } from '@/lib/vehicle-queries';
 import { completeRentalRequest, listRentalsRequest } from '@/lib/rental-api';
+import { listSalesRequest } from '@/lib/sale-api';
 import {
   cancelReservationRequest,
   completeRepairRequest,
   createRepairRequest,
+  listRepairsRequest,
   createReservationRequest,
   listReservationsRequest,
 } from '@/lib/vehicle-action-api';
@@ -92,6 +94,22 @@ export default function VehicleDetail() {
     refetchInterval: LIVE_COLLAB_REFETCH_MS,
     refetchOnWindowFocus: true,
   });
+  const { data: sales = [] } = useQuery({
+    queryKey: ['sales', 'list'],
+    queryFn: listSalesRequest,
+    staleTime: 0,
+    gcTime: 10 * 60 * 1000,
+    refetchInterval: LIVE_COLLAB_REFETCH_MS,
+    refetchOnWindowFocus: true,
+  });
+  const { data: repairs = [] } = useQuery({
+    queryKey: ['repairs', 'list'],
+    queryFn: listRepairsRequest,
+    staleTime: 0,
+    gcTime: 10 * 60 * 1000,
+    refetchInterval: LIVE_COLLAB_REFETCH_MS,
+    refetchOnWindowFocus: true,
+  });
 
   useEffect(() => {
     if (isError) {
@@ -164,6 +182,8 @@ export default function VehicleDetail() {
   const activeReservation = reservations.find(
     (reservation) => reservation.vehicleId === vehicle.id && reservation.status === 'ACTIVE',
   );
+  const latestSale = sales.find((sale) => sale.vehicleId === vehicle.id);
+  const activeRepair = repairs.find((repair) => repair.vehicleId === vehicle.id && repair.status === 'active');
 
   const handleCompleteRentalClick = () => {
     if (loadingRentals) {
@@ -409,6 +429,81 @@ export default function VehicleDetail() {
           </>
         )}
       </div>
+      <div className="glass-card p-6 space-y-4">
+        <h2 className="text-lg font-semibold text-foreground">Traçabilité</h2>
+        <div className="rounded-lg border border-border bg-secondary/20 px-4 py-3 text-sm">
+          <p className="text-muted-foreground">
+            Véhicule ajouté par <span className="text-foreground font-medium">{vehicle.createdByName || "Utilisateur"}</span>.
+          </p>
+        </div>
+
+        {vehicle.status === 'rented' && activeRental && (
+          <div className="rounded-lg border border-info/30 bg-info/10 px-4 py-3 text-sm space-y-1">
+            <p className="text-foreground font-semibold">Client de location</p>
+            <p className="text-muted-foreground">
+              <span className="text-foreground font-medium">{activeRental.tenantName}</span> ({activeRental.tenantPhone})
+            </p>
+            <p className="text-muted-foreground">
+              Du {new Date(activeRental.startDate).toLocaleDateString("fr-FR")} au {new Date(activeRental.endDate).toLocaleDateString("fr-FR")}
+            </p>
+            <p className="text-muted-foreground">
+              Montant: <span className="text-foreground font-medium">{activeRental.amount.toLocaleString()} CFA</span> ·
+              Effectué par <span className="text-foreground font-medium"> {activeRental.createdByName || "Utilisateur"}</span>
+            </p>
+          </div>
+        )}
+
+        {vehicle.status === 'reserved' && activeReservation && (
+          <div className="rounded-lg border border-purple-500/30 bg-purple-500/10 px-4 py-3 text-sm space-y-1">
+            <p className="text-foreground font-semibold">Client de réservation</p>
+            <p className="text-muted-foreground">
+              <span className="text-foreground font-medium">{activeReservation.customerName}</span> ({activeReservation.customerPhone})
+            </p>
+            <p className="text-muted-foreground">
+              Du {new Date(activeReservation.reservationDate).toLocaleDateString("fr-FR")}
+              {activeReservation.reservationEndDate
+                ? ` au ${new Date(activeReservation.reservationEndDate).toLocaleDateString("fr-FR")}`
+                : ""}
+            </p>
+            <p className="text-muted-foreground">
+              Acompte: <span className="text-foreground font-medium">{activeReservation.amountPaid.toLocaleString()} CFA</span> ·
+              Effectué par <span className="text-foreground font-medium"> {activeReservation.createdByName || "Utilisateur"}</span>
+            </p>
+          </div>
+        )}
+
+        {vehicle.status === 'sold' && latestSale && (
+          <div className="rounded-lg border border-success/30 bg-success/10 px-4 py-3 text-sm space-y-1">
+            <p className="text-foreground font-semibold">Client de vente</p>
+            <p className="text-muted-foreground">
+              <span className="text-foreground font-medium">{latestSale.buyerName}</span> ({latestSale.buyerPhone})
+            </p>
+            <p className="text-muted-foreground">
+              Prix: <span className="text-foreground font-medium">{latestSale.amount.toLocaleString()} CFA</span> ·
+              Vendu le {new Date(latestSale.date).toLocaleDateString("fr-FR")}
+            </p>
+            <p className="text-muted-foreground">
+              Effectué par <span className="text-foreground font-medium">{latestSale.createdByName || "Utilisateur"}</span>
+            </p>
+          </div>
+        )}
+
+        {vehicle.status === 'repair' && activeRepair && (
+          <div className="rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm space-y-1">
+            <p className="text-foreground font-semibold">Détails de réparation</p>
+            <p className="text-muted-foreground">{activeRepair.reason}</p>
+            <p className="text-muted-foreground">
+              Coût: <span className="text-foreground font-medium">{activeRepair.cost.toLocaleString()} CFA</span> ·
+              Début: {new Date(activeRepair.startDate).toLocaleDateString("fr-FR")}
+            </p>
+            <p className="text-muted-foreground">
+              {activeRepair.garageName ? `Garage: ${activeRepair.garageName} · ` : ""}
+              {activeRepair.technicianName ? `Technicien: ${activeRepair.technicianName} · ` : ""}
+              Effectué par <span className="text-foreground font-medium">{activeRepair.createdByName || "Utilisateur"}</span>
+            </p>
+          </div>
+        )}
+      </div>
       {vehicle.status === 'reserved' && activeReservation && (
         <div className="rounded-lg border border-border bg-secondary/30 px-4 py-3 text-sm">
           <p className="text-muted-foreground">
@@ -645,9 +740,9 @@ export default function VehicleDetail() {
                   onChange={(event) => setReservationEndDate(event.target.value)}
                   className="w-full px-3 py-2.5 bg-secondary border border-border rounded-lg text-sm text-foreground"
                 />
-                <p className="mt-1 text-xs text-muted-foreground">
+                {/* <p className="mt-1 text-xs text-muted-foreground">
                   Ex.: retrait le 17/04 et retour prevu le 18/04 — le repere liste s&apos;affiche sur toute la periode.
-                </p>
+                </p> */}
               </div>
             </div>
             <div>
