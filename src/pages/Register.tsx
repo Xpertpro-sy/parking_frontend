@@ -58,13 +58,13 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen bg-background relative overflow-hidden">
+    <div className="min-h-screen bg-background relative overflow-x-hidden overflow-y-auto">
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute -bottom-40 -left-16 h-96 w-96 rounded-full bg-primary/20 blur-3xl" />
         <div className="absolute -top-20 right-4 h-72 w-72 rounded-full bg-info/20 blur-3xl" />
       </div>
 
-      <div className="relative container mx-auto min-h-screen flex items-center justify-center px-4 py-10">
+      <div className="relative container mx-auto min-h-screen flex items-start sm:items-center justify-center px-4 py-6 sm:py-10">
         <div className="grid w-full max-w-5xl overflow-hidden rounded-2xl border border-border/60 bg-card/80 backdrop-blur-sm shadow-2xl md:grid-cols-2">
           <div className="hidden md:flex flex-col justify-between p-10 bg-gradient-to-br from-info/20 to-primary/20 border-r border-border/60">
             <div className="flex items-center gap-3">
