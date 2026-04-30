@@ -10,7 +10,7 @@ import { useSubscriptionWorkspace } from '@/context/SubscriptionWorkspaceContext
 
 export default function Dashboard() {
   const { isWriteLocked } = useSubscriptionWorkspace();
-  const { data: vehicles = [], isError, error } = useVehiclesQuery({ live: true });
+  const { data: vehicles = [], isLoading, isError, error } = useVehiclesQuery({ live: true });
 
   useEffect(() => {
     if (isError) {
@@ -46,11 +46,11 @@ export default function Dashboard() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        <StatCard label="Total véhicules" value={total} icon={Car} />
-        <StatCard label="Disponibles" value={available} icon={CheckCircle} accent="bg-success/10" />
-        <StatCard label="Vendus" value={sold} icon={DollarSign} accent="bg-destructive/10" />
-        <StatCard label="En location" value={rented} icon={Key} accent="bg-info/10" />
-        <StatCard label="En réparation" value={inRepair} icon={Wrench} accent="bg-warning/10" />
+        <StatCard label="Total véhicules" value={total} icon={Car} isLoading={isLoading} />
+        <StatCard label="Disponibles" value={available} icon={CheckCircle} accent="bg-success/10" isLoading={isLoading} />
+        <StatCard label="Vendus" value={sold} icon={DollarSign} accent="bg-destructive/10" isLoading={isLoading} />
+        <StatCard label="En location" value={rented} icon={Key} accent="bg-info/10" isLoading={isLoading} />
+        <StatCard label="En réparation" value={inRepair} icon={Wrench} accent="bg-warning/10" isLoading={isLoading} />
       </div>
 
       {/* Recent */}
