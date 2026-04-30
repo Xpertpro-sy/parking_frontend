@@ -201,13 +201,16 @@ async function postAuthFirestoreSync(
     return "GESTIONNAIRE";
   }
 
-  const accessSnapshot = await getDocs(
-    query(collection(db, "managerAccess"), where("managerEmailNormalized", "==", emailNormalized)),
-  );
+  let accessSnapshot = await getDocs(query(collection(db, "managerAccess"), where("managerUid", "==", uid)));
+  if (accessSnapshot.empty) {
+    accessSnapshot = await getDocs(
+      query(collection(db, "managerAccess"), where("managerEmailNormalized", "==", emailNormalized)),
+    );
+  }
 
   const matchedDoc = accessSnapshot.docs.find((d) => {
     const row = d.data() as ManagerAccessRow;
-    return row.managerUid === uid;
+    return row.managerUid === uid || row.managerUid == null;
   });
 
   if (matchedDoc) {

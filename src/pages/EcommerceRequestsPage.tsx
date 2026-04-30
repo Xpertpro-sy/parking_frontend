@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle, Clock, Loader2, MailQuestion, Phone } from "lucide-react";
+import { CheckCircle, Clock, Loader2, MailQuestion, Phone, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   ecommerceRequestsCountQueryKey,
@@ -8,6 +8,8 @@ import {
   updateEcommerceCustomerRequestStatusRequest,
   type EcommerceCustomerRequest,
 } from "@/lib/ecommerce-api";
+import { getCurrentUserAccessProfile } from "@/lib/access-control";
+import { moveEcommerceRequestToTrashRequest, trashItemsQueryKey } from "@/lib/trash-api";
 
 const requestTypeLabel: Record<EcommerceCustomerRequest["requestType"], string> = {
   reservation: "Réservation",
@@ -23,6 +25,11 @@ const statusLabel: Record<EcommerceCustomerRequest["status"], string> = {
 
 export default function EcommerceRequestsPage() {
   const queryClient = useQueryClient();
+  const { data: accessProfile } = useQuery({
+    queryKey: ["access-profile"],
+    queryFn: getCurrentUserAccessProfile,
+  });
+  const canDeleteRequests = accessProfile?.role === "ADMIN";
   const { data: requests = [], isLoading, isError, error } = useQuery({
     queryKey: ecommerceRequestsQueryKey,
     queryFn: listEcommerceCustomerRequestsRequest,
@@ -38,6 +45,19 @@ export default function EcommerceRequestsPage() {
     },
     onError: (err) => {
       toast.error(err instanceof Error ? err.message : "Mise à jour impossible.");
+    },
+  });
+
+  const moveToTrashMutation = useMutation({
+    mutationFn: moveEcommerceRequestToTrashRequest,
+    onSuccess: async () => {
+      toast.success("Demande déplacée dans la corbeille.");
+      await queryClient.invalidateQueries({ queryKey: ecommerceRequestsQueryKey });
+      await queryClient.invalidateQueries({ queryKey: ecommerceRequestsCountQueryKey });
+      await queryClient.invalidateQueries({ queryKey: trashItemsQueryKey });
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : "Suppression impossible.");
     },
   });
 
@@ -102,21 +122,38 @@ export default function EcommerceRequestsPage() {
                     {new Date(request.createdAt).toLocaleString("fr-FR")}
                   </p>
                 </div>
-                {request.status !== "validated" && request.status !== "closed" && (
-                  <button
-                    type="button"
-                    onClick={() => updateStatusMutation.mutate({ id: request.id, status: "validated" })}
-                    disabled={updateStatusMutation.isPending}
-                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground disabled:opacity-60"
-                  >
-                    {updateStatusMutation.isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <CheckCircle className="h-4 w-4" />
+                <div className="flex flex-wrap items-center gap-2">
+                  {request.status !== "validated" && request.status !== "closed" && (
+                    <button
+                      type="button"
+                      onClick={() => updateStatusMutation.mutate({ id: request.id, status: "validated" })}
+                      disabled={updateStatusMutation.isPending}
+                      className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground disabled:opacity-60"
+                    >
+                      {updateStatusMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <CheckCircle className="h-4 w-4" />
+                      )}
+                      Valider commande
+                    </button>
+                  )}
+                  {canDeleteRequests && (
+                    <button
+                      type="button"
+                      onClick={() => moveToTrashMutation.mutate(request.id)}
+                      disabled={moveToTrashMutation.isPending}
+                      className="inline-flex items-center justify-center gap-2 rounded-lg border border-destructive/40 px-4 py-2.5 text-sm font-medium text-destructive hover:bg-destructive/10 disabled:opacity-60"
+                    >
+                      {moveToTrashMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4" />
+                      )}
+                      Supprimer
+                    </button>
                     )}
-                    Valider commande
-                  </button>
-                )}
+                </div>
               </div>
             </article>
           ))}

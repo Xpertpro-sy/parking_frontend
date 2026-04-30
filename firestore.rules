@@ -31,12 +31,12 @@ service cloud.firestore {
 
     function hasManagerPermission(permission) {
       return !isManager()
-        || currentUserData().permissions.get(permission, false) == true
+        || currentUserData().get("permissions", {}).get(permission, false) == true
         || (
           permission == "ecommerceRequests"
           && (
-            currentUserData().permissions.get("rentals", false) == true
-            || currentUserData().permissions.get("reservations", false) == true
+            currentUserData().get("permissions", {}).get("rentals", false) == true
+            || currentUserData().get("permissions", {}).get("reservations", false) == true
           )
         );
     }
@@ -254,17 +254,24 @@ service cloud.firestore {
       allow list: if canAccessEcommerceRequestsWorkspace(resource.data.ownerUid)
         || isSuperAdmin();
       allow create: if request.resource.data.ownerUid is string
-        && request.resource.data.sourceToken is string
-        && hasMatchingActiveEcommerceLink(request.resource.data.ownerUid, request.resource.data.sourceToken)
+        && (
+          (
+            request.resource.data.sourceToken is string
+            && hasMatchingActiveEcommerceLink(request.resource.data.ownerUid, request.resource.data.sourceToken)
+            && request.resource.data.status == "pending"
+          )
+          || isOwner(request.resource.data.ownerUid)
+          || isSuperAdmin()
+        )
         && request.resource.data.vehicleId is string
         && request.resource.data.vehicleLabel is string
         && request.resource.data.requestType is string
         && request.resource.data.customerName is string
-        && request.resource.data.customerPhone is string
-        && request.resource.data.status == "pending";
+        && request.resource.data.customerPhone is string;
       allow update: if canAccessEcommerceRequestsWorkspace(resource.data.ownerUid)
         && request.resource.data.ownerUid == resource.data.ownerUid;
-      allow delete: if canAccessEcommerceRequestsWorkspace(resource.data.ownerUid)
+      allow delete: if isOwner(resource.data.ownerUid)
+        || isSuperAdmin()
         || (isSuperAdmin() && resource.data.keys().hasAll(["ownerUid"]));
     }
 
@@ -443,6 +450,7 @@ service cloud.firestore {
       allow read: if isSignedIn()
         && (
           resource.data.ownerUid == request.auth.uid
+          || resource.data.managerUid == request.auth.uid
           || (
             request.auth.token.email is string
             && resource.data.managerEmailNormalized == request.auth.token.email.lower()

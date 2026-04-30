@@ -14,9 +14,21 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 
-type TrashItemType = 'vehicle' | 'receipt-sale' | 'receipt-rental' | 'history-reservation' | 'history-rental';
+type TrashItemType =
+  | 'vehicle'
+  | 'receipt-sale'
+  | 'receipt-rental'
+  | 'history-reservation'
+  | 'history-rental'
+  | 'ecommerce-request';
 
-type TrashSourceCollection = 'vehicles' | 'saleReceipts' | 'rentalReceipts' | 'reservations' | 'rentals';
+type TrashSourceCollection =
+  | 'vehicles'
+  | 'saleReceipts'
+  | 'rentalReceipts'
+  | 'reservations'
+  | 'rentals'
+  | 'ecommerceRequests';
 
 type TrashItemFirestoreDoc = {
   ownerUid: string;
@@ -175,6 +187,30 @@ export async function moveRentalHistoryToTrashRequest(rentalId: string): Promise
     title: `Location ${d.tenantName}`,
     subtitle: `${d.vehicleBrand} ${d.vehicleModel}`,
     amount: Number(d.amount),
+  });
+}
+
+export async function moveEcommerceRequestToTrashRequest(requestId: string): Promise<void> {
+  const { role } = await getAuthIdentity();
+  if (role !== "ADMIN") {
+    throw new Error("Seul l'administrateur peut supprimer une demande client.");
+  }
+  const db = getFirebaseDb();
+  const snap = await getDoc(doc(db, 'ecommerceRequests', requestId));
+  if (!snap.exists()) throw new Error('Demande client introuvable.');
+  const d = snap.data() as {
+    customerName: string;
+    customerPhone: string;
+    vehicleLabel: string;
+    requestType: string;
+  };
+  await moveDocumentToTrash({
+    sourceCollection: 'ecommerceRequests',
+    sourceId: requestId,
+    itemType: 'ecommerce-request',
+    title: `Demande ${d.customerName}`,
+    subtitle: `${d.vehicleLabel} · ${d.requestType === 'rental' ? 'Location' : 'Réservation'} · ${d.customerPhone}`,
+    amount: null,
   });
 }
 
