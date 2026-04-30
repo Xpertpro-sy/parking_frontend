@@ -365,6 +365,13 @@ export default function FinalizeReservationRentalForm() {
           <p className="text-lg font-semibold text-foreground">{amount ? `${Number(amount).toLocaleString()} CFA` : "Renseignez les dates"}</p>
         </div>
 
+        <div className="rounded-lg border border-border bg-secondary/40 px-4 py-3">
+          <p className="text-xs text-muted-foreground">Kilometrage de depart</p>
+          <p className="text-lg font-semibold text-foreground">
+            {vehicle ? `${vehicle.mileage.toLocaleString()} km` : "Chargement..."}
+          </p>
+        </div>
+
         <button
           type="submit"
           disabled={submitting || uploadingIdCard || !amount || loadingVehicle || loadingReservations}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { type MouseEvent, useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Car, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
@@ -55,6 +55,7 @@ export default function VehicleDetail() {
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const [completingRental, setCompletingRental] = useState(false);
   const [showCompleteRentalPopup, setShowCompleteRentalPopup] = useState(false);
+  const [rentalEndMileage, setRentalEndMileage] = useState('');
   const [showReservationModal, setShowReservationModal] = useState(false);
   const [showCancelReservationPopup, setShowCancelReservationPopup] = useState(false);
   const [showRepairModal, setShowRepairModal] = useState(false);
@@ -200,6 +201,14 @@ export default function VehicleDetail() {
     (rental) => rental.vehicleId === vehicle.id && !rental.completedAt,
   );
   const activeRentalId = activeRental?.id ?? vehicle.currentRentalId ?? null;
+  const activeRentalStartMileage = activeRental?.startMileage ?? vehicle.mileage;
+  const parsedRentalEndMileage = Number(rentalEndMileage);
+  const rentalMileageDifference =
+    rentalEndMileage && Number.isFinite(parsedRentalEndMileage)
+      ? parsedRentalEndMileage - activeRentalStartMileage
+      : 0;
+  const isRentalEndMileageInvalid =
+    !rentalEndMileage || !Number.isFinite(parsedRentalEndMileage) || parsedRentalEndMileage < activeRentalStartMileage;
   const activeReservation = reservations.find(
     (reservation) => reservation.vehicleId === vehicle.id && reservation.status === 'ACTIVE',
   );
@@ -215,22 +224,30 @@ export default function VehicleDetail() {
       toast.error("Aucune location active trouvee pour ce vehicule.");
       return;
     }
+    setRentalEndMileage(String(vehicle.mileage));
     setShowCompleteRentalPopup(true);
   };
 
-  const handleConfirmCompleteRental = async () => {
+  const handleConfirmCompleteRental = async (event?: MouseEvent<HTMLButtonElement>) => {
     if (!activeRentalId) {
+      event?.preventDefault();
       toast.error("Aucune location active trouvee pour ce vehicule.");
+      return;
+    }
+    if (isRentalEndMileageInvalid) {
+      event?.preventDefault();
+      toast.error("Le kilometrage de retour doit etre superieur ou egal au kilometrage de depart.");
       return;
     }
     setCompletingRental(true);
     try {
-      await completeRentalRequest(activeRentalId);
+      await completeRentalRequest(activeRentalId, parsedRentalEndMileage);
       await queryClient.invalidateQueries({ queryKey: ['rentals', 'list'] });
       await queryClient.invalidateQueries({ queryKey: ['receipts', 'list'] });
       await queryClient.invalidateQueries({ queryKey: vehicleQueryKeys.all });
-      toast.success("Location terminee avec succes.");
+      toast.success(`Location terminee. Ecart: ${rentalMileageDifference.toLocaleString()} km.`);
       setShowCompleteRentalPopup(false);
+      setRentalEndMileage('');
     } catch (completeError) {
       const errorMessage = completeError instanceof Error ? completeError.message : "";
       if (errorMessage.toLowerCase().includes("missing or insufficient permissions")) {
@@ -466,6 +483,10 @@ export default function VehicleDetail() {
               Montant: <span className="text-foreground font-medium">{activeRental.amount.toLocaleString()} CFA</span> ·
               Effectué par <span className="text-foreground font-medium"> {activeRental.createdByName || "Utilisateur"}</span>
             </p>
+            <p className="text-muted-foreground">
+              Kilometrage depart:{" "}
+              <span className="text-foreground font-medium">{activeRentalStartMileage.toLocaleString()} km</span>
+            </p>
           </div>
         )}
 
@@ -654,14 +675,38 @@ export default function VehicleDetail() {
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmer la fin de location</AlertDialogTitle>
             <AlertDialogDescription>
-              Cette action va cloturer la location en cours.
+              Cette action va cloturer la location en cours. Renseignez le kilometrage de retour pour calculer l'ecart.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="space-y-3">
+            <div className="rounded-lg border border-border bg-secondary/40 px-3 py-2">
+              <p className="text-xs text-muted-foreground">Kilometrage de depart</p>
+              <p className="text-sm font-semibold text-foreground">{activeRentalStartMileage.toLocaleString()} km</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">Kilometrage de retour</label>
+              <input
+                type="number"
+                min={activeRentalStartMileage}
+                step={1}
+                value={rentalEndMileage}
+                onChange={(event) => setRentalEndMileage(event.target.value)}
+                disabled={completingRental}
+                className="w-full px-3 py-2.5 bg-secondary border border-border rounded-lg text-sm text-foreground"
+              />
+            </div>
+            <div className="rounded-lg border border-border bg-secondary/40 px-3 py-2">
+              <p className="text-xs text-muted-foreground">Ecart parcouru</p>
+              <p className={`text-sm font-semibold ${rentalMileageDifference < 0 ? "text-destructive" : "text-foreground"}`}>
+                {rentalMileageDifference.toLocaleString()} km
+              </p>
+            </div>
+          </div>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={completingRental}>Annuler</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleConfirmCompleteRental}
-              disabled={completingRental}
+              disabled={completingRental || isRentalEndMileageInvalid}
               className="bg-success text-success-foreground hover:opacity-90"
             >
               {completingRental ? "Cloture..." : "Confirmer"}

@@ -47,6 +47,9 @@ export type RentalApiResponse = {
   totalDays: number;
   dailyPrice: number;
   amount: number;
+  startMileage: number | null;
+  endMileage: number | null;
+  mileageDifference: number | null;
   status: string;
   completedAt: string | null;
   createdAt: string;
@@ -95,6 +98,9 @@ type RentalFirestoreDoc = {
   totalDays: number;
   dailyPrice: number;
   amount: number;
+  startMileage?: number | null;
+  endMileage?: number | null;
+  mileageDifference?: number | null;
   status: "active" | "completed";
   completedAt: string | null;
   receiptId: string | null;
@@ -181,6 +187,9 @@ function mapRentalDoc(id: string, data: RentalFirestoreDoc): RentalApiResponse {
     totalDays: data.totalDays,
     dailyPrice: data.dailyPrice,
     amount: data.amount,
+    startMileage: data.startMileage ?? null,
+    endMileage: data.endMileage ?? null,
+    mileageDifference: data.mileageDifference ?? null,
     status: data.status,
     completedAt: data.completedAt,
     createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
@@ -271,6 +280,9 @@ export async function createRentalRequest(payload: CreateRentalPayload): Promise
       totalDays,
       dailyPrice: Number(vehicle.rentalPrice),
       amount: expectedAmount,
+      startMileage: Number(vehicle.mileage) || 0,
+      endMileage: null,
+      mileageDifference: null,
       status: "active",
       completedAt: null,
       receiptId: receiptRef.id,
@@ -380,10 +392,13 @@ export async function listRentalsRequest(): Promise<RentalApiResponse[]> {
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
-export async function completeRentalRequest(rentalId: string): Promise<RentalApiResponse> {
+export async function completeRentalRequest(rentalId: string, endMileage: number): Promise<RentalApiResponse> {
   const db = getFirebaseDb();
   const { uid } = await getAuthIdentity();
   const rentalRef = doc(db, "rentals", rentalId);
+  if (!Number.isFinite(endMileage) || endMileage < 0) {
+    throw new Error("Le kilometrage de retour est invalide.");
+  }
 
   await runTransaction(db, async (transaction) => {
     const rentalSnap = await transaction.get(rentalRef);
@@ -391,6 +406,9 @@ export async function completeRentalRequest(rentalId: string): Promise<RentalApi
       throw new Error("Location introuvable.");
     }
     const rental = rentalSnap.data() as RentalFirestoreDoc;
+    if (rental.ownerUid !== uid) {
+      throw new Error("Acces refuse a cette location.");
+    }
     if (rental.status !== "active") {
       throw new Error("Cette location est deja terminee.");
     }
@@ -401,15 +419,25 @@ export async function completeRentalRequest(rentalId: string): Promise<RentalApi
       throw new Error("Vehicule associe introuvable.");
     }
     const vehicle = vehicleSnap.data() as VehicleFirestoreDoc;
+    const fallbackStartMileage = Number(vehicle.mileage);
+    const startMileage = rental.startMileage ?? (Number.isFinite(fallbackStartMileage) ? fallbackStartMileage : 0);
+    if (endMileage < startMileage) {
+      throw new Error("Le kilometrage de retour ne peut pas etre inferieur au kilometrage de depart.");
+    }
+    const mileageDifference = endMileage - startMileage;
 
     transaction.update(rentalRef, {
       status: "completed",
       completedAt: new Date().toISOString(),
+      startMileage,
+      endMileage,
+      mileageDifference,
       updatedAt: serverTimestamp(),
     });
 
     transaction.update(vehicleRef, {
       status: "available",
+      mileage: endMileage,
       updatedAt: serverTimestamp(),
       currentRentalId: null,
     });

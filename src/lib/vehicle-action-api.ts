@@ -122,6 +122,9 @@ type RentalFirestoreDoc = {
   totalDays: number;
   dailyPrice: number;
   amount: number;
+  startMileage?: number | null;
+  endMileage?: number | null;
+  mileageDifference?: number | null;
   status: "active" | "completed";
   completedAt: string | null;
   receiptId: string | null;
@@ -520,6 +523,9 @@ export async function finalizeReservationToRentalRequest(
       totalDays,
       dailyPrice,
       amount,
+      startMileage: Number(vehicleData.mileage) || 0,
+      endMileage: null,
+      mileageDifference: null,
       status: "active",
       completedAt: null,
       receiptId: receiptRef.id,
