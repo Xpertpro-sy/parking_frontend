@@ -116,6 +116,9 @@ const OWNER_SCOPED_COLLECTIONS = [
   "reservations",
   "repairs",
   "accountMovements",
+  "drivers",
+  "ecommerceLinks",
+  "ecommerceRequests",
   "trashItems",
 ] as const;
 

@@ -22,6 +22,7 @@ import HistoryPage from "./pages/HistoryPage";
 import RentedVehicles from "./pages/RentedVehicles";
 import ReservedVehicles from "./pages/ReservedVehicles";
 import ComptabilityPage from "./pages/ComptabilityPage";
+import EcommerceRequestsPage from "./pages/EcommerceRequestsPage";
 import SettingsPage from "./pages/SettingsPage";
 import CorbeillePage from "./pages/CorbeillePage";
 import AccountsPage from "./pages/AccountsPage";
@@ -30,6 +31,8 @@ import SuperAdminDashboard from "./pages/SuperAdminDashboard";
 import SuperAdminPlatformAccountsPage from "./pages/SuperAdminPlatformAccountsPage";
 import SuperAdminTenantAdminDetailPage from "./pages/SuperAdminTenantAdminDetailPage";
 import SuperAdminSubscriptionsPage from "./pages/SuperAdminSubscriptionsPage";
+import SuperAdminEcommerceLinksPage from "./pages/SuperAdminEcommerceLinksPage";
+import PublicEcommerceStorePage from "./pages/PublicEcommerceStorePage";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import NotFound from "./pages/NotFound";
@@ -79,6 +82,8 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
+            <Route path="/shop/:token" element={<PublicEcommerceStorePage />} />
+
             <Route element={<GuestRoute />}>
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
@@ -91,6 +96,7 @@ const App = () => (
                   <Route path="comptes/:adminUid" element={<SuperAdminTenantAdminDetailPage />} />
                   <Route path="comptes" element={<SuperAdminPlatformAccountsPage />} />
                   <Route path="abonnements" element={<SuperAdminSubscriptionsPage />} />
+                  <Route path="e-commerce" element={<SuperAdminEcommerceLinksPage />} />
                   <Route path="profil" element={<ProfilePage />} />
                 </Route>
               </Route>
@@ -107,6 +113,7 @@ const App = () => (
                 <Route path="/receipts" element={<Receipts />} />
                 <Route path="/voitures-louees" element={<RentedVehicles />} />
                 <Route path="/voitures-reservees" element={<ReservedVehicles />} />
+                <Route path="/demandes" element={<EcommerceRequestsPage />} />
                 <Route path="/history" element={<HistoryPage />} />
                 <Route path="/comptability" element={<ComptabilityPage />} />
                 <Route path="/profil" element={<ProfilePage />} />

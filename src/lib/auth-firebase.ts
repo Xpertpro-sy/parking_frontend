@@ -167,7 +167,7 @@ async function postAuthFirestoreSync(
   const uid = user.uid;
   const userSnap = await getDoc(doc(db, "users", uid));
   const userData = userSnap.exists()
-    ? (userSnap.data() as { role?: string; managerStatus?: string; accountStatus?: string })
+    ? (userSnap.data() as { role?: string; managerStatus?: string; accountStatus?: string; enterpriseOwnerUid?: string })
     : null;
 
   if (userData?.role?.toUpperCase() === "SUPER_ADMIN") {
@@ -192,6 +192,14 @@ async function postAuthFirestoreSync(
       "Votre compte a été désactivé par un administrateur. Contactez-le si vous avez besoin d'y accéder à nouveau.",
     );
   }
+  if (
+    userData?.role?.toUpperCase() === "GESTIONNAIRE" &&
+    userData.managerStatus !== "removed" &&
+    typeof userData.enterpriseOwnerUid === "string" &&
+    userData.enterpriseOwnerUid.trim()
+  ) {
+    return "GESTIONNAIRE";
+  }
 
   const accessSnapshot = await getDocs(
     query(collection(db, "managerAccess"), where("managerEmailNormalized", "==", emailNormalized)),
@@ -208,19 +216,6 @@ async function postAuthFirestoreSync(
       await signOut(auth);
       throw new Error(
         "Votre compte a été désactivé par un administrateur. Contactez-le si vous avez besoin d'y accéder à nouveau.",
-      );
-    }
-
-    const ownerSnap = await getDoc(doc(db, "users", access.ownerUid));
-    const ownerData = ownerSnap.exists() ? ownerSnap.data() : null;
-    const ownerStatus = ((ownerData?.accountStatus as string | undefined) ?? "active").toLowerCase();
-    const ownerRole = (ownerData?.role as string | undefined)?.toUpperCase() ?? "";
-    if (ownerRole === "ADMIN" && (ownerStatus === "inactive" || ownerStatus === "purged")) {
-      await signOut(auth);
-      throw new Error(
-        ownerStatus === "purged"
-          ? "L'entreprise associée à ce compte a été clôturée. La connexion n'est plus possible."
-          : "L'administrateur de votre entreprise a été désactivé. La connexion n'est plus possible pour le moment.",
       );
     }
 
@@ -242,6 +237,19 @@ async function postAuthFirestoreSync(
       payload.createdAt = serverTimestamp();
     }
     await setDoc(doc(db, "users", uid), payload, { merge: true });
+
+    const ownerSnap = await getDoc(doc(db, "users", access.ownerUid));
+    const ownerData = ownerSnap.exists() ? ownerSnap.data() : null;
+    const ownerStatus = ((ownerData?.accountStatus as string | undefined) ?? "active").toLowerCase();
+    const ownerRole = (ownerData?.role as string | undefined)?.toUpperCase() ?? "";
+    if (ownerRole === "ADMIN" && (ownerStatus === "inactive" || ownerStatus === "purged")) {
+      await signOut(auth);
+      throw new Error(
+        ownerStatus === "purged"
+          ? "L'entreprise associée à ce compte a été clôturée. La connexion n'est plus possible."
+          : "L'administrateur de votre entreprise a été désactivé. La connexion n'est plus possible pour le moment.",
+      );
+    }
     return "GESTIONNAIRE";
   }
 

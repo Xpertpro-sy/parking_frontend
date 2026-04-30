@@ -45,6 +45,7 @@ const MANAGED_PERMISSION_KEYS: (keyof PermissionMap)[] = [
   "comptability",
   "rentals",
   "reservations",
+  "ecommerceRequests",
   "history",
   "trash",
 ];

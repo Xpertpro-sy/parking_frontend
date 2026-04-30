@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Car, LayoutDashboard, Receipt, History, Menu, X, LogOut, Calculator, Settings, Trash2, User } from 'lucide-react';
+import { Car, LayoutDashboard, Receipt, History, Menu, X, LogOut, Calculator, Settings, Trash2, User, MailQuestion } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { AppPermission, getCurrentUserAccessProfile } from '@/lib/access-control';
 import { brandingSettingsQueryKey, getBrandingSettingsRequest } from '@/lib/branding-api';
+import { countPendingEcommerceCustomerRequestsRequest, ecommerceRequestsCountQueryKey } from '@/lib/ecommerce-api';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,6 +24,7 @@ const navItems = [
   { to: '/comptability', icon: Calculator, label: 'Comptabilité', permission: 'comptability' as AppPermission },
   { to: '/voitures-louees', icon: Car, label: 'Voitures louées', permission: 'rentals' as AppPermission },
   { to: '/voitures-reservees', icon: Car, label: 'Voitures réservées', permission: 'reservations' as AppPermission },
+  { to: '/demandes', icon: MailQuestion, label: 'Demandes', permission: 'ecommerceRequests' as AppPermission, badge: 'ecommerceRequests' },
   { to: '/history', icon: History, label: 'Historique', permission: 'history' as AppPermission },
   { to: '/comptes', icon: User, label: 'Comptes', permission: 'accounts' as AppPermission },
   { to: '/settings', icon: Settings, label: 'Paramètres', permission: 'settings' as AppPermission },
@@ -43,6 +45,11 @@ export default function MobileNav() {
     queryKey: [...brandingSettingsQueryKey, user?.email ?? 'anonymous'],
     queryFn: getBrandingSettingsRequest,
     enabled: Boolean(user?.email),
+  });
+  const { data: pendingRequestsCount = 0 } = useQuery({
+    queryKey: ecommerceRequestsCountQueryKey,
+    queryFn: countPendingEcommerceCustomerRequestsRequest,
+    enabled: Boolean(user?.email && accessProfile?.permissions.ecommerceRequests),
   });
 
   const handleLogout = () => {
@@ -105,7 +112,12 @@ export default function MobileNav() {
                   }`}
                 >
                   <item.icon className="w-5 h-5" />
-                  {item.label}
+                  <span className="flex-1">{item.label}</span>
+                  {item.badge === 'ecommerceRequests' && pendingRequestsCount > 0 && (
+                    <span className="rounded-full bg-primary px-2 py-0.5 text-xs font-semibold text-primary-foreground">
+                      {pendingRequestsCount}
+                    </span>
+                  )}
                 </NavLink>
               );
             })}

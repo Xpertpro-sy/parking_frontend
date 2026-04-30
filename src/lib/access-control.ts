@@ -9,6 +9,7 @@ export type AppPermission =
   | "comptability"
   | "rentals"
   | "reservations"
+  | "ecommerceRequests"
   | "history"
   | "trash"
   | "settings"
@@ -23,6 +24,7 @@ export const DEFAULT_ADMIN_PERMISSIONS: PermissionMap = {
   comptability: true,
   rentals: true,
   reservations: true,
+  ecommerceRequests: true,
   history: true,
   trash: true,
   settings: true,
@@ -36,6 +38,7 @@ export const DEFAULT_MANAGER_PERMISSIONS: PermissionMap = {
   comptability: true,
   rentals: true,
   reservations: true,
+  ecommerceRequests: true,
   history: true,
   trash: false,
   settings: false,

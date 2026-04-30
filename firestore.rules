@@ -30,7 +30,15 @@ service cloud.firestore {
     }
 
     function hasManagerPermission(permission) {
-      return !isManager() || currentUserData().permissions[permission] == true;
+      return !isManager()
+        || currentUserData().permissions.get(permission, false) == true
+        || (
+          permission == "ecommerceRequests"
+          && (
+            currentUserData().permissions.get("rentals", false) == true
+            || currentUserData().permissions.get("reservations", false) == true
+          )
+        );
     }
 
     function canAccessWorkspace(ownerUid, permission) {
@@ -57,6 +65,23 @@ service cloud.firestore {
     // Opérations location: autorisées via module Locations ou Véhicules.
     function canManageRentalsWorkspace(ownerUid) {
       return canAccessWorkspace(ownerUid, "rentals") || canAccessWorkspace(ownerUid, "vehicles");
+    }
+
+    function canAccessEcommerceRequestsWorkspace(ownerUid) {
+      return canAccessWorkspace(ownerUid, "ecommerceRequests")
+        || canAccessWorkspace(ownerUid, "rentals")
+        || canAccessWorkspace(ownerUid, "reservations")
+        || (isManager() && managerActiveFor(ownerUid));
+    }
+
+    function hasActiveEcommerceLink(ownerUid) {
+      return exists(/databases/$(database)/documents/ecommerceLinks/$(ownerUid))
+        && get(/databases/$(database)/documents/ecommerceLinks/$(ownerUid)).data.status == "active";
+    }
+
+    function hasMatchingActiveEcommerceLink(ownerUid, token) {
+      return hasActiveEcommerceLink(ownerUid)
+        && get(/databases/$(database)/documents/ecommerceLinks/$(ownerUid)).data.token == token;
     }
 
     // Mouvements comptables : saisie manuelle = comptabilité ; flux métier = permission du module concerné.
@@ -133,7 +158,9 @@ service cloud.firestore {
 
     match /vehicles/{vehicleId} {
       // Lecture : périmètre entreprise ou super administrateur (stats / back-office).
-      allow read: if canAccessWorkspace(resource.data.ownerUid, "vehicles") || isSuperAdmin();
+      allow read: if canAccessWorkspace(resource.data.ownerUid, "vehicles")
+        || isSuperAdmin()
+        || hasActiveEcommerceLink(resource.data.ownerUid);
 
       // Creation: le document doit appartenir a l'utilisateur connecte
       allow create: if canAccessWorkspace(request.resource.data.ownerUid, "vehicles");
@@ -202,6 +229,42 @@ service cloud.firestore {
       allow update: if canManageRentalsWorkspace(resource.data.ownerUid)
         && request.resource.data.ownerUid == resource.data.ownerUid;
       allow delete: if canManageRentalsWorkspace(resource.data.ownerUid)
+        || (isSuperAdmin() && resource.data.keys().hasAll(["ownerUid"]));
+    }
+
+    match /ecommerceLinks/{linkId} {
+      allow read: if isSuperAdmin()
+        || resource.data.status == "active";
+      allow create: if isSuperAdmin()
+        && request.resource.data.ownerUid == linkId
+        && request.resource.data.token is string
+        && request.resource.data.status is string;
+      allow update: if isSuperAdmin()
+        && request.resource.data.ownerUid == resource.data.ownerUid;
+      allow delete: if isSuperAdmin();
+    }
+
+    match /ecommerceRequests/{requestId} {
+      allow get: if canAccessEcommerceRequestsWorkspace(resource.data.ownerUid)
+        || isSuperAdmin()
+        || (
+          resource.data.sourceToken is string
+          && hasMatchingActiveEcommerceLink(resource.data.ownerUid, resource.data.sourceToken)
+        );
+      allow list: if canAccessEcommerceRequestsWorkspace(resource.data.ownerUid)
+        || isSuperAdmin();
+      allow create: if request.resource.data.ownerUid is string
+        && request.resource.data.sourceToken is string
+        && hasMatchingActiveEcommerceLink(request.resource.data.ownerUid, request.resource.data.sourceToken)
+        && request.resource.data.vehicleId is string
+        && request.resource.data.vehicleLabel is string
+        && request.resource.data.requestType is string
+        && request.resource.data.customerName is string
+        && request.resource.data.customerPhone is string
+        && request.resource.data.status == "pending";
+      allow update: if canAccessEcommerceRequestsWorkspace(resource.data.ownerUid)
+        && request.resource.data.ownerUid == resource.data.ownerUid;
+      allow delete: if canAccessEcommerceRequestsWorkspace(resource.data.ownerUid)
         || (isSuperAdmin() && resource.data.keys().hasAll(["ownerUid"]));
     }
 

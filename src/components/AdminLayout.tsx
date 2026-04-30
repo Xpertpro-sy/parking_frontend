@@ -36,6 +36,12 @@ export default function AdminLayout() {
               Abonnements
             </Link>
             <Link
+              to="/admin/e-commerce"
+              className={`shrink-0 rounded-md px-2.5 py-1.5 ${location.pathname.startsWith("/admin/e-commerce") ? "bg-sidebar-accent text-sidebar-primary" : "text-muted-foreground"}`}
+            >
+              E-commerce
+            </Link>
+            <Link
               to="/admin/profil"
               className={`shrink-0 rounded-md px-2.5 py-1.5 ${location.pathname.startsWith("/admin/profil") ? "bg-sidebar-accent text-sidebar-primary" : "text-muted-foreground"}`}
             >
