@@ -249,20 +249,22 @@ service cloud.firestore {
         || isSuperAdmin()
         || (
           resource.data.sourceToken is string
-          && hasMatchingActiveEcommerceLink(resource.data.ownerUid, resource.data.sourceToken)
+          && hasActiveEcommerceLink(resource.data.ownerUid)
         );
       allow list: if canAccessEcommerceRequestsWorkspace(resource.data.ownerUid)
         || isSuperAdmin();
+      allow create: if request.auth == null
+        && request.resource.data.ownerUid is string
+        && request.resource.data.sourceToken is string
+        && hasActiveEcommerceLink(request.resource.data.ownerUid)
+        && request.resource.data.status == "pending"
+        && request.resource.data.vehicleId is string
+        && request.resource.data.vehicleLabel is string
+        && request.resource.data.requestType is string
+        && request.resource.data.customerName is string
+        && request.resource.data.customerPhone is string;
       allow create: if request.resource.data.ownerUid is string
-        && (
-          (
-            request.resource.data.sourceToken is string
-            && hasMatchingActiveEcommerceLink(request.resource.data.ownerUid, request.resource.data.sourceToken)
-            && request.resource.data.status == "pending"
-          )
-          || isOwner(request.resource.data.ownerUid)
-          || isSuperAdmin()
-        )
+        && (isOwner(request.resource.data.ownerUid) || isSuperAdmin())
         && request.resource.data.vehicleId is string
         && request.resource.data.vehicleLabel is string
         && request.resource.data.requestType is string

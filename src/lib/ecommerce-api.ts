@@ -1,6 +1,7 @@
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -22,6 +23,7 @@ export const publicEcommerceRequestStatusQueryKey = (requestId: string) =>
   ["ecommerce-request-status", requestId] as const;
 export const ecommerceRequestsQueryKey = ["ecommerce-requests", "list"] as const;
 export const ecommerceRequestsCountQueryKey = ["ecommerce-requests", "pending-count"] as const;
+export const ecommerceActiveLinkQueryKey = ["ecommerce-link", "active"] as const;
 
 export type EcommerceLinkStatus = "active" | "inactive";
 
@@ -261,6 +263,13 @@ export async function createEcommerceLinkForAdminRequest(adminUid: string): Prom
   return token;
 }
 
+export async function deleteEcommerceLinkForAdminRequest(adminUid: string): Promise<void> {
+  const identity = await getWorkspaceIdentity();
+  assertSuperAdminRole(identity.role);
+  const db = getFirebaseDb();
+  await deleteDoc(doc(db, "ecommerceLinks", adminUid));
+}
+
 export async function getPublicEcommerceStoreRequest(token: string): Promise<PublicEcommerceStore | null> {
   const db = getFirebaseDb();
   const trimmedToken = token.trim();
@@ -325,6 +334,15 @@ export async function listEcommerceCustomerRequestsRequest(): Promise<EcommerceC
 export async function countPendingEcommerceCustomerRequestsRequest(): Promise<number> {
   const requests = await listEcommerceCustomerRequestsRequest();
   return requests.filter((request) => request.status === "pending").length;
+}
+
+export async function hasActiveEcommerceLinkRequest(): Promise<boolean> {
+  const db = getFirebaseDb();
+  const identity = await getWorkspaceIdentity();
+  const linkSnap = await getDoc(doc(db, "ecommerceLinks", identity.uid));
+  if (!linkSnap.exists()) return false;
+  const link = linkSnap.data() as EcommerceLinkDoc;
+  return link.status === "active";
 }
 
 export async function updateEcommerceCustomerRequestStatusRequest(

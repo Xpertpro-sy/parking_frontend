@@ -17,7 +17,12 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { AppPermission, getCurrentUserAccessProfile } from '@/lib/access-control';
 import { brandingSettingsQueryKey, getBrandingSettingsRequest } from '@/lib/branding-api';
-import { countPendingEcommerceCustomerRequestsRequest, ecommerceRequestsCountQueryKey } from '@/lib/ecommerce-api';
+import {
+  ecommerceActiveLinkQueryKey,
+  ecommerceRequestsCountQueryKey,
+  countPendingEcommerceCustomerRequestsRequest,
+  hasActiveEcommerceLinkRequest,
+} from '@/lib/ecommerce-api';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -56,10 +61,15 @@ export default function AppSidebar() {
     queryFn: getBrandingSettingsRequest,
     enabled: Boolean(user?.email),
   });
-  const { data: pendingRequestsCount = 0 } = useQuery({
+  const { data: hasActiveEcommerceLink = false } = useQuery({
+    queryKey: ecommerceActiveLinkQueryKey,
+    queryFn: hasActiveEcommerceLinkRequest,
+    enabled: Boolean(user?.email && accessProfile?.permissions.ecommerceRequests),
+  });
+  const { data: pendingEcommerceRequestsCount = 0 } = useQuery({
     queryKey: ecommerceRequestsCountQueryKey,
     queryFn: countPendingEcommerceCustomerRequestsRequest,
-    enabled: Boolean(user?.email && accessProfile?.permissions.ecommerceRequests),
+    enabled: Boolean(user?.email && accessProfile?.permissions.ecommerceRequests && hasActiveEcommerceLink),
   });
 
   const handleLogout = () => {
@@ -94,6 +104,7 @@ export default function AppSidebar() {
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
         {navItems.map((item) => {
           if (accessProfile && !accessProfile.permissions[item.permission]) return null;
+          if (item.badge === 'ecommerceRequests' && !hasActiveEcommerceLink) return null;
           const isActive = location.pathname === item.to || 
             (item.to !== '/' && location.pathname.startsWith(item.to));
           return (
@@ -108,9 +119,9 @@ export default function AppSidebar() {
             >
               <item.icon className="w-5 h-5" />
               <span className="flex-1">{item.label}</span>
-              {item.badge === 'ecommerceRequests' && pendingRequestsCount > 0 && (
-                <span className="rounded-full bg-primary px-2 py-0.5 text-xs font-semibold text-primary-foreground">
-                  {pendingRequestsCount}
+              {item.badge === 'ecommerceRequests' && hasActiveEcommerceLink && (
+                <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary-foreground">
+                  {pendingEcommerceRequestsCount > 0 ? pendingEcommerceRequestsCount : 'New'}
                 </span>
               )}
             </NavLink>

@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Copy, ExternalLink, Loader2, Link as LinkIcon, Store } from "lucide-react";
+import { Copy, ExternalLink, Loader2, Link as LinkIcon, Store, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   buildEcommerceUrl,
   createEcommerceLinkForAdminRequest,
+  deleteEcommerceLinkForAdminRequest,
   listSuperAdminEcommerceLinksRequest,
   superAdminEcommerceLinksQueryKey,
 } from "@/lib/ecommerce-api";
@@ -23,6 +24,17 @@ export default function SuperAdminEcommerceLinksPage() {
     },
     onError: (err) => {
       toast.error(err instanceof Error ? err.message : "Impossible de créer le lien.");
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteEcommerceLinkForAdminRequest,
+    onSuccess: async () => {
+      toast.success("Lien e-commerce supprimé.");
+      await queryClient.invalidateQueries({ queryKey: superAdminEcommerceLinksQueryKey });
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : "Impossible de supprimer le lien.");
     },
   });
 
@@ -115,6 +127,19 @@ export default function SuperAdminEcommerceLinksPage() {
                                 <ExternalLink className="h-3.5 w-3.5" />
                                 Ouvrir
                               </a>
+                              <button
+                                type="button"
+                                onClick={() => deleteMutation.mutate(row.adminUid)}
+                                disabled={deleteMutation.isPending}
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-destructive/40 px-3 py-2 text-xs font-medium text-destructive hover:bg-destructive/10 disabled:opacity-60"
+                              >
+                                {deleteMutation.isPending ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                )}
+                                Supprimer
+                              </button>
                             </>
                           ) : (
                             <button
