@@ -89,6 +89,9 @@ export default function FinalizeReservationRentalForm() {
   const [tenantIdCardPhotoUrl, setTenantIdCardPhotoUrl] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [withDriver, setWithDriver] = useState(false);
+  const [driverFullName, setDriverFullName] = useState("");
+  const [driverPhone, setDriverPhone] = useState("");
   const [uploadingIdCard, setUploadingIdCard] = useState(false);
 
   useEffect(() => {
@@ -146,6 +149,10 @@ export default function FinalizeReservationRentalForm() {
       toast.error("Aucune reservation active pour ce vehicule.");
       return;
     }
+    if (withDriver && (!driverFullName.trim() || !driverPhone.trim())) {
+      toast.error("Renseignez le nom complet et le numero du chauffeur.");
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -159,6 +166,12 @@ export default function FinalizeReservationRentalForm() {
         emergencyContactPhone: emergencyContactPhone.trim() || undefined,
         startDate,
         endDate,
+        driver: withDriver
+          ? {
+              fullName: driverFullName.trim(),
+              phone: driverPhone.trim(),
+            }
+          : undefined,
       });
       await queryClient.invalidateQueries({ queryKey: ["reservations", "list"] });
       await queryClient.invalidateQueries({ queryKey: ["rentals", "list"] });
@@ -334,6 +347,47 @@ export default function FinalizeReservationRentalForm() {
                 disabled={submitting || uploadingIdCard}
               />
             </label>
+          )}
+        </div>
+
+        <div className="rounded-lg border border-border bg-secondary/30 p-4 space-y-4">
+          <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <input
+              type="checkbox"
+              checked={withDriver}
+              onChange={(event) => setWithDriver(event.target.checked)}
+              disabled={submitting}
+              className="h-4 w-4 rounded border-border"
+            />
+            Location avec chauffeur
+          </label>
+
+          {withDriver && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1.5">Nom complet du chauffeur</label>
+                <input
+                  type="text"
+                  required={withDriver}
+                  value={driverFullName}
+                  onChange={(event) => setDriverFullName(event.target.value)}
+                  disabled={submitting} placeholder="Saisis le nom et prenom"
+                  className="w-full px-3 py-2.5 bg-secondary border border-border rounded-lg text-sm text-foreground"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1.5">Numero du chauffeur</label>
+                <input
+                  type="tel"
+                  required={withDriver}
+                  value={driverPhone}
+                  onChange={(event) => setDriverPhone(event.target.value)}
+                  placeholder="+223 00 00 00 00"
+                  disabled={submitting}
+                  className="w-full px-3 py-2.5 bg-secondary border border-border rounded-lg text-sm text-foreground"
+                />
+              </div>
+            </div>
           )}
         </div>
 

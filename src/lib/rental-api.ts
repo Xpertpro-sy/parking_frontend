@@ -26,6 +26,12 @@ export type CreateRentalPayload = {
   startDate: string;
   endDate: string;
   amount: number;
+  driver?: RentalDriverPayload;
+};
+
+export type RentalDriverPayload = {
+  fullName: string;
+  phone: string;
 };
 
 export type RentalApiResponse = {
@@ -50,6 +56,9 @@ export type RentalApiResponse = {
   startMileage: number | null;
   endMileage: number | null;
   mileageDifference: number | null;
+  driverId: string | null;
+  driverFullName: string | null;
+  driverPhone: string | null;
   status: string;
   completedAt: string | null;
   createdAt: string;
@@ -101,6 +110,9 @@ type RentalFirestoreDoc = {
   startMileage?: number | null;
   endMileage?: number | null;
   mileageDifference?: number | null;
+  driverId?: string | null;
+  driverFullName?: string | null;
+  driverPhone?: string | null;
   status: "active" | "completed";
   completedAt: string | null;
   receiptId: string | null;
@@ -190,6 +202,9 @@ function mapRentalDoc(id: string, data: RentalFirestoreDoc): RentalApiResponse {
     startMileage: data.startMileage ?? null,
     endMileage: data.endMileage ?? null,
     mileageDifference: data.mileageDifference ?? null,
+    driverId: data.driverId ?? null,
+    driverFullName: data.driverFullName ?? null,
+    driverPhone: data.driverPhone ?? null,
     status: data.status,
     completedAt: data.completedAt,
     createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
@@ -229,6 +244,10 @@ export async function createRentalRequest(payload: CreateRentalPayload): Promise
   if (!payload.tenantName.trim()) throw new Error("Le nom du locataire est obligatoire.");
   if (!payload.tenantPhone.trim()) throw new Error("Le telephone du locataire est obligatoire.");
   if (!payload.tenantIdCardNumber.trim()) throw new Error("Le numero de piece est obligatoire.");
+  const driver = payload.driver;
+  if (driver && (!driver.fullName.trim() || !driver.phone.trim())) {
+    throw new Error("Le nom complet et le numero du chauffeur sont obligatoires.");
+  }
 
   const startDate = parseDateTime(payload.startDate, "Date de debut");
   const endDate = parseDateTime(payload.endDate, "Date de fin");
@@ -240,6 +259,7 @@ export async function createRentalRequest(payload: CreateRentalPayload): Promise
   const rentalRef = doc(collection(db, "rentals"));
   const receiptRef = doc(collection(db, "rentalReceipts"));
   const movementRef = doc(collection(db, "accountMovements"));
+  const driverRef = driver ? doc(collection(db, "drivers")) : null;
 
   await runTransaction(db, async (transaction) => {
     const vehicleSnap = await transaction.get(vehicleRef);
@@ -260,6 +280,8 @@ export async function createRentalRequest(payload: CreateRentalPayload): Promise
       throw new Error("Le montant calcule est invalide. Veuillez verifier les dates.");
     }
     const receiptNumber = buildRentalReceiptNumber(endDate.toISOString(), rentalRef.id);
+    const driverFullName = driver?.fullName.trim() || null;
+    const driverPhone = driver?.phone.trim() || null;
 
     transaction.set(rentalRef, {
       vehicleId: payload.vehicleId,
@@ -283,6 +305,9 @@ export async function createRentalRequest(payload: CreateRentalPayload): Promise
       startMileage: Number(vehicle.mileage) || 0,
       endMileage: null,
       mileageDifference: null,
+      driverId: driverRef?.id ?? null,
+      driverFullName,
+      driverPhone,
       status: "active",
       completedAt: null,
       receiptId: receiptRef.id,
@@ -292,6 +317,26 @@ export async function createRentalRequest(payload: CreateRentalPayload): Promise
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
+
+    if (driverRef && driverFullName && driverPhone) {
+      transaction.set(driverRef, {
+        ownerUid: uid,
+        ownerEmail: email,
+        fullName: driverFullName,
+        phone: driverPhone,
+        rentalId: rentalRef.id,
+        vehicleId: payload.vehicleId,
+        vehicleBrand: vehicle.brand,
+        vehicleModel: vehicle.model,
+        vehiclePlate: vehicle.plate,
+        status: "assigned",
+        createdByUid: actorUid,
+        createdByName: actorName,
+        createdByEmail: email,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    }
 
     transaction.set(receiptRef, {
       receiptNumber,
@@ -441,6 +486,14 @@ export async function completeRentalRequest(rentalId: string, endMileage: number
       updatedAt: serverTimestamp(),
       currentRentalId: null,
     });
+
+    if (rental.driverId) {
+      transaction.update(doc(db, "drivers", rental.driverId), {
+        status: "completed",
+        completedAt: new Date().toISOString(),
+        updatedAt: serverTimestamp(),
+      });
+    }
   });
 
   const updatedRentalSnap = await getDoc(rentalRef);

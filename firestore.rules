@@ -192,6 +192,19 @@ service cloud.firestore {
         || (isSuperAdmin() && resource.data.keys().hasAll(["ownerUid"]));
     }
 
+    match /drivers/{driverId} {
+      allow read: if canManageRentalsWorkspace(resource.data.ownerUid) || isSuperAdmin();
+      allow create: if canManageRentalsWorkspace(request.resource.data.ownerUid)
+        && request.resource.data.fullName is string
+        && request.resource.data.phone is string
+        && request.resource.data.rentalId is string
+        && request.resource.data.vehicleId is string;
+      allow update: if canManageRentalsWorkspace(resource.data.ownerUid)
+        && request.resource.data.ownerUid == resource.data.ownerUid;
+      allow delete: if canManageRentalsWorkspace(resource.data.ownerUid)
+        || (isSuperAdmin() && resource.data.keys().hasAll(["ownerUid"]));
+    }
+
     match /rentalReceipts/{receiptId} {
       allow read: if canAccessRentalReceiptWorkspace(resource.data.ownerUid) || isSuperAdmin();
       allow create: if canAccessRentalReceiptWorkspace(request.resource.data.ownerUid)

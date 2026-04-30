@@ -487,6 +487,13 @@ export default function VehicleDetail() {
               Kilometrage depart:{" "}
               <span className="text-foreground font-medium">{activeRentalStartMileage.toLocaleString()} km</span>
             </p>
+            {activeRental.driverFullName && (
+              <p className="text-muted-foreground">
+                Chauffeur:{" "}
+                <span className="text-foreground font-medium">{activeRental.driverFullName}</span>
+                {activeRental.driverPhone ? ` (${activeRental.driverPhone})` : ""}
+              </p>
+            )}
           </div>
         )}
 

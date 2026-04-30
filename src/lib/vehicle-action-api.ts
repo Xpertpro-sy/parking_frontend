@@ -43,6 +43,12 @@ export type FinalizeReservationToRentalPayload = {
   emergencyContactPhone?: string;
   startDate: string;
   endDate: string;
+  driver?: RentalDriverPayload;
+};
+
+type RentalDriverPayload = {
+  fullName: string;
+  phone: string;
 };
 
 export type ReservationApiResponse = {
@@ -125,6 +131,9 @@ type RentalFirestoreDoc = {
   startMileage?: number | null;
   endMileage?: number | null;
   mileageDifference?: number | null;
+  driverId?: string | null;
+  driverFullName?: string | null;
+  driverPhone?: string | null;
   status: "active" | "completed";
   completedAt: string | null;
   receiptId: string | null;
@@ -460,6 +469,10 @@ export async function finalizeReservationToRentalRequest(
   if (!payload.tenantName.trim() || !payload.tenantPhone.trim()) {
     throw new Error("Nom et telephone du locataire sont obligatoires.");
   }
+  const driver = payload.driver;
+  if (driver && (!driver.fullName.trim() || !driver.phone.trim())) {
+    throw new Error("Le nom complet et le numero du chauffeur sont obligatoires.");
+  }
   const startDate = parseDateTime(payload.startDate, "Date de debut");
   const endDate = parseDateTime(payload.endDate, "Date de fin");
   if (endDate <= startDate) {
@@ -470,6 +483,7 @@ export async function finalizeReservationToRentalRequest(
   const rentalRef = doc(collection(db, "rentals"));
   const receiptRef = doc(collection(db, "rentalReceipts"));
   const movementRef = doc(collection(db, "accountMovements"));
+  const driverRef = driver ? doc(collection(db, "drivers")) : null;
 
   await runTransaction(db, async (transaction) => {
     const vehicleSnap = await transaction.get(vehicleRef);
@@ -503,6 +517,8 @@ export async function finalizeReservationToRentalRequest(
     const prepaidFromReservation = Math.max(0, Number(reservationData.amountPaid) || 0);
     const balanceDue = Math.max(0, amount - prepaidFromReservation);
     const receiptNumber = buildRentalReceiptNumber(endDate.toISOString(), rentalRef.id);
+    const driverFullName = driver?.fullName.trim() || null;
+    const driverPhone = driver?.phone.trim() || null;
 
     const rentalPayload: RentalFirestoreDoc = {
       vehicleId,
@@ -526,6 +542,9 @@ export async function finalizeReservationToRentalRequest(
       startMileage: Number(vehicleData.mileage) || 0,
       endMileage: null,
       mileageDifference: null,
+      driverId: driverRef?.id ?? null,
+      driverFullName,
+      driverPhone,
       status: "active",
       completedAt: null,
       receiptId: receiptRef.id,
@@ -563,6 +582,25 @@ export async function finalizeReservationToRentalRequest(
 
     transaction.set(rentalRef, rentalPayload);
     transaction.set(receiptRef, receiptPayload);
+    if (driverRef && driverFullName && driverPhone) {
+      transaction.set(driverRef, {
+        ownerUid: uid,
+        ownerEmail: email,
+        fullName: driverFullName,
+        phone: driverPhone,
+        rentalId: rentalRef.id,
+        vehicleId,
+        vehicleBrand: vehicleData.brand,
+        vehicleModel: vehicleData.model,
+        vehiclePlate: vehicleData.plate,
+        status: "assigned",
+        createdByUid: actorUid,
+        createdByName: actorName,
+        createdByEmail: email,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    }
     // L'acompte réservation est déjà comptabilisé (operationType "reservation") : on n'enregistre ici que le solde encaissé à la mise en location.
     if (balanceDue > 0) {
       const useDayBreakdown = prepaidFromReservation === 0;
