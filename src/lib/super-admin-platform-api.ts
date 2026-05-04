@@ -43,6 +43,7 @@ export type PlatformTenantAdminRow = {
 };
 
 export type SuperAdminPlatformStats = {
+  adminCount: number;
   managerCount: number;
   superAdminCount: number;
 };
@@ -223,11 +224,13 @@ export async function getSuperAdminPlatformStatsRequest(): Promise<SuperAdminPla
   const identity = await getWorkspaceIdentity();
   assertSuperAdminRole(identity.role);
   const db = getFirebaseDb();
-  const [managers, superAdmins] = await Promise.all([
+  const [admins, managers, superAdmins] = await Promise.all([
+    getDocs(query(collection(db, "users"), where("role", "==", "ADMIN"))),
     getDocs(query(collection(db, "users"), where("role", "==", "GESTIONNAIRE"))),
     getDocs(query(collection(db, "users"), where("role", "==", "SUPER_ADMIN"))),
   ]);
   return {
+    adminCount: admins.docs.filter((docSnap) => parseAccountStatus((docSnap.data() as UserDocFields).accountStatus) !== "purged").length,
     managerCount: managers.size,
     superAdminCount: superAdmins.size,
   };

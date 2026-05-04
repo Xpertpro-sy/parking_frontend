@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Clock, CreditCard, LayoutDashboard, Shield, UserCog } from "lucide-react";
+import { Clock, CreditCard, LayoutDashboard, Shield, UserCog, Users } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import {
@@ -70,12 +70,18 @@ export default function SuperAdminDashboard() {
 
       <div>
         <h2 className="text-sm font-semibold text-foreground mb-3">Statistiques plateforme</h2>
-        <div className="grid gap-4 sm:grid-cols-2 max-w-2xl">
+        <div className="grid gap-4 sm:grid-cols-3 max-w-4xl">
           <StatCard
             title="Super administrateurs"
             value={isLoading ? "…" : stats?.superAdminCount ?? "—"}
             hint="Accès back-office global"
             icon={<Shield className="h-5 w-5" />}
+          />
+          <StatCard
+            title="Admins"
+            value={isLoading ? "…" : stats?.adminCount ?? "—"}
+            hint="Administrateurs d'entreprise"
+            icon={<Users className="h-5 w-5" />}
           />
           <StatCard
             title="Gestionnaires"

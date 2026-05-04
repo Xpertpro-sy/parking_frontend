@@ -33,7 +33,13 @@ export default function Register() {
       return;
     }
 
-    if (email.trim().toLowerCase() === SUPER_ADMIN_DEFAULT_EMAIL) {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail.endsWith("@gmail.com")) {
+      toast.error("Seules les adresses Gmail (@gmail.com) sont acceptées.");
+      return;
+    }
+
+    if (normalizedEmail === SUPER_ADMIN_DEFAULT_EMAIL) {
       toast.error("Cette adresse e-mail est réservée au compte super administrateur.");
       return;
     }
@@ -45,7 +51,7 @@ export default function Register() {
     }
 
     setSubmitting(true);
-    const result = await register({ lastName, firstName, email, phone: normalizedPhone, password });
+    const result = await register({ lastName, firstName, email: normalizedEmail, phone: normalizedPhone, password });
     setSubmitting(false);
 
     if (!result.success) {
@@ -130,8 +136,10 @@ export default function Register() {
                       type="email"
                       value={email}
                       onChange={(event) => setEmail(event.target.value)}
-                      placeholder="exemple@autoparc.com"
+                      placeholder="exemple@gmail.com"
                       autoComplete="email"
+                      pattern="^[^@\s]+@gmail\.com$"
+                      title="Seules les adresses Gmail (@gmail.com) sont acceptées."
                       disabled={submitting}
                       required
                     />
