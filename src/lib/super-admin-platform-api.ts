@@ -355,16 +355,14 @@ export async function reactivateTenantAdminSuperAdminRequest(adminUid: string): 
 }
 
 /**
- * Supprime toutes les données métier de l’entreprise, révoque les gestionnaires et clôture l’admin (fiche « purged »).
- * Les comptes Firebase Authentication restent : supprimez-les manuellement dans la console si vous devez libérer l’e-mail.
+ * Supprime toutes les données métier de l’entreprise et révoque les gestionnaires.
+ * Le compte administrateur reste actif afin qu’il puisse se reconnecter et repartir de zéro.
  */
 export async function purgeTenantAdminWorkspaceSuperAdminRequest(adminUid: string): Promise<void> {
   const identity = await getWorkspaceIdentity();
   assertSuperAdminRole(identity.role);
   const db = getFirebaseDb();
   const { data: adminData } = await assertTenantAdminTargetForSuperAdmin(db, adminUid, identity.actorUid);
-
-  const adminEmail = (adminData.email ?? "").trim();
 
   const managersSnap = await getDocs(query(collection(db, "managerAccess"), where("ownerUid", "==", adminUid)));
   const managerAccessRefs = managersSnap.docs.map((d) => d.ref);
@@ -427,17 +425,14 @@ export async function purgeTenantAdminWorkspaceSuperAdminRequest(adminUid: strin
   await setDoc(
     doc(db, "users", adminUid),
     {
+      ...adminData,
       uid: adminUid,
-      email: adminEmail,
-      prenom: "",
-      nom: "",
-      displayName: "Compte clôturé",
       role: "ADMIN",
-      accountStatus: "purged",
-      purgedAt: serverTimestamp(),
+      accountStatus: "active",
+      purgedAt: null,
       updatedAt: serverTimestamp(),
     },
-    { merge: false },
+    { merge: true },
   );
 }
 

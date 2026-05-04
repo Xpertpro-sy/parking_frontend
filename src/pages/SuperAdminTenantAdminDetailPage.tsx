@@ -123,7 +123,7 @@ export default function SuperAdminTenantAdminDetailPage() {
   const purgeMutation = useMutation({
     mutationFn: () => purgeTenantAdminWorkspaceSuperAdminRequest(adminUid!),
     onSuccess: async () => {
-      toast.success("Données supprimées et compte clôturé.");
+      toast.success("Données supprimées. L’administrateur peut toujours se connecter.");
       setPurgeOpen(false);
       setPurgeEmailConfirm("");
       await queryClient.invalidateQueries({ queryKey: superAdminTenantAdminsQueryKey });
@@ -290,9 +290,8 @@ export default function SuperAdminTenantAdminDetailPage() {
                 <h2 className="text-base font-semibold text-foreground">Actions sensibles</h2>
                 <p className="text-sm text-muted-foreground mt-1">
                   La désactivation bloque la connexion de l’administrateur et de tous ses gestionnaires (données
-                  conservées). La suppression définitive efface les données métier dans Firestore et révoque les
-                  gestionnaires ; les comptes Firebase Authentication peuvent encore exister — supprimez-les dans la
-                  console si vous devez libérer l’e-mail.
+                  conservées). La suppression des données efface uniquement les données métier et révoque les
+                  gestionnaires. Le compte administrateur reste actif et pourra se reconnecter.
                 </p>
               </div>
             </div>
@@ -400,13 +399,13 @@ export default function SuperAdminTenantAdminDetailPage() {
           <AlertDialog open={purgeOpen} onOpenChange={(o) => { setPurgeOpen(o); if (!o) setPurgeEmailConfirm(""); }}>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Suppression définitive des données</AlertDialogTitle>
+                <AlertDialogTitle>Supprimer les données de cet administrateur ?</AlertDialogTitle>
                 <AlertDialogDescription className="text-left space-y-3">
                   <span className="block text-foreground">
                     Vous allez supprimer véhicules, ventes, locations, réservations, comptabilité, corbeille, demandes
                     d’abonnement, abonnement enregistré, marque, plafonds et fiches gestionnaires pour{" "}
-                    <strong>{detail.displayName}</strong>. Les profils gestionnaires seront révoqués. Cette action est
-                    irréversible côté base de données.
+                    <strong>{detail.displayName}</strong>. Les profils gestionnaires seront révoqués, mais le compte
+                    administrateur restera actif et pourra se reconnecter. Cette action est irréversible côté données.
                   </span>
                   <label className="block space-y-1.5">
                     <span className="text-sm font-medium text-foreground">
@@ -436,7 +435,7 @@ export default function SuperAdminTenantAdminDetailPage() {
                     purgeMutation.mutate();
                   }}
                 >
-                  {purgeMutation.isPending ? "Suppression…" : "Supprimer définitivement"}
+                  {purgeMutation.isPending ? "Suppression…" : "Supprimer les données"}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
