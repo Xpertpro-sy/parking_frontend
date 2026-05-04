@@ -122,7 +122,9 @@ export default function SubscriptionTenantPanel() {
             <p className="mt-1 text-xs font-medium text-primary">Abonnement hérité de l’admin</p>
           ) : null}
           <p className="mt-1 text-sm text-muted-foreground">
-            {state?.isActive && state.expiresAtLabel
+            {state?.isLifetime
+              ? "Paiement unique validé. Votre abonnement n’expire pas."
+              : state?.isActive && state.expiresAtLabel
               ? `Valable jusqu’au ${state.expiresAtLabel}`
               : "Souscrivez ou renouvelez pour continuer à utiliser tous les modules."}
           </p>
@@ -192,6 +194,11 @@ export default function SubscriptionTenantPanel() {
                 >
                   <p className="font-semibold text-foreground">{plan.label}</p>
                   <p className="text-lg font-bold text-primary mt-1">{formatCfa(plan.priceCfa)}</p>
+                  {plan.isLifetime ? (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Paiement unique, accès à vie et plafond gestionnaires augmenté.
+                    </p>
+                  ) : null}
                 </button>
               ))}
             </div>

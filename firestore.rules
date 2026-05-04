@@ -387,7 +387,7 @@ service cloud.firestore {
         && request.resource.data.ownerUid == adminUid
         && request.resource.data.maxManagers is int
         && request.resource.data.maxManagers >= 0
-        && request.resource.data.maxManagers <= 500;
+        && request.resource.data.maxManagers <= 50;
       allow delete: if isSuperAdmin();
     }
 
@@ -412,7 +412,7 @@ service cloud.firestore {
       allow create: if isTenantAdminOnly()
         && request.resource.data.ownerUid == request.auth.uid
         && request.resource.data.status == "pending"
-        && request.resource.data.planId in ["1m", "3m", "6m", "1y"]
+        && request.resource.data.planId in ["1m", "3m", "6m", "1y", "lifetime"]
         && request.resource.data.depositReference is string
         && request.resource.data.depositReference.size() >= 4
         && request.resource.data.amountCfa is int

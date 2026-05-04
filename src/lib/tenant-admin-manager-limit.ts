@@ -12,6 +12,8 @@ import { getFirebaseDb } from "@/lib/firebase";
 
 /** Plafond par défaut si aucun document `tenantAdminLimits` n’existe pour l’admin locataire. */
 export const DEFAULT_MAX_MANAGERS_PER_TENANT_ADMIN = 2;
+export const LIFETIME_MAX_MANAGERS_PER_TENANT_ADMIN = 50;
+export const MAX_MANAGERS_PER_TENANT_ADMIN = 50;
 
 export const TENANT_ADMIN_LIMITS_COLLECTION = "tenantAdminLimits";
 
@@ -21,11 +23,11 @@ export const tenantAdminMaxManagersQueryKey = (ownerUid: string) =>
 function parseMaxManagersValue(raw: unknown): number | null {
   if (typeof raw === "number" && Number.isFinite(raw)) {
     const n = Math.floor(raw);
-    return n >= 0 && n <= 500 ? n : null;
+    return n >= 0 ? Math.min(n, MAX_MANAGERS_PER_TENANT_ADMIN) : null;
   }
   if (typeof raw === "string" && raw.trim() !== "") {
     const n = Math.floor(Number(raw));
-    if (Number.isFinite(n) && n >= 0 && n <= 500) return n;
+    if (Number.isFinite(n) && n >= 0) return Math.min(n, MAX_MANAGERS_PER_TENANT_ADMIN);
   }
   return null;
 }

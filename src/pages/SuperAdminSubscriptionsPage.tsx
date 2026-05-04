@@ -77,8 +77,8 @@ export default function SuperAdminSubscriptionsPage() {
 
   const now = Date.now();
   const tenantSubs = data?.tenantSubscriptions ?? [];
-  const activeSubs = tenantSubs.filter((s) => s.expiresAt && new Date(s.expiresAt).getTime() > now);
-  const expiredSubs = tenantSubs.filter((s) => !s.expiresAt || new Date(s.expiresAt).getTime() <= now);
+  const activeSubs = tenantSubs.filter((s) => s.isLifetime || (s.expiresAt && new Date(s.expiresAt).getTime() > now));
+  const expiredSubs = tenantSubs.filter((s) => !s.isLifetime && (!s.expiresAt || new Date(s.expiresAt).getTime() <= now));
   const historyRequests = (data?.requests ?? []).filter((r) => r.status !== "pending");
   const pending = data?.pending ?? [];
 
@@ -229,7 +229,9 @@ export default function SuperAdminSubscriptionsPage() {
                   {SUBSCRIPTION_PLANS.map((p) => (
                     <tr key={p.id}>
                       <td className="px-4 py-3 font-medium">{p.label}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{p.durationMonths} mois</td>
+                      <td className="px-4 py-3 text-muted-foreground">
+                        {p.isLifetime ? "À vie" : `${p.durationMonths} mois`}
+                      </td>
                       <td className="px-4 py-3">{formatCfa(p.priceCfa)}</td>
                     </tr>
                   ))}
@@ -356,7 +358,9 @@ function SubsTable({ rows, variant }: { rows: TenantSubscriptionRow[]; variant: 
                   (s.planId ? s.planId : "—")}
               </td>
               <td className="px-3 py-2">
-                {s.expiresAt
+                {s.isLifetime
+                  ? "À vie"
+                  : s.expiresAt
                   ? new Date(s.expiresAt).toLocaleDateString("fr-FR", { dateStyle: "long" })
                   : "—"}
               </td>

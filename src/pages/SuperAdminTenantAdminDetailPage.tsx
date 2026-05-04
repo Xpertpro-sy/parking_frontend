@@ -238,7 +238,7 @@ export default function SuperAdminTenantAdminDetailPage() {
             <h2 className="text-base font-semibold text-foreground">Plafond de création de gestionnaires</h2>
             <p className="text-sm text-muted-foreground">
               Par défaut, un administrateur locataire peut créer {DEFAULT_MAX_MANAGERS_PER_TENANT_ADMIN}{" "}
-              gestionnaire(s). Vous pouvez ajuster ce plafond (0 à 500). Si le plafond est inférieur au nombre de
+              gestionnaire(s). Vous pouvez ajuster ce plafond (0 à 50). Si le plafond est inférieur au nombre de
               fiches déjà créées, aucun nouveau gestionnaire ne pourra être ajouté tant qu’il n’y aura pas de place.
             </p>
             <div className="flex flex-col sm:flex-row sm:items-end gap-3">
@@ -247,7 +247,7 @@ export default function SuperAdminTenantAdminDetailPage() {
                 <input
                   type="number"
                   min={0}
-                  max={500}
+                  max={50}
                   value={effectiveDraft}
                   onChange={(e) => setDraftMax(Number(e.target.value))}
                   className="w-full sm:w-40 rounded-lg border border-border bg-secondary px-3 py-2.5 text-sm"

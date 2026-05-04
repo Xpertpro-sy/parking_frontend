@@ -16,6 +16,7 @@ import {
 import { getFirebaseDb } from "@/lib/firebase";
 import { getWorkspaceIdentity } from "@/lib/access-control";
 import {
+  MAX_MANAGERS_PER_TENANT_ADMIN,
   TENANT_ADMIN_LIMITS_COLLECTION,
   getTenantAdminMaxManagersAllowedFromServer,
 } from "@/lib/tenant-admin-manager-limit";
@@ -443,8 +444,8 @@ export async function setTenantAdminMaxManagersSuperAdminRequest(
 ): Promise<void> {
   const identity = await getWorkspaceIdentity();
   assertSuperAdminRole(identity.role);
-  if (!Number.isFinite(maxManagers) || maxManagers < 0 || maxManagers > 500) {
-    throw new Error("Plafond invalide (entre 0 et 500).");
+  if (!Number.isFinite(maxManagers) || maxManagers < 0 || maxManagers > MAX_MANAGERS_PER_TENANT_ADMIN) {
+    throw new Error(`Plafond invalide (entre 0 et ${MAX_MANAGERS_PER_TENANT_ADMIN}).`);
   }
   const db = getFirebaseDb();
   const userSnap = await getDoc(doc(db, "users", adminUid));

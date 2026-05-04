@@ -1,4 +1,4 @@
-export type SubscriptionPlanId = "1m" | "3m" | "6m" | "1y";
+export type SubscriptionPlanId = "1m" | "3m" | "6m" | "1y" | "lifetime";
 
 /** Identifiant stocké en base pour l’essai gratuit (hors formules payantes). */
 export const TRIAL_SUBSCRIPTION_PLAN_ID = "trial" as const;
@@ -8,6 +8,7 @@ export type SubscriptionPlanDef = {
   label: string;
   durationMonths: number;
   priceCfa: number;
+  isLifetime?: boolean;
 };
 
 /** Formule payante (sélection Orange Money) — `id` sans `trial`. */
@@ -16,6 +17,7 @@ export type PaidSubscriptionPlanDef = {
   label: string;
   durationMonths: number;
   priceCfa: number;
+  isLifetime?: boolean;
 };
 
 /** Numéro affiché pour les dépôts Orange Money (Mali). */
@@ -90,6 +92,7 @@ export const SUBSCRIPTION_PLANS: PaidSubscriptionPlanDef[] = [
   { id: "3m", label: "3 mois", durationMonths: 3, priceCfa: 12_500 },
   { id: "6m", label: "6 mois", durationMonths: 6, priceCfa: 25_000 },
   { id: "1y", label: "1 an", durationMonths: 12, priceCfa: 50_000 },
+  { id: "lifetime", label: "À vie", durationMonths: 0, priceCfa: 950_000, isLifetime: true },
 ];
 
 const PLAN_BY_ID: Record<string, SubscriptionPlanDef | undefined> = Object.fromEntries(

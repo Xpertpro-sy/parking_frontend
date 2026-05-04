@@ -27,6 +27,10 @@ import {
   getTrialPlanLabel,
   type SubscriptionPlanId,
 } from "@/lib/subscription-plans";
+import {
+  LIFETIME_MAX_MANAGERS_PER_TENANT_ADMIN,
+  TENANT_ADMIN_LIMITS_COLLECTION,
+} from "@/lib/tenant-admin-manager-limit";
 
 export type SubscriptionRequestStatus = "pending" | "approved" | "rejected";
 
@@ -52,6 +56,7 @@ export type TenantSubscriptionRow = {
   expiresAt: string;
   updatedAt: string | null;
   lastApprovedRequestId: string | null;
+  isLifetime?: boolean;
   /** Somme des formules validées (affichage back-office). */
   cumulativePlanLabel?: string | null;
 };
@@ -64,6 +69,7 @@ export type TenantSubscriptionState = {
   planLabel: string | null;
   /** Essai déduit de la date d’inscription (pas de document Firestore `tenantSubscriptions`). */
   isImplicitTrial?: boolean;
+  isLifetime?: boolean;
 };
 
 export type SubscriptionDaySummary = {
@@ -81,6 +87,17 @@ export function buildSubscriptionDaySummary(
   const now = new Date();
   const pending =
     hasPendingRequest ? "Une demande de souscription est en attente de vérification (sous 24 h)." : "";
+
+  if (state.isLifetime || state.subscription?.isLifetime) {
+    return {
+      headline: `${state.planLabel ?? "À vie"} — actif`,
+      subline: [pending, "Paiement unique validé. L’abonnement n’expire pas."]
+        .filter(Boolean)
+        .join(" ")
+        .trim(),
+      variant: hasPendingRequest ? "warning" : "success",
+    };
+  }
 
   if (state.subscription?.expiresAt) {
     const exp = new Date(state.subscription.expiresAt);
@@ -157,6 +174,7 @@ function tsToIso(t: Timestamp | undefined | null): string | null {
 
 const COL_REQUESTS = "subscriptionRequests";
 const COL_TENANT_SUBS = "tenantSubscriptions";
+const LIFETIME_EXPIRES_AT = new Date("9999-12-31T23:59:59.999Z");
 
 /** Somme des `durationMonths` des demandes validées (prolongations cumulées). */
 async function sumApprovedSubscriptionMonths(db: ReturnType<typeof getFirebaseDb>, ownerUid: string): Promise<number> {
@@ -245,10 +263,12 @@ export async function getTenantSubscriptionStateRequest(ownerUid: string): Promi
     expiresAt?: Timestamp;
     updatedAt?: Timestamp;
     lastApprovedRequestId?: string | null;
+    isLifetime?: boolean;
   };
   const expiresAt = d.expiresAt;
   const expiresDate = expiresAt?.toDate?.() ?? null;
-  const isActive = Boolean(expiresDate && expiresDate.getTime() > Date.now());
+  const isLifetime = d.isLifetime === true || d.planId === "lifetime";
+  const isActive = isLifetime || Boolean(expiresDate && expiresDate.getTime() > Date.now());
   const plan = d.planId ? getSubscriptionPlan(d.planId) : undefined;
   const row: TenantSubscriptionRow = {
     ownerUid,
@@ -256,11 +276,12 @@ export async function getTenantSubscriptionStateRequest(ownerUid: string): Promi
     expiresAt: expiresDate ? expiresDate.toISOString() : "",
     updatedAt: tsToIso(d.updatedAt),
     lastApprovedRequestId: d.lastApprovedRequestId ?? null,
+    isLifetime,
   };
 
   let planLabel: string | null = plan?.label ?? d.planId ?? null;
   const paidPlanId = d.planId ?? "";
-  if (paidPlanId !== "" && paidPlanId !== TRIAL_SUBSCRIPTION_PLAN.id) {
+  if (!isLifetime && paidPlanId !== "" && paidPlanId !== TRIAL_SUBSCRIPTION_PLAN.id) {
     const approvedMonthsSum = await sumApprovedSubscriptionMonths(db, ownerUid);
     if (approvedMonthsSum > 0) {
       planLabel = formatCumulativeSubscriptionLabel(approvedMonthsSum);
@@ -270,9 +291,10 @@ export async function getTenantSubscriptionStateRequest(ownerUid: string): Promi
   return {
     subscription: row,
     isActive,
-    expiresAtLabel: expiresDate ? formatTrialExpiryDisplay(expiresDate) : null,
+    expiresAtLabel: isLifetime ? "À vie" : expiresDate ? formatTrialExpiryDisplay(expiresDate) : null,
     planLabel,
     isImplicitTrial: false,
+    isLifetime,
   };
 }
 
@@ -384,16 +406,19 @@ export async function getSuperAdminSubscriptionsOverviewRequest(): Promise<Super
       expiresAt?: Timestamp;
       updatedAt?: Timestamp;
       lastApprovedRequestId?: string | null;
+      isLifetime?: boolean;
     };
     const exp = d.expiresAt?.toDate?.();
     const approvedSum = approvedMonthsByOwner.get(x.id) ?? 0;
+    const isLifetime = d.isLifetime === true || d.planId === "lifetime";
     return {
       ownerUid: x.id,
       planId: d.planId ?? "",
       expiresAt: exp ? exp.toISOString() : "",
       updatedAt: tsToIso(d.updatedAt),
       lastApprovedRequestId: d.lastApprovedRequestId ?? null,
-      cumulativePlanLabel: approvedSum > 0 ? formatCumulativeSubscriptionLabel(approvedSum) : null,
+      isLifetime,
+      cumulativePlanLabel: isLifetime ? "À vie" : approvedSum > 0 ? formatCumulativeSubscriptionLabel(approvedSum) : null,
     };
   });
 
@@ -430,14 +455,18 @@ export async function approveSubscriptionRequestSuperAdminRequest(requestId: str
     const subSnap = await tx.get(subRef);
     const now = new Date();
     let base = now;
+    let alreadyLifetime = false;
     if (subSnap.exists()) {
-      const prev = subSnap.data() as { expiresAt?: Timestamp };
+      const prev = subSnap.data() as { expiresAt?: Timestamp; isLifetime?: boolean; planId?: string };
+      alreadyLifetime = prev.isLifetime === true || prev.planId === "lifetime";
       const prevExp = prev.expiresAt?.toDate?.();
       if (prevExp && prevExp.getTime() > now.getTime()) {
         base = prevExp;
       }
     }
-    const newExpires = addCalendarMonths(base, plan.durationMonths);
+    const isLifetimePlan = plan.isLifetime === true || plan.id === "lifetime";
+    const shouldBeLifetime = alreadyLifetime || isLifetimePlan;
+    const newExpires = shouldBeLifetime ? LIFETIME_EXPIRES_AT : addCalendarMonths(base, plan.durationMonths);
 
     tx.update(reqRef, {
       status: "approved",
@@ -451,13 +480,26 @@ export async function approveSubscriptionRequestSuperAdminRequest(requestId: str
       subRef,
       {
         ownerUid,
-        planId: plan.id,
+        planId: shouldBeLifetime ? "lifetime" : plan.id,
         expiresAt: newExpires,
+        isLifetime: shouldBeLifetime,
         updatedAt: serverTimestamp(),
         lastApprovedRequestId: requestId,
       },
       { merge: true },
     );
+
+    if (isLifetimePlan) {
+      tx.set(
+        doc(db, TENANT_ADMIN_LIMITS_COLLECTION, ownerUid),
+        {
+          ownerUid,
+          maxManagers: LIFETIME_MAX_MANAGERS_PER_TENANT_ADMIN,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      );
+    }
   });
 }
 
