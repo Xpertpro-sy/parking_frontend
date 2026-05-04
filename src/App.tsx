@@ -14,6 +14,8 @@ import VehicleForm from "./pages/VehicleForm";
 import VehicleEditForm from "./pages/VehicleEditForm";
 import SaleForm from "./pages/SaleForm";
 import RentalForm from "./pages/RentalForm";
+import ReservationForm from "./pages/ReservationForm";
+import RepairForm from "./pages/RepairForm";
 import FinalizeReservationRentalForm from "./pages/FinalizeReservationRentalForm";
 import Receipts from "./pages/Receipts";
 import HistoryPage from "./pages/HistoryPage";
@@ -91,6 +93,8 @@ const App = () => (
                 <Route path="/vehicles/:id/edit" element={<VehicleEditForm />} />
                 <Route path="/sales/new" element={<SaleForm />} />
                 <Route path="/rentals/new" element={<RentalForm />} />
+                <Route path="/reservations/new" element={<ReservationForm />} />
+                <Route path="/repairs/new" element={<RepairForm />} />
                 <Route path="/rentals/finalize-from-reservation" element={<FinalizeReservationRentalForm />} />
                 <Route path="/vehicles/:id" element={<VehicleDetail />} />
                 <Route path="/receipts" element={<Receipts />} />

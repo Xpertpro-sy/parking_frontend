@@ -4,7 +4,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Car, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import StatusBadge from '@/components/StatusBadge';
-import { accountMovementsQueryKey } from '@/lib/accounting-api';
 import type { AppPermission } from '@/lib/access-control';
 import { getCurrentUserAccessProfile } from '@/lib/access-control';
 import { LIVE_COLLAB_REFETCH_MS, useVehicleDetailQuery, vehicleQueryKeys } from '@/lib/vehicle-queries';
@@ -13,9 +12,7 @@ import { listSalesRequest } from '@/lib/sale-api';
 import {
   cancelReservationRequest,
   completeRepairRequest,
-  createRepairRequest,
   listRepairsRequest,
-  createReservationRequest,
   listReservationsRequest,
 } from '@/lib/vehicle-action-api';
 import {
@@ -28,14 +25,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 
 export default function VehicleDetail() {
   const { id } = useParams();
@@ -56,28 +45,10 @@ export default function VehicleDetail() {
   const [completingRental, setCompletingRental] = useState(false);
   const [showCompleteRentalPopup, setShowCompleteRentalPopup] = useState(false);
   const [rentalEndMileage, setRentalEndMileage] = useState('');
-  const [showReservationModal, setShowReservationModal] = useState(false);
   const [showCancelReservationPopup, setShowCancelReservationPopup] = useState(false);
-  const [showRepairModal, setShowRepairModal] = useState(false);
   const [showCompleteRepairPopup, setShowCompleteRepairPopup] = useState(false);
   const [submittingReservation, setSubmittingReservation] = useState(false);
-  const [submittingRepair, setSubmittingRepair] = useState(false);
   const [completingRepair, setCompletingRepair] = useState(false);
-
-  const [customerName, setCustomerName] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
-  const [reservationNotes, setReservationNotes] = useState('');
-  const [reservationDate, setReservationDate] = useState(new Date().toISOString().slice(0, 10));
-  const [reservationEndDate, setReservationEndDate] = useState('');
-  const [reservationAmountPaid, setReservationAmountPaid] = useState('');
-
-  const [repairReason, setRepairReason] = useState('');
-  const [repairCost, setRepairCost] = useState('');
-  const [repairStartDate, setRepairStartDate] = useState(new Date().toISOString().slice(0, 10));
-  const [repairExpectedEndDate, setRepairExpectedEndDate] = useState('');
-  const [repairGarageName, setRepairGarageName] = useState('');
-  const [repairTechnicianName, setRepairTechnicianName] = useState('');
-  const [repairNotes, setRepairNotes] = useState('');
 
   const { data: rentals = [], isLoading: loadingRentals } = useQuery({
     queryKey: ['rentals', 'list'],
@@ -263,44 +234,6 @@ export default function VehicleDetail() {
     }
   };
 
-  const handleCreateReservation = async () => {
-    const parsedAmount = Number(reservationAmountPaid);
-    if (!customerName.trim() || !customerPhone.trim() || !reservationDate || Number.isNaN(parsedAmount) || parsedAmount < 0) {
-      toast.error("Nom, telephone, jour et montant paye sont obligatoires.");
-      return;
-    }
-    if (parsedAmount > vehicle.rentalPrice) {
-      toast.error("Le montant paye ne peut pas depasser le prix de location de cette voiture.");
-      return;
-    }
-    setSubmittingReservation(true);
-    try {
-      await createReservationRequest(vehicle.id, {
-        customerName: customerName.trim(),
-        customerPhone: customerPhone.trim(),
-        notes: reservationNotes.trim() || undefined,
-        reservationDate,
-        reservationEndDate: reservationEndDate.trim() || undefined,
-        amountPaid: parsedAmount,
-      });
-      await queryClient.invalidateQueries({ queryKey: vehicleQueryKeys.all });
-      await queryClient.invalidateQueries({ queryKey: ['reservations', 'list'] });
-      await queryClient.invalidateQueries({ queryKey: accountMovementsQueryKey });
-      toast.success("Reservation enregistree avec succes.");
-      setShowReservationModal(false);
-      setCustomerName('');
-      setCustomerPhone('');
-      setReservationNotes('');
-      setReservationDate(new Date().toISOString().slice(0, 10));
-      setReservationEndDate('');
-      setReservationAmountPaid('');
-    } catch (reservationError) {
-      toast.error(reservationError instanceof Error ? reservationError.message : "Impossible d'enregistrer la reservation.");
-    } finally {
-      setSubmittingReservation(false);
-    }
-  };
-
   const handleCancelReservation = async () => {
     setSubmittingReservation(true);
     try {
@@ -313,45 +246,6 @@ export default function VehicleDetail() {
       toast.error(errorCancelReservation instanceof Error ? errorCancelReservation.message : "Impossible d'annuler la reservation.");
     } finally {
       setSubmittingReservation(false);
-    }
-  };
-
-  const handleSendToRepair = async () => {
-    const parsedCost = Number(repairCost);
-    if (!repairReason.trim() || !repairStartDate || Number.isNaN(parsedCost) || parsedCost < 0) {
-      toast.error("Renseignez un motif, une date et un cout valide.");
-      return;
-    }
-    if (repairExpectedEndDate && repairExpectedEndDate < repairStartDate) {
-      toast.error("La date de fin prevue doit etre apres la date de debut.");
-      return;
-    }
-    setSubmittingRepair(true);
-    try {
-      await createRepairRequest(vehicle.id, {
-        reason: repairReason.trim(),
-        cost: parsedCost,
-        startDate: repairStartDate,
-        expectedEndDate: repairExpectedEndDate || undefined,
-        garageName: repairGarageName.trim() || undefined,
-        technicianName: repairTechnicianName.trim() || undefined,
-        notes: repairNotes.trim() || undefined,
-      });
-      await queryClient.invalidateQueries({ queryKey: vehicleQueryKeys.all });
-      await queryClient.invalidateQueries({ queryKey: accountMovementsQueryKey });
-      toast.success("Vehicule marque en reparation.");
-      setShowRepairModal(false);
-      setRepairReason('');
-      setRepairCost('');
-      setRepairStartDate(new Date().toISOString().slice(0, 10));
-      setRepairExpectedEndDate('');
-      setRepairGarageName('');
-      setRepairTechnicianName('');
-      setRepairNotes('');
-    } catch (repairError) {
-      toast.error(repairError instanceof Error ? repairError.message : "Impossible de lancer la reparation.");
-    } finally {
-      setSubmittingRepair(false);
     }
   };
 
@@ -405,25 +299,20 @@ export default function VehicleDetail() {
               </Link>
             )}
             {canReserve && (
-              <button
-                type="button"
-                onClick={() => {
-                  setReservationAmountPaid(String(vehicle.rentalPrice));
-                  setShowReservationModal(true);
-                }}
+              <Link
+                to={`/reservations/new?vehicleId=${vehicle.id}`}
                 className="px-4 py-2.5 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-500 transition-colors"
               >
                 Réserver
-              </button>
+              </Link>
             )}
             {canUseVehiclesModule && (
-              <button
-                type="button"
-                onClick={() => setShowRepairModal(true)}
+              <Link
+                to={`/repairs/new?vehicleId=${vehicle.id}`}
                 className="px-4 py-2.5 bg-warning text-warning-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
               >
                 En réparation
-              </button>
+              </Link>
             )}
           </>
         )}
@@ -767,199 +656,6 @@ export default function VehicleDetail() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <Dialog open={showReservationModal} onOpenChange={setShowReservationModal}>
-        <DialogContent className="max-h-[90dvh] overflow-hidden flex flex-col">
-          <DialogHeader>
-            <DialogTitle>Nouvelle reservation</DialogTitle>
-            <DialogDescription>Renseignez les informations du client pour reserver ce vehicule.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 overflow-y-auto pr-1">
-            <div>
-              <label className="block text-sm text-foreground mb-1">Nom client</label>
-              <input
-                type="text"
-                value={customerName}
-                onChange={(event) => setCustomerName(event.target.value)}
-                className="w-full px-3 py-2.5 bg-secondary border border-border rounded-lg text-sm text-foreground"
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-foreground mb-1">Telephone client</label>
-              <input
-                type="tel"
-                value={customerPhone}
-                onChange={(event) => setCustomerPhone(event.target.value)}
-                className="w-full px-3 py-2.5 bg-secondary border border-border rounded-lg text-sm text-foreground"
-              />
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm text-foreground mb-1">Jour de reservation (debut)</label>
-                <input
-                  type="date"
-                  value={reservationDate}
-                  onChange={(event) => setReservationDate(event.target.value)}
-                  className="w-full px-3 py-2.5 bg-secondary border border-border rounded-lg text-sm text-foreground"
-                />
-              </div>
-              <div>
-                <label className="block text-sm text-foreground mb-1">Dernier jour (optionnel)</label>
-                <input
-                  type="date"
-                  value={reservationEndDate}
-                  min={reservationDate || undefined}
-                  onChange={(event) => setReservationEndDate(event.target.value)}
-                  className="w-full px-3 py-2.5 bg-secondary border border-border rounded-lg text-sm text-foreground"
-                />
-                {/* <p className="mt-1 text-xs text-muted-foreground">
-                  Ex.: retrait le 17/04 et retour prevu le 18/04 — le repere liste s&apos;affiche sur toute la periode.
-                </p> */}
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm text-foreground mb-1">Montant paye (CFA)</label>
-              <input
-                type="number"
-                min={0}
-                max={vehicle.rentalPrice}
-                value={reservationAmountPaid}
-                readOnly
-                disabled
-                className="w-full px-3 py-2.5 bg-muted border border-border rounded-lg text-sm text-foreground/90 cursor-not-allowed"
-              />
-              <p className="mt-1 text-xs text-muted-foreground">
-                Montant fixe selon le prix de location: {vehicle.rentalPrice.toLocaleString()} CFA
-              </p>
-            </div>
-            <div>
-              <label className="block text-sm text-foreground mb-1">Notes (optionnel)</label>
-              <textarea
-                rows={3}
-                value={reservationNotes}
-                onChange={(event) => setReservationNotes(event.target.value)}
-                className="w-full px-3 py-2.5 bg-secondary border border-border rounded-lg text-sm text-foreground resize-none"
-              />
-            </div>
-          </div>
-          <DialogFooter className="shrink-0">
-            <button
-              type="button"
-              onClick={() => setShowReservationModal(false)}
-              className="px-4 py-2.5 rounded-lg border border-border text-sm"
-            >
-              Annuler
-            </button>
-            <button
-              type="button"
-              onClick={handleCreateReservation}
-              disabled={submittingReservation}
-              className="px-4 py-2.5 rounded-lg bg-purple-600 text-white text-sm font-medium disabled:opacity-60"
-            >
-              {submittingReservation ? "Enregistrement..." : "Confirmer reservation"}
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={showRepairModal} onOpenChange={setShowRepairModal}>
-        <DialogContent className="max-h-[90dvh] overflow-hidden flex flex-col">
-          <DialogHeader>
-            <DialogTitle>Mettre en reparation</DialogTitle>
-            <DialogDescription>Renseignez les details de la reparation du vehicule.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 overflow-y-auto pr-1">
-            <div>
-              <label className="block text-sm text-foreground mb-1">Motif</label>
-              <textarea
-                rows={3}
-                value={repairReason}
-                onChange={(event) => setRepairReason(event.target.value)}
-                className="w-full px-3 py-2.5 bg-secondary border border-border rounded-lg text-sm text-foreground resize-none"
-              />
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm text-foreground mb-1">Garage (optionnel)</label>
-                <input
-                  type="text"
-                  value={repairGarageName}
-                  onChange={(event) => setRepairGarageName(event.target.value)}
-                  placeholder="Ex: Garage Central"
-                  className="w-full px-3 py-2.5 bg-secondary border border-border rounded-lg text-sm text-foreground"
-                />
-              </div>
-              <div>
-                <label className="block text-sm text-foreground mb-1">Technicien (optionnel)</label>
-                <input
-                  type="text"
-                  value={repairTechnicianName}
-                  onChange={(event) => setRepairTechnicianName(event.target.value)}
-                  placeholder="Ex: Mamadou Keita"
-                  className="w-full px-3 py-2.5 bg-secondary border border-border rounded-lg text-sm text-foreground"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm text-foreground mb-1">Cout estime (CFA)</label>
-              <input
-                type="number"
-                min={0}
-                value={repairCost}
-                onChange={(event) => setRepairCost(event.target.value)}
-                className="w-full px-3 py-2.5 bg-secondary border border-border rounded-lg text-sm text-foreground"
-              />
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm text-foreground mb-1">Date debut reparation</label>
-                <input
-                  type="date"
-                  value={repairStartDate}
-                  onChange={(event) => setRepairStartDate(event.target.value)}
-                  className="w-full px-3 py-2.5 bg-secondary border border-border rounded-lg text-sm text-foreground"
-                />
-              </div>
-              <div>
-                <label className="block text-sm text-foreground mb-1">Date fin prevue (optionnel)</label>
-                <input
-                  type="date"
-                  value={repairExpectedEndDate}
-                  min={repairStartDate || undefined}
-                  onChange={(event) => setRepairExpectedEndDate(event.target.value)}
-                  className="w-full px-3 py-2.5 bg-secondary border border-border rounded-lg text-sm text-foreground"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm text-foreground mb-1">Notes internes (optionnel)</label>
-              <textarea
-                rows={2}
-                value={repairNotes}
-                onChange={(event) => setRepairNotes(event.target.value)}
-                placeholder="Pieces a changer, priorite, recommandations..."
-                className="w-full px-3 py-2.5 bg-secondary border border-border rounded-lg text-sm text-foreground resize-none"
-              />
-            </div>
-          </div>
-          <DialogFooter className="shrink-0">
-            <button
-              type="button"
-              onClick={() => setShowRepairModal(false)}
-              className="px-4 py-2.5 rounded-lg border border-border text-sm"
-            >
-              Annuler
-            </button>
-            <button
-              type="button"
-              onClick={handleSendToRepair}
-              disabled={submittingRepair}
-              className="px-4 py-2.5 rounded-lg bg-warning text-warning-foreground text-sm font-medium disabled:opacity-60"
-            >
-              {submittingRepair ? "Enregistrement..." : "Confirmer reparation"}
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
