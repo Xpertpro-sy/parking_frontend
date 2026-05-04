@@ -32,6 +32,22 @@ const formatDateFr = (value: string) =>
     timeStyle: 'short',
   });
 
+const TRASH_RETENTION_DAYS = 30;
+const WARNING_REMAINING_DAYS = 5;
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
+
+const getRemainingTrashDays = (deletedAt: string) => {
+  const deletedAtMs = new Date(deletedAt).getTime();
+  if (!Number.isFinite(deletedAtMs)) return TRASH_RETENTION_DAYS;
+  const expiresAtMs = deletedAtMs + TRASH_RETENTION_DAYS * DAY_IN_MS;
+  return Math.max(0, Math.ceil((expiresAtMs - Date.now()) / DAY_IN_MS));
+};
+
+const formatRemainingTrashDays = (remainingDays: number) => {
+  if (remainingDays <= 0) return "Expire aujourd'hui";
+  return `${remainingDays} jour${remainingDays > 1 ? 's' : ''} restant${remainingDays > 1 ? 's' : ''}`;
+};
+
 export default function CorbeillePage() {
   const queryClient = useQueryClient();
   const { data: accessProfile } = useQuery({
@@ -229,7 +245,11 @@ export default function CorbeillePage() {
           </div>
         ) : trashItems.length > 0 ? (
           <div className="divide-y divide-border/60">
-            {trashItems.map((item) => (
+            {trashItems.map((item) => {
+              const remainingDays = getRemainingTrashDays(item.deletedAt);
+              const isExpiringSoon = remainingDays <= WARNING_REMAINING_DAYS;
+
+              return (
               <div key={item.id} className="py-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0 flex items-start gap-3">
                   <input
@@ -248,6 +268,9 @@ export default function CorbeillePage() {
                   <p className="text-sm font-medium text-foreground truncate">{item.title}</p>
                   <p className="text-xs text-muted-foreground truncate">
                     {item.subtitle || item.sourceCollection} · supprimé le {formatDateFr(item.deletedAt)}
+                  </p>
+                  <p className={`text-xs font-medium ${isExpiringSoon ? 'text-destructive' : 'text-muted-foreground'}`}>
+                    {formatRemainingTrashDays(remainingDays)}
                   </p>
                   <p className="text-xs text-muted-foreground truncate">Supprimé par: {item.deletedByName}</p>
                   {item.amount != null && (
@@ -277,7 +300,8 @@ export default function CorbeillePage() {
                   )}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <p className="py-8 text-center text-sm text-muted-foreground">La corbeille est vide.</p>

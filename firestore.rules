@@ -113,7 +113,14 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read: if isOwner(userId) || managerActiveFor(userId) || isSuperAdmin();
+      allow read: if isOwner(userId)
+        || managerActiveFor(userId)
+        || (
+          isEnterpriseAdmin()
+          && resource.data.role == "GESTIONNAIRE"
+          && resource.data.enterpriseOwnerUid == request.auth.uid
+        )
+        || isSuperAdmin();
       allow delete: if isOwner(userId)
         || (
           isSuperAdmin()
@@ -233,7 +240,11 @@ service cloud.firestore {
     }
 
     match /ecommerceLinks/{linkId} {
-      allow read: if isSuperAdmin()
+      allow get: if isSuperAdmin()
+        || isOwner(linkId)
+        || managerActiveFor(linkId)
+        || resource.data.status == "active";
+      allow list: if isSuperAdmin()
         || resource.data.status == "active";
       allow create: if isSuperAdmin()
         && request.resource.data.ownerUid == linkId
@@ -253,10 +264,9 @@ service cloud.firestore {
         );
       allow list: if canAccessEcommerceRequestsWorkspace(resource.data.ownerUid)
         || isSuperAdmin();
-      allow create: if request.auth == null
-        && request.resource.data.ownerUid is string
+      allow create: if request.resource.data.ownerUid is string
         && request.resource.data.sourceToken is string
-        && hasActiveEcommerceLink(request.resource.data.ownerUid)
+        && hasMatchingActiveEcommerceLink(request.resource.data.ownerUid, request.resource.data.sourceToken)
         && request.resource.data.status == "pending"
         && request.resource.data.vehicleId is string
         && request.resource.data.vehicleLabel is string

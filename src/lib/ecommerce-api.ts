@@ -3,6 +3,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getCountFromServer,
   getDoc,
   getDocs,
   query,
@@ -191,6 +192,12 @@ function mapEcommerceRequest(id: string, data: EcommerceCustomerRequestDoc): Eco
   };
 }
 
+function extractExistingEcommerceRequestId(error: unknown): string | null {
+  if (!(error instanceof Error)) return null;
+  const match = error.message.match(/documents\/ecommerceRequests\/([^/\s)]+)/);
+  return match?.[1] ?? null;
+}
+
 export function buildEcommerceUrl(token: string) {
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   return `${origin}/shop/${token}`;
@@ -297,19 +304,25 @@ export async function createEcommerceCustomerRequest(payload: CreateEcommerceReq
     throw new Error("Nom et téléphone sont obligatoires.");
   }
   const db = getFirebaseDb();
-  const requestRef = await addDoc(collection(db, "ecommerceRequests"), {
-    ownerUid: payload.ownerUid,
-    sourceToken: payload.sourceToken,
-    vehicleId: payload.vehicleId,
-    vehicleLabel: payload.vehicleLabel,
-    requestType: payload.requestType,
-    customerName: payload.customerName.trim(),
-    customerPhone: payload.customerPhone.trim(),
-    status: "pending",
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-  return requestRef.id;
+  try {
+    const requestRef = await addDoc(collection(db, "ecommerceRequests"), {
+      ownerUid: payload.ownerUid,
+      sourceToken: payload.sourceToken,
+      vehicleId: payload.vehicleId,
+      vehicleLabel: payload.vehicleLabel,
+      requestType: payload.requestType,
+      customerName: payload.customerName.trim(),
+      customerPhone: payload.customerPhone.trim(),
+      status: "pending",
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    return requestRef.id;
+  } catch (error) {
+    const existingRequestId = extractExistingEcommerceRequestId(error);
+    if (existingRequestId) return existingRequestId;
+    throw error;
+  }
 }
 
 export async function getPublicEcommerceCustomerRequestStatusRequest(
@@ -332,8 +345,12 @@ export async function listEcommerceCustomerRequestsRequest(): Promise<EcommerceC
 }
 
 export async function countPendingEcommerceCustomerRequestsRequest(): Promise<number> {
-  const requests = await listEcommerceCustomerRequestsRequest();
-  return requests.filter((request) => request.status === "pending").length;
+  const db = getFirebaseDb();
+  const identity = await getWorkspaceIdentity();
+  const countSnap = await getCountFromServer(
+    query(collection(db, "ecommerceRequests"), where("ownerUid", "==", identity.uid), where("status", "==", "pending")),
+  );
+  return countSnap.data().count;
 }
 
 export async function hasActiveEcommerceLinkRequest(): Promise<boolean> {
@@ -342,7 +359,7 @@ export async function hasActiveEcommerceLinkRequest(): Promise<boolean> {
   const linkSnap = await getDoc(doc(db, "ecommerceLinks", identity.uid));
   if (!linkSnap.exists()) return false;
   const link = linkSnap.data() as EcommerceLinkDoc;
-  return link.status === "active";
+  return link.ownerUid === identity.uid && link.status === "active";
 }
 
 export async function updateEcommerceCustomerRequestStatusRequest(

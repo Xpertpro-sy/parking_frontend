@@ -1,11 +1,6 @@
 import { initializeApp, getApps } from "firebase/app";
 import { getAuth, onAuthStateChanged, type User } from "firebase/auth";
-import {
-  getFirestore,
-  initializeFirestore,
-  persistentLocalCache,
-  persistentMultipleTabManager,
-} from "firebase/firestore";
+import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: (import.meta.env.VITE_FIREBASE_API_KEY as string | undefined)?.trim(),
@@ -55,16 +50,7 @@ export function getSecondaryFirebaseAuth() {
 export function getFirebaseDb() {
   if (firebaseDbInstance) return firebaseDbInstance;
   const app = getFirebaseApp();
-  try {
-    firebaseDbInstance = initializeFirestore(app, {
-      localCache: persistentLocalCache({
-        tabManager: persistentMultipleTabManager(),
-      }),
-    });
-  } catch {
-    // Fallback safe si Firestore est deja initialise ailleurs.
-    firebaseDbInstance = getFirestore(app);
-  }
+  firebaseDbInstance = getFirestore(app);
   return firebaseDbInstance;
 }
 

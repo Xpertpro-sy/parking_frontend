@@ -6,12 +6,6 @@ import { useAuth } from '@/context/AuthContext';
 import { AppPermission, getCurrentUserAccessProfile } from '@/lib/access-control';
 import { brandingSettingsQueryKey, getBrandingSettingsRequest } from '@/lib/branding-api';
 import {
-  ecommerceActiveLinkQueryKey,
-  ecommerceRequestsCountQueryKey,
-  countPendingEcommerceCustomerRequestsRequest,
-  hasActiveEcommerceLinkRequest,
-} from '@/lib/ecommerce-api';
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -29,7 +23,7 @@ const navItems = [
   { to: '/comptability', icon: Calculator, label: 'Comptabilité', permission: 'comptability' as AppPermission },
   { to: '/voitures-louees', icon: Car, label: 'Voitures louées', permission: 'rentals' as AppPermission },
   { to: '/voitures-reservees', icon: Car, label: 'Voitures réservées', permission: 'reservations' as AppPermission },
-  { to: '/demandes', icon: MailQuestion, label: 'Demandes', permission: 'ecommerceRequests' as AppPermission, badge: 'ecommerceRequests' },
+  { to: '/demandes', icon: MailQuestion, label: 'Demandes', permission: 'ecommerceRequests' as AppPermission },
   { to: '/history', icon: History, label: 'Historique', permission: 'history' as AppPermission },
   { to: '/comptes', icon: User, label: 'Comptes', permission: 'accounts' as AppPermission },
   { to: '/settings', icon: Settings, label: 'Paramètres', permission: 'settings' as AppPermission },
@@ -50,16 +44,6 @@ export default function MobileNav() {
     queryKey: [...brandingSettingsQueryKey, user?.email ?? 'anonymous'],
     queryFn: getBrandingSettingsRequest,
     enabled: Boolean(user?.email),
-  });
-  const { data: hasActiveEcommerceLink = false } = useQuery({
-    queryKey: ecommerceActiveLinkQueryKey,
-    queryFn: hasActiveEcommerceLinkRequest,
-    enabled: Boolean(user?.email && accessProfile?.permissions.ecommerceRequests),
-  });
-  const { data: pendingEcommerceRequestsCount = 0 } = useQuery({
-    queryKey: ecommerceRequestsCountQueryKey,
-    queryFn: countPendingEcommerceCustomerRequestsRequest,
-    enabled: Boolean(user?.email && accessProfile?.permissions.ecommerceRequests && hasActiveEcommerceLink),
   });
 
   const handleLogout = () => {
@@ -109,7 +93,6 @@ export default function MobileNav() {
           <nav className="flex flex-col px-4 pt-0.5 pb-2 gap-1">
             {navItems.map((item) => {
               if (accessProfile && !accessProfile.permissions[item.permission]) return null;
-              if (item.badge === 'ecommerceRequests' && !hasActiveEcommerceLink) return null;
               const isActive = location.pathname === item.to;
               return (
                 <NavLink
@@ -124,11 +107,6 @@ export default function MobileNav() {
                 >
                   <item.icon className="w-5 h-5" />
                   <span className="flex-1">{item.label}</span>
-                  {item.badge === 'ecommerceRequests' && hasActiveEcommerceLink && (
-                    <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary-foreground">
-                      {pendingEcommerceRequestsCount > 0 ? pendingEcommerceRequestsCount : 'New'}
-                    </span>
-                  )}
                 </NavLink>
               );
             })}

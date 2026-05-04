@@ -1,6 +1,4 @@
-import { QueryClient, defaultShouldDehydrateQuery } from "@tanstack/react-query";
-import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
-import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
@@ -37,12 +35,15 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import NotFound from "./pages/NotFound";
 
-const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+const LEGACY_REACT_QUERY_PERSIST_KEY = "gestion-parking-react-query-cache-v1";
+
+if (typeof window !== "undefined") {
+  window.localStorage.removeItem(LEGACY_REACT_QUERY_PERSIST_KEY);
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // Pas de cache par défaut (sauf requêtes véhicules : voir `vehicle-queries.ts` et persistance ci-dessous).
       staleTime: 0,
       gcTime: 0,
       retry: 1,
@@ -56,26 +57,8 @@ const queryClient = new QueryClient({
   },
 });
 
-const persister = createSyncStoragePersister({
-  storage: typeof window !== "undefined" ? window.localStorage : undefined,
-  key: "gestion-parking-react-query-cache-v1",
-  throttleTime: 1000,
-});
-
 const App = () => (
-  <PersistQueryClientProvider
-    client={queryClient}
-    persistOptions={{
-      persister,
-      maxAge: ONE_DAY_MS,
-      dehydrateOptions: {
-        shouldDehydrateQuery: (query) => {
-          if (query.queryKey[0] !== "vehicles") return false;
-          return defaultShouldDehydrateQuery(query);
-        },
-      },
-    }}
-  >
+  <QueryClientProvider client={queryClient}>
     <AuthProvider>
       <TooltipProvider>
         <Toaster />
@@ -129,7 +112,7 @@ const App = () => (
         </BrowserRouter>
       </TooltipProvider>
     </AuthProvider>
-  </PersistQueryClientProvider>
+  </QueryClientProvider>
 );
 
 export default App;

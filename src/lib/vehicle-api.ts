@@ -185,9 +185,13 @@ function buildDisplayName(userData: UserProfileDoc | null): string {
 
 async function resolveCreatorNameByUid(uid: string): Promise<string> {
   const db = getFirebaseDb();
-  const snap = await getDoc(doc(db, "users", uid));
-  if (!snap.exists()) return "";
-  return buildDisplayName(snap.data() as UserProfileDoc);
+  try {
+    const snap = await getDoc(doc(db, "users", uid));
+    if (!snap.exists()) return "";
+    return buildDisplayName(snap.data() as UserProfileDoc);
+  } catch {
+    return "";
+  }
 }
 
 async function hydrateVehicleCreatorNames(items: Vehicle[], docs: VehicleFirestoreDoc[]): Promise<Vehicle[]> {

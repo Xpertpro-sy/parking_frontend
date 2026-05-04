@@ -185,6 +185,9 @@ async function postAuthFirestoreSync(
     await signOut(auth);
     throw new Error("Ce compte a été clôturé. La connexion n'est plus possible.");
   }
+  if (userData?.role?.toUpperCase() === "ADMIN") {
+    return "ADMIN";
+  }
 
   if (userData?.role?.toUpperCase() === "GESTIONNAIRE" && userData?.managerStatus === "inactive") {
     await signOut(auth);

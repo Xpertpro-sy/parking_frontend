@@ -2,6 +2,7 @@ import { createContext, ReactNode, useContext, useEffect, useState } from "react
 import { useQueryClient } from "@tanstack/react-query";
 import { loginRequest, logoutRequest, registerRequest } from "@/lib/auth-api";
 import { STORAGE_AUTH_TOKEN_KEY, STORAGE_CURRENT_USER_KEY } from "@/lib/auth-session";
+import { waitForFirebaseUser } from "@/lib/firebase";
 
 type AuthUser = {
   userId: number;
@@ -70,9 +71,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    setUser(readStoredUser());
-    setIsLoading(false);
-  }, []);
+    let cancelled = false;
+
+    async function restoreSession() {
+      const storedUser = readStoredUser();
+      if (!storedUser) {
+        if (!cancelled) {
+          setUser(null);
+          setIsLoading(false);
+        }
+        return;
+      }
+
+      const firebaseUser = await waitForFirebaseUser();
+      if (cancelled) return;
+
+      if (!firebaseUser) {
+        queryClient.clear();
+        localStorage.removeItem(REACT_QUERY_PERSIST_KEY);
+        localStorage.removeItem(STORAGE_AUTH_TOKEN_KEY);
+        localStorage.removeItem(STORAGE_CURRENT_USER_KEY);
+        sessionStorage.removeItem(STORAGE_AUTH_TOKEN_KEY);
+        sessionStorage.removeItem(STORAGE_CURRENT_USER_KEY);
+        setUser(null);
+        setIsLoading(false);
+        return;
+      }
+
+      setUser(storedUser);
+      setIsLoading(false);
+    }
+
+    void restoreSession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [queryClient]);
 
   const register = async ({ firstName, lastName, email, phone, password }: RegisterInput) => {
     try {
@@ -93,6 +128,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         role: response.role,
       };
 
+      queryClient.clear();
+      localStorage.removeItem(REACT_QUERY_PERSIST_KEY);
       localStorage.setItem(STORAGE_AUTH_TOKEN_KEY, response.accessToken);
       localStorage.setItem(STORAGE_CURRENT_USER_KEY, JSON.stringify(nextUser));
       sessionStorage.removeItem(STORAGE_AUTH_TOKEN_KEY);
@@ -124,6 +161,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         role: response.role,
       };
 
+      queryClient.clear();
+      localStorage.removeItem(REACT_QUERY_PERSIST_KEY);
       localStorage.setItem(STORAGE_AUTH_TOKEN_KEY, response.accessToken);
       localStorage.setItem(STORAGE_CURRENT_USER_KEY, JSON.stringify(nextUser));
       sessionStorage.removeItem(STORAGE_AUTH_TOKEN_KEY);
