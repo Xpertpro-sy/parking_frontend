@@ -172,7 +172,7 @@ export default function SubscriptionTenantPanel() {
         </div>
       )}
 
-      {isAdmin && (
+      {isAdmin && !state?.isLifetime && (
         <>
           <div>
             <h3 className="text-sm font-semibold text-foreground mb-3">Formules disponibles</h3>
