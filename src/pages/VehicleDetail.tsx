@@ -176,12 +176,15 @@ export default function VehicleDetail() {
     { label: 'Modele', value: vehicle.model },
     { label: 'Annee', value: vehicle.year },
     { label: 'Couleur', value: vehicle.color },
-    { label: 'Immatriculation', value: vehicle.plate },
+    { label: 'Immatriculation', value: vehicle.plate || 'Non renseignée' },
     { label: 'Carburant', value: vehicle.fuel },
     { label: 'Kilometrage', value: `${vehicle.mileage.toLocaleString()} km` },
     { label: 'Etat', value: vehicle.condition },
     { label: 'Prix de vente', value: `${vehicle.salePrice.toLocaleString()} CFA` },
-    { label: 'Prix location/jour', value: `${vehicle.rentalPrice.toLocaleString()} CFA` },
+    {
+      label: 'Prix location/jour',
+      value: vehicle.rentalPrice > 0 ? `${vehicle.rentalPrice.toLocaleString()} CFA` : 'Non renseigné',
+    },
   ];
 
   const hasMultiplePhotos = vehicle.photos.length > 1;

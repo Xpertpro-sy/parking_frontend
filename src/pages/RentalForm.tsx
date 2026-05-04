@@ -77,20 +77,26 @@ export default function RentalForm() {
   const [tenantIdCardPhotoUrl, setTenantIdCardPhotoUrl] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [customDailyPrice, setCustomDailyPrice] = useState("");
   const [withDriver, setWithDriver] = useState(false);
   const [driverFullName, setDriverFullName] = useState("");
   const [driverPhone, setDriverPhone] = useState("");
   const [uploadingIdCard, setUploadingIdCard] = useState(false);
 
+  const vehicleDailyPrice = Number(vehicle?.rentalPrice) || 0;
+  const needsCustomDailyPrice = Boolean(vehicle && vehicleDailyPrice <= 0);
+  const effectiveDailyPrice = needsCustomDailyPrice ? Number(customDailyPrice) || 0 : vehicleDailyPrice;
+
   const amount = useMemo(() => {
     if (!vehicle || !startDate || !endDate) return "";
+    if (effectiveDailyPrice <= 0) return "";
     const start = new Date(startDate);
     const end = new Date(endDate);
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) return "";
     const dayMs = 24 * 60 * 60 * 1000;
     const totalDays = Math.ceil((end.getTime() - start.getTime()) / dayMs);
-    return String(totalDays * vehicle.rentalPrice);
-  }, [vehicle, startDate, endDate]);
+    return String(totalDays * effectiveDailyPrice);
+  }, [effectiveDailyPrice, vehicle, startDate, endDate]);
 
   const onSelectIdCardPhoto = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -120,6 +126,10 @@ export default function RentalForm() {
       toast.error("Informations de location invalides.");
       return;
     }
+    if (needsCustomDailyPrice && effectiveDailyPrice <= 0) {
+      toast.error("Renseignez le prix de location par jour.");
+      return;
+    }
     if (withDriver && (!driverFullName.trim() || !driverPhone.trim())) {
       toast.error("Renseignez le nom complet et le numero du chauffeur.");
       return;
@@ -139,6 +149,7 @@ export default function RentalForm() {
         startDate,
         endDate,
         amount: Number(amount),
+        dailyPrice: needsCustomDailyPrice ? effectiveDailyPrice : undefined,
         driver: withDriver
           ? {
               fullName: driverFullName.trim(),
@@ -233,6 +244,27 @@ export default function RentalForm() {
             />
           </div>
         </div>
+
+        {needsCustomDailyPrice && (
+          <div className="rounded-lg border border-warning/40 bg-warning/10 p-4">
+            <label className="block text-sm font-medium text-foreground mb-1.5">
+              Prix location/jour (CFA)
+            </label>
+            <input
+              type="number"
+              min={1}
+              required
+              value={customDailyPrice}
+              onChange={(event) => setCustomDailyPrice(event.target.value)}
+              placeholder="Ex: 25000"
+              disabled={submitting}
+              className="w-full px-3 py-2.5 bg-secondary border border-border rounded-lg text-sm text-foreground"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              Ce véhicule n'a pas encore de prix de location. Ce prix sera utilisé pour cette location.
+            </p>
+          </div>
+        )}
 
         <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">Numero CNI / ID</label>

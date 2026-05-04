@@ -26,6 +26,7 @@ export type CreateRentalPayload = {
   startDate: string;
   endDate: string;
   amount: number;
+  dailyPrice?: number;
   driver?: RentalDriverPayload;
 };
 
@@ -275,7 +276,12 @@ export async function createRentalRequest(payload: CreateRentalPayload): Promise
     }
 
     const totalDays = computeTotalDays(startDate, endDate);
-    const expectedAmount = totalDays * Number(vehicle.rentalPrice);
+    const vehicleDailyPrice = Number(vehicle.rentalPrice) || 0;
+    const dailyPrice = vehicleDailyPrice > 0 ? vehicleDailyPrice : Number(payload.dailyPrice) || 0;
+    if (dailyPrice <= 0) {
+      throw new Error("Le prix de location par jour est obligatoire pour ce vehicule.");
+    }
+    const expectedAmount = totalDays * dailyPrice;
     if (Number(payload.amount) !== expectedAmount) {
       throw new Error("Le montant calcule est invalide. Veuillez verifier les dates.");
     }
@@ -300,7 +306,7 @@ export async function createRentalRequest(payload: CreateRentalPayload): Promise
       startDate: startDate.toISOString(),
       endDate: endDate.toISOString(),
       totalDays,
-      dailyPrice: Number(vehicle.rentalPrice),
+      dailyPrice,
       amount: expectedAmount,
       startMileage: Number(vehicle.mileage) || 0,
       endMileage: null,
@@ -354,7 +360,7 @@ export async function createRentalRequest(payload: CreateRentalPayload): Promise
       startDate: startDate.toISOString(),
       endDate: endDate.toISOString(),
       totalDays,
-      dailyPrice: Number(vehicle.rentalPrice),
+      dailyPrice,
       rentalAmount: expectedAmount,
       createdByUid: actorUid,
       createdByName: actorName,
@@ -372,7 +378,7 @@ export async function createRentalRequest(payload: CreateRentalPayload): Promise
       source: "caisse",
       reference: receiptNumber,
       amount: expectedAmount,
-      unitPrice: Number(vehicle.rentalPrice),
+      unitPrice: dailyPrice,
       quantity: totalDays,
       operationDate: startDate.toISOString(),
       vehicleId: payload.vehicleId,

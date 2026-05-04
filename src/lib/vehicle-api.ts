@@ -226,6 +226,7 @@ async function hydrateVehicleCreatorNames(items: Vehicle[], docs: VehicleFiresto
 }
 
 async function assertPlateUnique(ownerUid: string, plate: string, excludeVehicleId?: string) {
+  if (!plate.trim()) return;
   const db = getFirebaseDb();
   const existing = await getDocs(
     query(
@@ -243,15 +244,16 @@ async function assertPlateUnique(ownerUid: string, plate: string, excludeVehicle
 export async function createVehicleRequest(payload: CreateVehiclePayload): Promise<VehicleApiResponse> {
   const db = getFirebaseDb();
   const { uid, email, actorUid, actorName } = await getAuthIdentity();
-  await assertPlateUnique(uid, payload.plate);
+  const plate = payload.plate.trim() ? normalizePlate(payload.plate) : "";
+  await assertPlateUnique(uid, plate);
 
   const docPayload: VehicleFirestoreCreateDoc = {
     brand: payload.brand.trim(),
     model: payload.model.trim(),
     year: Number(payload.year),
     color: payload.color.trim(),
-    plate: normalizePlate(payload.plate),
-    plateNormalized: normalizePlate(payload.plate),
+    plate,
+    plateNormalized: plate,
     fuel: payload.fuel.trim(),
     mileage: Number(payload.mileage),
     salePrice: Number(payload.salePrice),
@@ -307,15 +309,16 @@ export async function updateVehicleRequest(vehicleId: string, payload: UpdateVeh
   if (existing.ownerUid !== uid) {
     throw new Error("Acces refuse a ce vehicule.");
   }
-  await assertPlateUnique(uid, payload.plate, vehicleId);
+  const plate = payload.plate.trim() ? normalizePlate(payload.plate) : "";
+  await assertPlateUnique(uid, plate, vehicleId);
 
   const updatePayload: VehicleFirestoreUpdateDoc = {
     brand: payload.brand.trim(),
     model: payload.model.trim(),
     year: Number(payload.year),
     color: payload.color.trim(),
-    plate: normalizePlate(payload.plate),
-    plateNormalized: normalizePlate(payload.plate),
+    plate,
+    plateNormalized: plate,
     fuel: payload.fuel.trim(),
     mileage: Number(payload.mileage),
     salePrice: Number(payload.salePrice),
