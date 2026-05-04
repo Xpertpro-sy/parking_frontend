@@ -432,11 +432,11 @@ export default function HistoryPage() {
 
                 <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-sm">
                   <div>
-                    <p className="text-xs text-muted-foreground">Numero CNI</p>
+                    <p className="text-xs text-muted-foreground">Numero CIN</p>
                     <p className="text-foreground">{rental.tenantIdCardNumber}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground">Photo CNI</p>
+                    <p className="text-xs text-muted-foreground">Photo CIN</p>
                     {rental.tenantIdCardPhotoUrl ? (
                       <a
                         href={rental.tenantIdCardPhotoUrl}

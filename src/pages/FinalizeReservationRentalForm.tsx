@@ -130,9 +130,9 @@ export default function FinalizeReservationRentalForm() {
       const compressed = await compressImage(file);
       const uploadedUrl = await uploadImageToR2(compressed);
       setTenantIdCardPhotoUrl(uploadedUrl);
-      toast.success("Photo CNI uploadee avec succes.");
+      toast.success("Photo CIN uploadee avec succes.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Erreur pendant l'upload de la photo CNI.");
+      toast.error(error instanceof Error ? error.message : "Erreur pendant l'upload de la photo CIN.");
     } finally {
       setUploadingIdCard(false);
       event.target.value = "";
@@ -276,13 +276,13 @@ export default function FinalizeReservationRentalForm() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-foreground mb-1.5">Numero CNI / ID</label>
+          <label className="block text-sm font-medium text-foreground mb-1.5">Numero CIN / ID</label>
           <input
             type="text"
             required
             value={tenantIdCardNumber}
             onChange={(event) => setTenantIdCardNumber(event.target.value)}
-            placeholder="Ex: CNI123456789"
+            placeholder="Ex: CIN123456789"
             disabled={submitting}
             className="w-full px-3 py-2.5 bg-secondary border border-border rounded-lg text-sm text-foreground"
           />
@@ -337,7 +337,7 @@ export default function FinalizeReservationRentalForm() {
                 <Upload className="w-5 h-5 text-muted-foreground" />
               )}
               <span className="text-xs text-muted-foreground">
-                {uploadingIdCard ? "Upload..." : "Ajouter photo CNI"}
+                {uploadingIdCard ? "Upload..." : "Ajouter photo CIN"}
               </span>
               <input
                 type="file"

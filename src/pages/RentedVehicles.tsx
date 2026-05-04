@@ -211,11 +211,11 @@ export default function RentedVehicles() {
                     <p className="text-foreground font-semibold">{rental.amount.toLocaleString()} CFA</p>
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground">Numero CNI</p>
+                    <p className="text-xs text-muted-foreground">Numero CIN</p>
                     <p className="text-foreground">{rental.tenantIdCardNumber}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground">Photo CNI</p>
+                    <p className="text-xs text-muted-foreground">Photo CIN</p>
                     {rental.tenantIdCardPhotoUrl ? (
                       <a
                         href={rental.tenantIdCardPhotoUrl}

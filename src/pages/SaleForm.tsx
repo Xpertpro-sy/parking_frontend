@@ -179,7 +179,7 @@ export default function SaleForm() {
               required
               value={buyerIdCardNumber}
               onChange={(event) => setBuyerIdCardNumber(event.target.value)}
-              placeholder="CNI, passeport ou autre"
+              placeholder="CIN, passeport ou autre"
               disabled={submitting}
               className="w-full px-3 py-2.5 bg-secondary border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
             />

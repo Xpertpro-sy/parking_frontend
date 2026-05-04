@@ -768,12 +768,12 @@ export default function VehicleDetail() {
       </AlertDialog>
 
       <Dialog open={showReservationModal} onOpenChange={setShowReservationModal}>
-        <DialogContent>
+        <DialogContent className="max-h-[90dvh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle>Nouvelle reservation</DialogTitle>
             <DialogDescription>Renseignez les informations du client pour reserver ce vehicule.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
+          <div className="space-y-3 overflow-y-auto pr-1">
             <div>
               <label className="block text-sm text-foreground mb-1">Nom client</label>
               <input
@@ -841,7 +841,7 @@ export default function VehicleDetail() {
               />
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="shrink-0">
             <button
               type="button"
               onClick={() => setShowReservationModal(false)}
@@ -862,12 +862,12 @@ export default function VehicleDetail() {
       </Dialog>
 
       <Dialog open={showRepairModal} onOpenChange={setShowRepairModal}>
-        <DialogContent>
+        <DialogContent className="max-h-[90dvh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle>Mettre en reparation</DialogTitle>
             <DialogDescription>Renseignez les details de la reparation du vehicule.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
+          <div className="space-y-3 overflow-y-auto pr-1">
             <div>
               <label className="block text-sm text-foreground mb-1">Motif</label>
               <textarea
@@ -941,7 +941,7 @@ export default function VehicleDetail() {
               />
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="shrink-0">
             <button
               type="button"
               onClick={() => setShowRepairModal(false)}
