@@ -40,7 +40,7 @@ export default function MobileNav() {
     queryFn: getCurrentUserAccessProfile,
     enabled: Boolean(user?.email),
   });
-  const { data: branding } = useQuery({
+  const { data: branding, isLoading: brandingLoading } = useQuery({
     queryKey: [...brandingSettingsQueryKey, user?.email ?? 'anonymous'],
     queryFn: getBrandingSettingsRequest,
     enabled: Boolean(user?.email),
@@ -66,7 +66,12 @@ export default function MobileNav() {
         className="md:hidden flex items-center justify-between px-4 py-3 bg-sidebar border-b border-sidebar-border"
         style={mobileHeaderStyle}
       >
-        {branding?.mode === 'image' && branding.imageDataUrl ? (
+        {brandingLoading ? (
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-sidebar-accent animate-pulse shrink-0" />
+            <div className="h-5 w-24 rounded bg-sidebar-accent animate-pulse" />
+          </div>
+        ) : branding?.mode === 'image' && branding.imageDataUrl ? (
           <div className="h-9 w-[170px] max-w-[65vw] rounded-lg bg-card/60 overflow-hidden flex items-center justify-center">
             <img
               src={branding.imageDataUrl}

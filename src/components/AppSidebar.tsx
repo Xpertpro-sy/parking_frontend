@@ -50,7 +50,7 @@ export default function AppSidebar() {
     queryFn: getCurrentUserAccessProfile,
     enabled: Boolean(user?.email),
   });
-  const { data: branding } = useQuery({
+  const { data: branding, isLoading: brandingLoading } = useQuery({
     queryKey: [...brandingSettingsQueryKey, user?.email ?? 'anonymous'],
     queryFn: getBrandingSettingsRequest,
     enabled: Boolean(user?.email),
@@ -64,7 +64,12 @@ export default function AppSidebar() {
   return (
     <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-sidebar-border bg-sidebar overflow-hidden md:flex">
       {/* Logo */}
-      {branding?.mode === 'image' && branding.imageDataUrl ? (
+      {brandingLoading ? (
+        <div className="flex items-center gap-3 px-6 py-5 border-b border-sidebar-border">
+          <div className="w-9 h-9 rounded-lg bg-sidebar-accent animate-pulse shrink-0" />
+          <div className="h-5 w-28 rounded bg-sidebar-accent animate-pulse" />
+        </div>
+      ) : branding?.mode === 'image' && branding.imageDataUrl ? (
         <div className="px-4 py-[5px] border-b border-sidebar-border">
           <div className="h-16 w-full rounded-lg bg-card/60 overflow-hidden flex items-center justify-center">
             <img
